@@ -15,8 +15,12 @@ const KNOWN_CODES = [
   'INVALID_ADMIN_CODE',
   'ADMIN_CODE_NOT_CONFIGURED',
   'INVALID_CREDENTIALS',
-  'INVALID_SESSION',
+  'PIN_LOCKED',
   'INVALID_PIN_FORMAT',
+  'PIN_CHANGE_REQUIRED',
+  'TEMP_PIN_EXPIRED',
+  'SESSION_EXPIRED',
+  'INVALID_SESSION',
   'INVALID_PLAYER',
   'INVALID_PLAYER_NAME',
   'DUPLICATE_PLAYER_NAME',
@@ -54,6 +58,11 @@ const KNOWN_CODES = [
   'PUSH_SUBSCRIPTION_INVALID',
 ] as const
 
+const UNKNOWN_USER_MESSAGE =
+  'Une erreur est survenue. Réessaie dans quelques instants.'
+const NETWORK_USER_MESSAGE =
+  'Connexion impossible. Vérifie ta connexion internet et réessaie.'
+
 export function getErrorCode(error: unknown): string | null {
   if (error instanceof ApiError) return error.code
 
@@ -71,7 +80,39 @@ export function getErrorCode(error: unknown): string | null {
   return null
 }
 
+function isNetworkError(error: unknown): boolean {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return true
+  }
+
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : ''
+
+  return /failed to fetch|networkerror|network request failed|load failed|fetch failed|err_network|offline/i.test(
+    message,
+  )
+}
+
+/** Journalise les détails techniques uniquement en développement. */
+export function logDevError(error: unknown): void {
+  if (import.meta.env.DEV) {
+    console.error(error)
+  }
+}
+
+/**
+ * Message utilisateur unique — jamais de code SQL, message Supabase brut
+ * ni stack technique.
+ */
 export function toUserMessage(error: unknown): string {
+  if (isNetworkError(error)) {
+    return NETWORK_USER_MESSAGE
+  }
+
   const code = getErrorCode(error)
 
   switch (code) {
@@ -86,11 +127,19 @@ export function toUserMessage(error: unknown): string {
     case 'ADMIN_CODE_NOT_CONFIGURED':
       return 'Le code administrateur n’est pas encore configuré côté Supabase.'
     case 'INVALID_CREDENTIALS':
-      return 'Connexion impossible, réessaie plus tard.'
-    case 'INVALID_SESSION':
-      return 'Session expirée. Reconnecte-toi avec ton PIN.'
+      return 'PIN incorrect. Vérifie le code reçu et réessaie.'
+    case 'PIN_LOCKED':
+      return 'Trop de tentatives. Réessaie dans quelques minutes.'
     case 'INVALID_PIN_FORMAT':
-      return 'Le PIN doit contenir 4 ou 6 chiffres.'
+      return 'Le PIN doit contenir exactement 4 ou 6 chiffres.'
+    case 'PIN_CHANGE_REQUIRED':
+      return 'Tu dois choisir un nouveau PIN pour continuer.'
+    case 'TEMP_PIN_EXPIRED':
+      return 'Ce PIN temporaire a expiré. Demande un nouveau PIN à l’administrateur.'
+    case 'SESSION_EXPIRED':
+      return 'Ta session a expiré. Connecte-toi à nouveau.'
+    case 'INVALID_SESSION':
+      return 'Ta session n’est plus valide. Connecte-toi à nouveau.'
     case 'INVALID_PLAYER':
       return 'Ce joueur est introuvable ou inactif.'
     case 'INVALID_PLAYER_NAME':
@@ -112,7 +161,7 @@ export function toUserMessage(error: unknown): string {
     case 'INCOMPLETE_RESULT':
       return 'Un match terminé doit avoir ses deux scores.'
     case 'MATCH_LOCKED':
-      return 'Le match vient de commencer : les pronostics sont verrouillés.'
+      return 'Ce match a commencé : les pronostics sont maintenant verrouillés.'
     case 'MATCH_NOT_OPENABLE':
       return 'Ce match n’accepte plus de pronostic.'
     case 'MATCH_NOT_FOUND':
@@ -160,7 +209,6 @@ export function toUserMessage(error: unknown): string {
     case 'PUSH_SUBSCRIPTION_INVALID':
       return 'Abonnement push incomplet. Réessaie.'
     default:
-      if (error instanceof Error && error.message) return error.message
-      return 'Une erreur est survenue. Réessaie dans un instant.'
+      return UNKNOWN_USER_MESSAGE
   }
 }

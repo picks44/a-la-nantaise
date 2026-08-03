@@ -4,7 +4,8 @@ import { LogOut, Shield, UserRound } from 'lucide-react'
 import { PwaInstallSection } from '../components/PwaInstallSection'
 import { PushNotificationsSection } from '../components/PushNotificationsSection'
 import { useSession } from '../context/useSession'
-import { toUserMessage } from '../lib/errors'
+import { logDevError, toUserMessage } from '../lib/errors'
+import { isValidPinFormat, sanitizePinInput } from '../lib/pin'
 
 export function SettingsPage() {
   const {
@@ -33,6 +34,7 @@ export function SettingsPage() {
     try {
       await logout()
     } catch (err) {
+      logDevError(err)
       setError(toUserMessage(err))
     } finally {
       setPending(false)
@@ -43,6 +45,10 @@ export function SettingsPage() {
     event.preventDefault()
     setError(null)
     setMessage(null)
+    if (!isValidPinFormat(oldPin) || !isValidPinFormat(newPin)) {
+      setError(toUserMessage(new Error('INVALID_PIN_FORMAT')))
+      return
+    }
     if (newPin !== confirmPin) {
       setError('Les deux nouveaux PIN ne correspondent pas.')
       return
@@ -55,6 +61,7 @@ export function SettingsPage() {
       setConfirmPin('')
       setMessage('PIN mis à jour.')
     } catch (err) {
+      logDevError(err)
       setError(toUserMessage(err))
     } finally {
       setPending(false)
@@ -117,10 +124,9 @@ export function SettingsPage() {
               type="password"
               inputMode="numeric"
               autoComplete="current-password"
+              maxLength={6}
               value={oldPin}
-              onChange={(event) =>
-                setOldPin(event.target.value.replace(/\D/g, '').slice(0, 6))
-              }
+              onChange={(event) => setOldPin(sanitizePinInput(event.target.value))}
               required
               className="w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas px-3 py-3 font-semibold tracking-[0.3em]"
             />
@@ -137,10 +143,9 @@ export function SettingsPage() {
               type="password"
               inputMode="numeric"
               autoComplete="new-password"
+              maxLength={6}
               value={newPin}
-              onChange={(event) =>
-                setNewPin(event.target.value.replace(/\D/g, '').slice(0, 6))
-              }
+              onChange={(event) => setNewPin(sanitizePinInput(event.target.value))}
               required
               className="w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas px-3 py-3 font-semibold tracking-[0.3em]"
             />
@@ -150,16 +155,17 @@ export function SettingsPage() {
               htmlFor={confirmPinId}
               className="mb-1 block text-[11px] font-bold tracking-[0.12em] uppercase"
             >
-              Confirmer
+              Confirmer le nouveau PIN
             </label>
             <input
               id={confirmPinId}
               type="password"
               inputMode="numeric"
               autoComplete="new-password"
+              maxLength={6}
               value={confirmPin}
               onChange={(event) =>
-                setConfirmPin(event.target.value.replace(/\D/g, '').slice(0, 6))
+                setConfirmPin(sanitizePinInput(event.target.value))
               }
               required
               className="w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas px-3 py-3 font-semibold tracking-[0.3em]"
@@ -170,7 +176,8 @@ export function SettingsPage() {
             className="btn-ink"
             disabled={
               pending ||
-              (newPin.length !== 4 && newPin.length !== 6) ||
+              !isValidPinFormat(oldPin) ||
+              !isValidPinFormat(newPin) ||
               newPin !== confirmPin
             }
           >

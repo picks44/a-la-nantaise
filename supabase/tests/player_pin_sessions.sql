@@ -238,7 +238,7 @@ BEGIN
     current_setting('test.temp_pin_a')
   );
 
-  PERFORM public.change_player_pin(kept, current_setting('test.temp_pin_a'), '654321');
+  PERFORM public.change_player_pin(kept, current_setting('test.temp_pin_a'), '4321');
 
   BEGIN
     PERFORM public.assert_player_session(other.session_token);
@@ -255,6 +255,30 @@ BEGIN
 END;
 $$;
 
+-- PIN personnel à 4 chiffres accepté après PIN temporaire à 6 chiffres
+DO $$
+DECLARE
+  rec RECORD;
+BEGIN
+  IF current_setting('test.temp_pin_a') !~ '^\d{6}$' THEN
+    RAISE EXCEPTION 'TEST_FAIL: PIN temporaire admin doit faire 6 chiffres';
+  END IF;
+
+  SELECT * INTO rec
+  FROM public.login_player(
+    'test-code-aln',
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaac01',
+    '4321'
+  );
+
+  IF rec.must_change_pin IS TRUE THEN
+    RAISE EXCEPTION 'TEST_FAIL: must_change_pin devrait être false après change à 4 chiffres';
+  END IF;
+
+  PERFORM set_config('test.session_a', rec.session_token, true);
+END;
+$$;
+
 -- Logout révoque
 DO $$
 DECLARE
@@ -264,7 +288,7 @@ BEGIN
   FROM public.login_player(
     'test-code-aln',
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaac01',
-    '654321'
+    '4321'
   );
 
   IF public.logout_player(rec.session_token) IS NOT TRUE THEN
@@ -293,7 +317,7 @@ BEGIN
   FROM public.login_player(
     'test-code-aln',
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaac01',
-    '654321'
+    '4321'
   );
 
   v_hash := public.hash_session_token(rec.session_token);

@@ -1,17 +1,21 @@
 import { useId, useState, type FormEvent, type ReactNode } from 'react'
 import { KeyRound, LockKeyhole, UserRound } from 'lucide-react'
 import { useSession } from '../context/useSession'
-import { toUserMessage } from '../lib/errors'
+import { logDevError, toUserMessage } from '../lib/errors'
+import { isValidPinFormat, sanitizePinInput } from '../lib/pin'
 
 export function AccessPage() {
   const {
     phase,
     players,
     pendingPlayerId,
+    activePlayer,
+    canCompleteForcedPinChange,
     bootstrapError,
     submitAccessCode,
     selectPlayerForLogin,
     loginWithPin,
+    completeForcedPinChange,
     changePin,
   } = useSession()
 
@@ -31,6 +35,8 @@ export function AccessPage() {
 
   const pendingPlayer =
     players.find((player) => player.id === pendingPlayerId) ?? null
+  const pinOwnerPseudo =
+    pendingPlayer?.pseudo ?? activePlayer?.pseudo ?? 'ce joueur'
 
   async function handleSubmitCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -40,6 +46,7 @@ export function AccessPage() {
       await submitAccessCode(code)
       setCode('')
     } catch (err) {
+      logDevError(err)
       setError(toUserMessage(err))
     } finally {
       setPending(false)
@@ -49,31 +56,49 @@ export function AccessPage() {
   async function handleSubmitPin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
+    if (!isValidPinFormat(pin)) {
+      setError(toUserMessage(new Error('INVALID_PIN_FORMAT')))
+      return
+    }
     setPending(true)
     try {
       await loginWithPin(pin)
       setPin('')
     } catch (err) {
+      logDevError(err)
       setError(toUserMessage(err))
     } finally {
       setPending(false)
     }
   }
 
-  async function handleChangePin(event: FormEvent<HTMLFormElement>) {
+  async function handleForcedPinChange(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
+    if (!isValidPinFormat(newPin)) {
+      setError(toUserMessage(new Error('INVALID_PIN_FORMAT')))
+      return
+    }
     if (newPin !== confirmPin) {
       setError('Les deux nouveaux PIN ne correspondent pas.')
       return
     }
+    if (!canCompleteForcedPinChange && !isValidPinFormat(oldPin)) {
+      setError(toUserMessage(new Error('INVALID_PIN_FORMAT')))
+      return
+    }
     setPending(true)
     try {
-      await changePin(oldPin, newPin)
+      if (canCompleteForcedPinChange) {
+        await completeForcedPinChange(newPin)
+      } else {
+        await changePin(oldPin, newPin)
+      }
       setOldPin('')
       setNewPin('')
       setConfirmPin('')
     } catch (err) {
+      logDevError(err)
       setError(toUserMessage(err))
     } finally {
       setPending(false)
@@ -95,9 +120,10 @@ export function AccessPage() {
   if (phase === 'needs_pin_change') {
     return (
       <AccessShell>
-        <h1 className="title-display text-xl">Nouveau PIN requis</h1>
+        <h1 className="title-display text-xl">Choisis ton nouveau PIN</h1>
         <p className="mt-1 text-sm text-muted">
-          Pour sécuriser ton accès, choisis un PIN personnel à 4 ou 6 chiffres.
+          Ton PIN temporaire doit être remplacé par un PIN personnel à 4 ou 6
+          chiffres.
         </p>
 
         {error ? (
@@ -106,26 +132,31 @@ export function AccessPage() {
           </p>
         ) : null}
 
-        <form onSubmit={handleChangePin} className="mt-5 space-y-4">
-          <div>
-            <label
-              htmlFor={oldPinId}
-              className="mb-2 block text-[11px] font-bold tracking-[0.12em] uppercase"
-            >
-              PIN temporaire
-            </label>
-            <input
-              id={oldPinId}
-              type="password"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              value={oldPin}
-              onChange={(event) => setOldPin(event.target.value.replace(/\D/g, '').slice(0, 6))}
-              required
-              className="w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas px-3 py-3 font-semibold tracking-[0.3em]"
-              placeholder="••••"
-            />
-          </div>
+        <form onSubmit={handleForcedPinChange} className="mt-5 space-y-4">
+          {!canCompleteForcedPinChange ? (
+            <div>
+              <label
+                htmlFor={oldPinId}
+                className="mb-2 block text-[11px] font-bold tracking-[0.12em] uppercase"
+              >
+                PIN temporaire
+              </label>
+              <input
+                id={oldPinId}
+                type="password"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={oldPin}
+                onChange={(event) =>
+                  setOldPin(sanitizePinInput(event.target.value))
+                }
+                required
+                className="w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas px-3 py-3 font-semibold tracking-[0.3em]"
+                placeholder="••••••"
+              />
+            </div>
+          ) : null}
           <div>
             <label
               htmlFor={newPinId}
@@ -138,8 +169,11 @@ export function AccessPage() {
               type="password"
               inputMode="numeric"
               autoComplete="new-password"
+              maxLength={6}
               value={newPin}
-              onChange={(event) => setNewPin(event.target.value.replace(/\D/g, '').slice(0, 6))}
+              onChange={(event) =>
+                setNewPin(sanitizePinInput(event.target.value))
+              }
               required
               className="w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas px-3 py-3 font-semibold tracking-[0.3em]"
               placeholder="••••"
@@ -150,16 +184,17 @@ export function AccessPage() {
               htmlFor={confirmPinId}
               className="mb-2 block text-[11px] font-bold tracking-[0.12em] uppercase"
             >
-              Confirmer le PIN
+              Confirmer le nouveau PIN
             </label>
             <input
               id={confirmPinId}
               type="password"
               inputMode="numeric"
               autoComplete="new-password"
+              maxLength={6}
               value={confirmPin}
               onChange={(event) =>
-                setConfirmPin(event.target.value.replace(/\D/g, '').slice(0, 6))
+                setConfirmPin(sanitizePinInput(event.target.value))
               }
               required
               className="w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas px-3 py-3 font-semibold tracking-[0.3em]"
@@ -170,8 +205,9 @@ export function AccessPage() {
             type="submit"
             disabled={
               pending ||
-              (newPin.length !== 4 && newPin.length !== 6) ||
-              newPin !== confirmPin
+              !isValidPinFormat(newPin) ||
+              newPin !== confirmPin ||
+              (!canCompleteForcedPinChange && !isValidPinFormat(oldPin))
             }
             className="btn-ink"
           >
@@ -187,9 +223,7 @@ export function AccessPage() {
       <AccessShell>
         <h1 className="title-display text-xl">Ton PIN</h1>
         <p className="mt-1 text-sm text-muted">
-          {pendingPlayer
-            ? `Entre le PIN de ${pendingPlayer.pseudo}.`
-            : 'Entre ton PIN personnel.'}
+          Entre le PIN à 4 ou 6 chiffres de {pinOwnerPseudo}.
         </p>
 
         {error ? (
@@ -204,7 +238,7 @@ export function AccessPage() {
               htmlFor={pinId}
               className="mb-2 block text-[11px] font-bold tracking-[0.12em] uppercase"
             >
-              PIN
+              PIN à 4 ou 6 chiffres
             </label>
             <div className="relative">
               <LockKeyhole
@@ -216,19 +250,18 @@ export function AccessPage() {
                 type="password"
                 inputMode="numeric"
                 autoComplete="current-password"
+                maxLength={6}
                 value={pin}
-                onChange={(event) =>
-                  setPin(event.target.value.replace(/\D/g, '').slice(0, 6))
-                }
+                onChange={(event) => setPin(sanitizePinInput(event.target.value))}
                 required
                 className="w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas py-3 pr-3 pl-10 font-semibold tracking-[0.3em] text-ink transition focus:bg-surface"
-                placeholder="••••"
+                placeholder="••••••"
               />
             </div>
           </div>
           <button
             type="submit"
-            disabled={pending || (pin.length !== 4 && pin.length !== 6)}
+            disabled={pending || !isValidPinFormat(pin)}
             className="btn-ink"
           >
             {pending ? 'Connexion…' : 'Se connecter'}

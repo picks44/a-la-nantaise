@@ -294,6 +294,7 @@ function PlayersAdmin({ adminCode }: { adminCode: string }) {
     pin: string
     expiresAt: string
   } | null>(null)
+  const [pinCopied, setPinCopied] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -383,6 +384,7 @@ function PlayersAdmin({ adminCode }: { adminCode: string }) {
     setPending(true)
     setError(null)
     setMessage(null)
+    setPinCopied(false)
     try {
       const result = await adminResetPlayerPin(adminCode, player.id)
       setRevealedPin({
@@ -391,13 +393,21 @@ function PlayersAdmin({ adminCode }: { adminCode: string }) {
         pin: result.temporaryPin,
         expiresAt: result.expiresAt,
       })
-      setMessage(
-        'PIN temporaire généré. Communique-le une seule fois, puis ferme cet affichage.',
-      )
+      setMessage(null)
     } catch (err) {
       setError(toUserMessage(err))
     } finally {
       setPending(false)
+    }
+  }
+
+  async function handleCopyTempPin() {
+    if (!revealedPin) return
+    try {
+      await navigator.clipboard.writeText(revealedPin.pin)
+      setPinCopied(true)
+    } catch {
+      setError(toUserMessage(new Error('UNKNOWN')))
     }
   }
 
@@ -446,24 +456,45 @@ function PlayersAdmin({ adminCode }: { adminCode: string }) {
             id="revealed-pin-title"
             className="text-sm font-black tracking-[0.08em] uppercase"
           >
-            PIN temporaire — {revealedPin.pseudo}
+            Nouveau PIN temporaire
           </h2>
+          <p className="mt-1 text-sm font-semibold text-ink">
+            {revealedPin.pseudo}
+          </p>
           <p className="mt-2 font-mono text-2xl font-black tracking-[0.35em]">
             {revealedPin.pin}
           </p>
           <p className="mt-2 text-sm text-ink">
-            Expire le{' '}
-            {new Date(revealedPin.expiresAt).toLocaleString('fr-FR')}. Affiché
-            une seule fois ; le joueur devra en choisir un nouveau à la
-            connexion.
+            Copie ce PIN maintenant : il ne sera plus affiché ensuite et
+            expirera dans 48 heures.
           </p>
-          <button
-            type="button"
-            className="btn-ink mt-4"
-            onClick={() => setRevealedPin(null)}
-          >
-            J’ai noté le PIN
-          </button>
+          <p className="mt-1 text-xs text-muted">
+            Expire le {new Date(revealedPin.expiresAt).toLocaleString('fr-FR')}.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn-ink"
+              onClick={() => void handleCopyTempPin()}
+            >
+              Copier le PIN
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => {
+                setRevealedPin(null)
+                setPinCopied(false)
+              }}
+            >
+              Fermer
+            </button>
+          </div>
+          {pinCopied ? (
+            <p role="status" className="mt-2 text-sm font-semibold text-green-dark">
+              PIN copié
+            </p>
+          ) : null}
         </section>
       ) : null}
 
