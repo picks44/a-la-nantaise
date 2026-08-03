@@ -23,6 +23,10 @@ const edgePath = join(
   root,
   'supabase/functions/sync-fc-nantes/index.ts',
 )
+const schedulePath = join(
+  root,
+  'supabase/schedule_fixture_sync.example.sql',
+)
 
 const rawFixtures = JSON.parse(readFileSync(fixturePath, 'utf8'))
 
@@ -315,5 +319,30 @@ describe('fixture sync migration and edge function', () => {
   it('documents refusal of a bad admin code in the edge function', () => {
     assert.match(edge, /INVALID_ADMIN_CODE/)
     assert.match(edge, /Code administrateur incorrect/)
+  })
+})
+
+describe('daily fixture sync schedule', () => {
+  const schedule = readFileSync(schedulePath, 'utf8')
+
+  it('runs daily and invokes the existing Edge Function', () => {
+    assert.match(schedule, /'15 5 \* \* \*'/)
+    assert.match(schedule, /\/functions\/v1\/sync-fc-nantes/)
+    assert.match(schedule, /net\.http_post/)
+    assert.match(schedule, /a-la-nantaise-daily-fixture-sync/)
+  })
+
+  it('reads credentials from Vault without hard-coding them', () => {
+    assert.match(schedule, /vault\.decrypted_secrets/)
+    assert.match(schedule, /function_anon_key/)
+    assert.match(schedule, /fixture_sync_admin_code/)
+    assert.match(schedule, /jsonb_build_object\(\s*'admin_code'/)
+    assert.doesNotMatch(schedule, /service_role/i)
+    assert.doesNotMatch(schedule, /https:\/\/[a-z0-9-]+\.supabase\.co/i)
+  })
+
+  it('replaces an existing job with the same name', () => {
+    assert.match(schedule, /cron\.unschedule\(existing_job_id\)/)
+    assert.match(schedule, /cron\.schedule\(/)
   })
 })
