@@ -1,0 +1,101 @@
+@import "tailwindcss";
+@import "@fontsource/poppins/latin-400.css";
+@import "@fontsource/poppins/latin-500.css";
+@import "@fontsource/poppins/latin-600.css";
+@import "@fontsource/poppins/latin-700.css";
+@import "@fontsource/poppins/latin-800.css";
+@import "@fontsource/poppins/latin-900.css";
+@import "@fontsource/poppins/latin-ext-400.css";
+@import "@fontsource/poppins/latin-ext-500.css";
+@import "@fontsource/poppins/latin-ext-600.css";
+@import "@fontsource/poppins/latin-ext-700.css";
+@import "@fontsource/poppins/latin-ext-800.css";
+@import "@fontsource/poppins/latin-ext-900.css";
+
+@theme {
+  --color-yellow: #ffdd00;
+  --color-green: #008a4b;
+  --color-green-dark: #063f2e;
+  --color-ink: #191919;
+  --color-canvas: #f4f4f0;
+  --color-surface: #ffffff;
+  --color-muted: #5c5c56;
+  --color-border: #d0d0c8;
+  --color-danger: #b42318;
+  --color-danger-soft: #f8e8e6;
+
+  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+
+  --shadow-none: 0 0 #0000;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  body {
+    @apply m-0 min-h-dvh bg-canvas font-sans text-ink antialiased;
+  }
+
+  #root {
+    @apply min-h-dvh;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+
+  input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    margin: 0;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+}
+
+@layer components {
+  .label-caps {
+    @apply text-[11px] font-bold tracking-[0.14em] uppercase text-muted;
+  }
+
+  .title-display {
+    @apply font-sans text-2xl font-black tracking-tight uppercase sm:text-[1.75rem];
+  }
+
+  .panel {
+    @apply rounded-[var(--radius-md)] border border-border bg-surface;
+  }
+
+  .btn-ink {
+    @apply inline-flex w-full items-center justify-center rounded-[var(--radius-sm)] bg-ink px-4 py-3.5 text-sm font-extrabold tracking-[0.06em] text-yellow uppercase transition hover:bg-green-dark disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[14rem];
+  }
+
+  .btn-yellow {
+    @apply inline-flex w-full items-center justify-center rounded-[var(--radius-sm)] bg-yellow px-4 py-3.5 text-sm font-extrabold tracking-[0.06em] text-ink uppercase transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+}

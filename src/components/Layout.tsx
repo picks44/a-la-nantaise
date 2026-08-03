@@ -1,0 +1,99 @@
+import { Link, NavLink } from 'react-router-dom'
+import { CalendarDays, Home, Settings, Trophy } from 'lucide-react'
+import { useSession } from '../context/useSession'
+
+const navItems = [
+  { to: '/', label: 'Accueil', icon: Home, end: true },
+  { to: '/calendrier', label: 'Calendrier', icon: CalendarDays, end: false },
+  { to: '/classement', label: 'Classement', icon: Trophy, end: false },
+] as const
+
+function desktopNavClass({ isActive }: { isActive: boolean }): string {
+  return [
+    'relative px-2 py-1 text-xs font-extrabold tracking-[0.12em] uppercase transition-colors',
+    isActive
+      ? 'text-ink after:absolute after:right-0 after:bottom-0 after:left-0 after:h-0.5 after:bg-ink'
+      : 'text-ink/65 hover:text-ink',
+  ].join(' ')
+}
+
+function mobileNavClass({ isActive }: { isActive: boolean }): string {
+  return [
+    'flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 px-2 py-2 text-[10px] font-bold tracking-[0.08em] uppercase transition-colors',
+    isActive ? 'text-yellow' : 'text-white/65 hover:text-white',
+  ].join(' ')
+}
+
+export function Header() {
+  const { activePlayer } = useSession()
+
+  return (
+    <header className="border-b-2 border-ink bg-yellow">
+      <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="hidden size-9 shrink-0 items-center justify-center border-2 border-ink bg-ink text-[11px] font-black tracking-tight text-yellow sm:inline-flex"
+          >
+            ALN
+          </span>
+          <div className="min-w-0">
+            <Link
+              to="/"
+              className="block truncate text-lg font-black tracking-tight text-ink uppercase sm:text-xl"
+            >
+              À la Nantaise
+            </Link>
+            <p className="text-[10px] font-bold tracking-[0.16em] text-green-dark uppercase">
+              Pronos 26/27
+              <span className="mx-1.5 text-ink/30">·</span>
+              <span className="tracking-normal text-ink/70 normal-case">
+                {activePlayer?.pseudo ?? '—'}
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 sm:gap-3">
+          <nav
+            className="hidden items-center gap-4 md:flex"
+            aria-label="Navigation principale"
+          >
+            {navItems.map(({ to, label, end }) => (
+              <NavLink key={to} to={to} end={end} className={desktopNavClass}>
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+
+          <Link
+            to="/parametres"
+            className="inline-flex size-10 items-center justify-center border border-ink/20 text-ink transition hover:border-ink hover:bg-ink hover:text-yellow"
+            aria-label="Paramètres d’accès"
+            title="Paramètres d’accès"
+          >
+            <Settings aria-hidden="true" className="size-5" strokeWidth={2.25} />
+          </Link>
+        </div>
+      </div>
+    </header>
+  )
+}
+
+export function BottomNav() {
+  return (
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-ink pb-[env(safe-area-inset-bottom)] md:hidden"
+      aria-label="Navigation mobile"
+    >
+      <div className="mx-auto flex max-w-lg">
+        {navItems.map(({ to, label, icon: Icon, end }) => (
+          <NavLink key={to} to={to} end={end} className={mobileNavClass}>
+            <Icon aria-hidden="true" className="size-5" strokeWidth={2.25} />
+            <span>{label}</span>
+          </NavLink>
+        ))}
+      </div>
+    </nav>
+  )
+}
