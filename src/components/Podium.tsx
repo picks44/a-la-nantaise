@@ -14,6 +14,9 @@ interface GroupRankingProps {
   /** compact = accueil ; full = page Classement onglet Général */
   variant?: 'compact' | 'full'
   emptyMessage?: string
+  /** Accueil : aucun résultat noté encore — message compact à la place de la liste. */
+  awaitingFirstResult?: boolean
+  participantCount?: number
 }
 
 function RankingRow({
@@ -32,6 +35,7 @@ function RankingRow({
   variant: 'compact' | 'full'
 }) {
   const isLeaderMark = rank === 1 && isFirstOccurrenceOfRank
+  const hasScoredResults = player.scoredPredictions > 0
 
   return (
     <li
@@ -86,34 +90,36 @@ function RankingRow({
 
         {variant === 'compact' ? (
           <p className="text-xs font-medium text-ink/70">
-            {player.exactScores} score
-            {player.exactScores > 1 ? 's' : ''} exact
-            {player.exactScores > 1 ? 's' : ''}
+            {`${player.exactScores} score${player.exactScores > 1 ? 's' : ''} exact${player.exactScores > 1 ? 's' : ''}`}
           </p>
-        ) : (
+        ) : hasScoredResults ? (
           <div className="mt-1 space-y-0.5 text-xs font-medium text-ink/70">
             <p className="flex flex-wrap gap-x-3 gap-y-0.5">
               <span>
-                {player.exactScores} exact
-                {player.exactScores > 1 ? 's' : ''}
+                {`${player.exactScores} exact${player.exactScores > 1 ? 's' : ''}`}
               </span>
               <span>
-                {player.goodResults} bon
-                {player.goodResults > 1 ? 's' : ''} résultat
-                {player.goodResults > 1 ? 's' : ''}
+                {`${player.goodResults} bon${player.goodResults > 1 ? 's' : ''} résultat${player.goodResults > 1 ? 's' : ''}`}
               </span>
               <span>
-                {player.scoredPredictions} noté
-                {player.scoredPredictions > 1 ? 's' : ''}
+                {`${player.scoredPredictions} noté${player.scoredPredictions > 1 ? 's' : ''}`}
               </span>
             </p>
             <p className="flex flex-wrap gap-x-3 gap-y-0.5">
               <span>Réussite {formatSuccessRate(player.successRate)}</span>
               <span>
-                Écart {formatGapToLeader(player.gapToLeader, player.gapToLeader === 0)}
+                Écart{' '}
+                {formatGapToLeader(
+                  player.gapToLeader,
+                  player.gapToLeader === 0,
+                )}
               </span>
             </p>
           </div>
+        ) : (
+          <p className="mt-1 text-xs font-medium text-ink/70">
+            Aucun résultat noté
+          </p>
         )}
       </div>
 
@@ -134,6 +140,36 @@ function RankingRow({
   )
 }
 
+function RankingHeader({
+  title,
+  showLink,
+}: {
+  title: string
+  showLink: boolean
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <span aria-hidden="true" className="h-5 w-1.5 shrink-0 bg-green" />
+        <h2
+          id="group-ranking-title"
+          className="truncate text-sm font-black tracking-[0.06em] uppercase"
+        >
+          {title}
+        </h2>
+      </div>
+      {showLink ? (
+        <Link
+          to="/classement"
+          className="shrink-0 text-[11px] font-bold tracking-[0.1em] text-green uppercase underline-offset-2 hover:underline"
+        >
+          Voir le classement
+        </Link>
+      ) : null}
+    </div>
+  )
+}
+
 /** Classement du groupe — ligne unique partagée (accueil compact / page complète). */
 export function GroupRanking({
   players,
@@ -143,7 +179,31 @@ export function GroupRanking({
   showLink = true,
   variant = 'compact',
   emptyMessage = 'Pas encore de joueurs pour afficher le classement.',
+  awaitingFirstResult = false,
+  participantCount = 0,
 }: GroupRankingProps) {
+  if (awaitingFirstResult) {
+    const count = participantCount > 0 ? participantCount : players.length
+    const joueurs = count > 1 ? 'participants' : 'participant'
+    return (
+      <section
+        aria-labelledby="group-ranking-title"
+        className="panel overflow-hidden"
+      >
+        <RankingHeader title={title} showLink={showLink} />
+        <div className="space-y-1 px-4 py-4">
+          <p className="text-sm font-bold text-ink">
+            Le classement débutera après le premier match.
+          </p>
+          <p className="text-sm text-muted">
+            {count} {joueurs} {count > 1 ? 'sont' : 'est'} prêt
+            {count > 1 ? 's' : ''} à s’affronter.
+          </p>
+        </div>
+      </section>
+    )
+  }
+
   if (players.length === 0) {
     return (
       <section
@@ -166,25 +226,7 @@ export function GroupRanking({
 
   return (
     <section aria-labelledby="group-ranking-title" className="panel overflow-hidden">
-      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <span aria-hidden="true" className="h-5 w-1.5 shrink-0 bg-green" />
-          <h2
-            id="group-ranking-title"
-            className="truncate text-sm font-black tracking-[0.06em] uppercase"
-          >
-            {title}
-          </h2>
-        </div>
-        {showLink ? (
-          <Link
-            to="/classement"
-            className="shrink-0 text-[11px] font-bold tracking-[0.1em] text-green uppercase underline-offset-2 hover:underline"
-          >
-            Voir le classement
-          </Link>
-        ) : null}
-      </div>
+      <RankingHeader title={title} showLink={showLink} />
 
       <ol className="divide-y divide-border">
         {players.map((player, index) => {

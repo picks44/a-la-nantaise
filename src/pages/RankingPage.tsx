@@ -7,9 +7,11 @@ import {
   fetchRoundParticipation,
 } from '../lib/api'
 import {
+  formatParticipationSummary,
   getCompetitionRanks,
   listRoundNumbers,
   selectDefaultRoundNumber,
+  summarizeParticipation,
 } from '../lib/ranking'
 import { toUserMessage } from '../lib/errors'
 import {
@@ -257,6 +259,8 @@ function ParticipationList({
   const allNotApplicable = rows.every(
     (row) => row.status === 'not_applicable',
   )
+  const { predictedCount, applicableCount } = summarizeParticipation(rows)
+  const summary = formatParticipationSummary(predictedCount, applicableCount)
 
   return (
     <section className="panel overflow-hidden" aria-label="Participation">
@@ -265,7 +269,11 @@ function ParticipationList({
           Aucun match pronostiquable sur cette journée (annulé, reporté, ou
           hors période pour les joueurs).
         </p>
-      ) : null}
+      ) : (
+        <p className="border-b border-border px-4 py-3 text-sm font-bold text-ink">
+          {summary}
+        </p>
+      )}
       <ul className="divide-y divide-border">
         {rows.map((row) => {
           const isActive = row.playerId === activePlayerId

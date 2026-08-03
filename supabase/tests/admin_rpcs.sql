@@ -158,7 +158,7 @@ $$;
 -- Barème 3 / 1 / 0 + recalcul après correction
 DO $$
 DECLARE
-  match_id UUID;
+  v_match_id UUID;
   player_a UUID;
   player_b UUID;
   player_c UUID;
@@ -172,7 +172,7 @@ BEGIN
   SELECT pl.id INTO player_c
   FROM public.admin_create_player('admin-test-code', 'ACote') AS pl;
 
-  SELECT m.id INTO match_id
+  SELECT m.id INTO v_match_id
   FROM public.admin_create_match(
     'admin-test-code',
     13,
@@ -189,12 +189,12 @@ BEGIN
   INSERT INTO public.predictions (
     player_id, match_id, predicted_home_score, predicted_away_score
   ) VALUES
-    (player_a, match_id, 2, 1),
-    (player_b, match_id, 3, 0),
-    (player_c, match_id, 0, 2);
+    (player_a, v_match_id, 2, 1),
+    (player_b, v_match_id, 3, 0),
+    (player_c, v_match_id, 0, 2);
 
   SELECT r.recalculated_count INTO recalc
-  FROM public.admin_set_match_result('admin-test-code', match_id, 2, 1) AS r;
+  FROM public.admin_set_match_result('admin-test-code', v_match_id, 2, 1) AS r;
 
   IF recalc <> 3 THEN
     RAISE EXCEPTION 'TEST FAIL: recalcul initial (%)', recalc;
@@ -202,31 +202,31 @@ BEGIN
 
   SELECT pr.points INTO pts
   FROM public.predictions AS pr
-  WHERE pr.player_id = player_a AND pr.match_id = match_id;
+  WHERE pr.player_id = player_a AND pr.match_id = v_match_id;
   IF pts <> 3 THEN
     RAISE EXCEPTION 'TEST FAIL: score exact (%)', pts;
   END IF;
 
   SELECT pr.points INTO pts
   FROM public.predictions AS pr
-  WHERE pr.player_id = player_b AND pr.match_id = match_id;
+  WHERE pr.player_id = player_b AND pr.match_id = v_match_id;
   IF pts <> 1 THEN
     RAISE EXCEPTION 'TEST FAIL: bon résultat (%)', pts;
   END IF;
 
   SELECT pr.points INTO pts
   FROM public.predictions AS pr
-  WHERE pr.player_id = player_c AND pr.match_id = match_id;
+  WHERE pr.player_id = player_c AND pr.match_id = v_match_id;
   IF pts <> 0 THEN
     RAISE EXCEPTION 'TEST FAIL: mauvais résultat (%)', pts;
   END IF;
 
   -- Correction du score → recalcul
-  PERFORM public.admin_set_match_result('admin-test-code', match_id, 0, 2);
+  PERFORM public.admin_set_match_result('admin-test-code', v_match_id, 0, 2);
 
   SELECT pr.points INTO pts
   FROM public.predictions AS pr
-  WHERE pr.player_id = player_c AND pr.match_id = match_id;
+  WHERE pr.player_id = player_c AND pr.match_id = v_match_id;
   IF pts <> 3 THEN
     RAISE EXCEPTION 'TEST FAIL: recalcul après correction (%)', pts;
   END IF;

@@ -1,6 +1,7 @@
--- Compteur PIN fiable sans dblink : en cas de mauvais PIN, on met à jour puis on
--- renvoie 0 ligne (transaction commitée). Le client mappe ça en INVALID_CREDENTIALS.
--- Verrouillage et PIN temporaire expiré : RAISE (pas de compteur à committer).
+-- Persiste le compteur d’échecs PIN sans transaction autonome ni extension externe.
+-- En cas de mauvais PIN (ou joueur inconnu) : UPDATE du compteur puis RETURN 0 ligne
+-- pour que la transaction soit commitée. Le front mappe l’absence de ligne en
+-- INVALID_CREDENTIALS. Verrouillage actif et PIN temporaire expiré : RAISE dédié.
 
 CREATE OR REPLACE FUNCTION public.login_player(
   p_access_code TEXT,
@@ -100,34 +101,5 @@ REVOKE ALL ON FUNCTION public.login_player(TEXT, UUID, TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.login_player(TEXT, UUID, TEXT)
   TO anon, authenticated;
 
--- Helper dblink devenu inutile (conservé no-op pour compat si déjà référencé).
-CREATE OR REPLACE FUNCTION public.record_failed_pin_attempt(p_player_id UUID)
-RETURNS INTEGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_attempts INTEGER := 0;
-BEGIN
-  IF p_player_id IS NULL THEN
-    RETURN 0;
-  END IF;
-
-  UPDATE public.players AS pl
-  SET
-    pin_failed_attempts = pl.pin_failed_attempts + 1,
-    pin_locked_until = CASE
-      WHEN pl.pin_failed_attempts + 1 >= 5
-        THEN now() + interval '15 minutes'
-      ELSE pl.pin_locked_until
-    END
-  WHERE pl.id = p_player_id
-  RETURNING pl.pin_failed_attempts INTO v_attempts;
-
-  RETURN COALESCE(v_attempts, 0);
-END;
-$$;
-
-REVOKE ALL ON FUNCTION public.record_failed_pin_attempt(UUID)
-  FROM PUBLIC, anon, authenticated;
+-- Nettoyage éventuel d’un helper d’essai local s’il existait.
+DROP FUNCTION IF EXISTS public.record_failed_pin_attempt(UUID);

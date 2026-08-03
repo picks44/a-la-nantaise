@@ -79,13 +79,16 @@ describe('upsert_prediction ambiguity fix', () => {
     )
   })
 
-  it('SQL regression tests cover create, update, uniqueness and lock', () => {
+  it('SQL regression tests cover create, update, uniqueness, lock and privacy', () => {
     assert.match(sqlTests, /Création d’un pronostic/)
     assert.match(sqlTests, /Modification du même pronostic/)
     assert.match(sqlTests, /Unicité joueur \+ match/)
     assert.match(sqlTests, /Refus après le coup d’envoi/)
     assert.match(sqlTests, /MATCH_LOCKED/)
     assert.match(sqlTests, /login_player/)
+    assert.match(sqlTests, /get_my_predictions/)
+    assert.match(sqlTests, /score d’un autre joueur visible avant kickoff/)
+    assert.match(sqlTests, /ancienne signature upsert_prediction/)
     assert.match(sqlTests, /ROLLBACK/)
   })
 })

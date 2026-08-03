@@ -173,6 +173,8 @@ export function HomePage() {
           activePlayerId={activePlayer?.id ?? ''}
           title="Classement du groupe"
           variant="compact"
+          awaitingFirstResult={homeRanking.awaitingFirstResult}
+          participantCount={homeRanking.participantCount}
         />
         <LastMatchBlock match={lastMatch} prediction={lastPrediction} />
       </div>
@@ -323,6 +325,8 @@ export function HomePage() {
         activePlayerId={activePlayer?.id ?? ''}
         title="Classement du groupe"
         variant="compact"
+        awaitingFirstResult={homeRanking.awaitingFirstResult}
+        participantCount={homeRanking.participantCount}
       />
       <LastMatchBlock match={lastMatch} prediction={lastPrediction} />
     </div>

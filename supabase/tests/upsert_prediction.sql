@@ -16,13 +16,21 @@ WHERE NOT EXISTS (
 );
 
 INSERT INTO public.players (id, display_name, is_active, pin_hash, must_change_pin)
-VALUES (
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
-  'Testeur Upsert',
-  TRUE,
-  extensions.crypt('1234', extensions.gen_salt('bf')),
-  FALSE
-)
+VALUES
+  (
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
+    'Testeur Upsert',
+    TRUE,
+    extensions.crypt('1234', extensions.gen_salt('bf')),
+    FALSE
+  ),
+  (
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2',
+    'Autre Upsert',
+    TRUE,
+    extensions.crypt('5678', extensions.gen_salt('bf')),
+    FALSE
+  )
 ON CONFLICT (id) DO UPDATE
 SET
   display_name = EXCLUDED.display_name,
@@ -62,19 +70,26 @@ SET
   away_team = EXCLUDED.away_team;
 
 DELETE FROM public.predictions AS pr
-WHERE pr.player_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1'
+WHERE pr.player_id IN (
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2'
+)
   AND pr.match_id IN (
     'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1',
     'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2'
   );
 
 DELETE FROM public.player_sessions AS s
-WHERE s.player_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1';
+WHERE s.player_id IN (
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2'
+);
 
--- Session de test
+-- Sessions de test (joueur 1 + joueur 2)
 DO $$
 DECLARE
   v_token text;
+  v_token_b text;
 BEGIN
   SELECT l.session_token INTO v_token
   FROM public.login_player(
@@ -83,7 +98,15 @@ BEGIN
     '1234'
   ) AS l;
 
+  SELECT l.session_token INTO v_token_b
+  FROM public.login_player(
+    'test-code-aln',
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2',
+    '5678'
+  ) AS l;
+
   PERFORM set_config('test.session_token', v_token, true);
+  PERFORM set_config('test.session_token_b', v_token_b, true);
 END;
 $$;
 
@@ -177,6 +200,61 @@ BEGIN
         RAISE;
       END IF;
   END;
+END;
+$$;
+
+-- 5) Confidentialité : lecture limitée à ses propres pronostics avant kickoff
+DO $$
+DECLARE
+  v_token text := current_setting('test.session_token');
+  v_token_b text := current_setting('test.session_token_b');
+  v_count integer;
+  v_other_id uuid;
+BEGIN
+  -- Joueur B enregistre un prono distinct
+  PERFORM *
+  FROM public.upsert_prediction(
+    v_token_b,
+    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1',
+    4,
+    2
+  );
+
+  SELECT count(*)::integer INTO v_count
+  FROM public.get_my_predictions(v_token);
+
+  IF v_count <> 1 THEN
+    RAISE EXCEPTION 'TEST FAIL: get_my_predictions doit renvoyer uniquement le prono du joueur A (%)', v_count;
+  END IF;
+
+  SELECT pr.player_id INTO v_other_id
+  FROM public.get_my_predictions(v_token) AS pr
+  WHERE pr.player_id <> 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1';
+
+  IF FOUND THEN
+    RAISE EXCEPTION 'TEST FAIL: get_my_predictions a exposé un autre joueur';
+  END IF;
+
+  -- Avant kickoff, get_visible_predictions ne doit pas exposer le score de B à A
+  SELECT count(*)::integer INTO v_count
+  FROM public.get_visible_predictions(v_token) AS pr
+  WHERE pr.player_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2';
+
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'TEST FAIL: score d’un autre joueur visible avant kickoff';
+  END IF;
+END;
+$$;
+
+-- 6) Pas d’usurpation : la session lie le joueur, pas un player_id client
+DO $$
+BEGIN
+  IF to_regprocedure('public.upsert_prediction(text,uuid,uuid,integer,integer)') IS NOT NULL THEN
+    RAISE EXCEPTION 'TEST FAIL: ancienne signature upsert_prediction encore présente';
+  END IF;
+  IF to_regprocedure('public.get_my_predictions(text,uuid)') IS NOT NULL THEN
+    RAISE EXCEPTION 'TEST FAIL: ancienne signature get_my_predictions encore présente';
+  END IF;
 END;
 $$;
 

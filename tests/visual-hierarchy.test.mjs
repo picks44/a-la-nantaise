@@ -120,10 +120,13 @@ describe('home group ranking', () => {
     assert.match(podium, /Classement du groupe/)
     assert.match(podium, /isFirstOccurrenceOfRank/)
     assert.match(podium, /badge border-green bg-green/)
+    assert.match(podium, /awaitingFirstResult/)
+    assert.match(podium, /premier match/)
     assert.match(home, /title="Classement du groupe"/)
     assert.match(home, /selectHomeRanking/)
     assert.match(home, /homeRanking\.players/)
     assert.match(home, /homeRanking\.ranks/)
+    assert.match(home, /awaitingFirstResult/)
   })
 
   it('keeps competition ranking order for five tied participants', () => {

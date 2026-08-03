@@ -168,6 +168,17 @@ INSERT INTO public.predictions (
   ('cccccccc-cccc-cccc-cccc-cccccccccc03', 'dddddddd-dddd-dddd-dddd-dddddddddd05', 0, 2, 0),
   ('cccccccc-cccc-cccc-cccc-cccccccccc04', 'dddddddd-dddd-dddd-dddd-dddddddddd05', 2, 1, 3);
 
+-- Isoler le classement des données seed (transaction + ROLLBACK)
+UPDATE public.predictions AS pr
+SET points = NULL
+WHERE pr.player_id NOT IN (
+  'cccccccc-cccc-cccc-cccc-cccccccccc01',
+  'cccccccc-cccc-cccc-cccc-cccccccccc02',
+  'cccccccc-cccc-cccc-cccc-cccccccccc03',
+  'cccccccc-cccc-cccc-cccc-cccccccccc04',
+  'cccccccc-cccc-cccc-cccc-cccccccccc05'
+);
+
 -- Participation j81 : Alpha complet (2), Bravo partiel (1), Charlie manquant (0)
 -- Pronostic 0-0 réellement enregistré pour Alpha sur le 1er match
 INSERT INTO public.predictions (

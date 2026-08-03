@@ -63,11 +63,18 @@ describe('player PIN sessions migration', () => {
 
   it('maps empty login_player rows to INVALID_CREDENTIALS and raises PIN_LOCKED when locked', () => {
     const loginFix = read(
-      'supabase/migrations/20260803184000_login_player_commit_failed_attempts.sql',
+      'supabase/migrations/20260803182000_login_player_persist_failed_pin_attempts.sql',
     )
     assert.match(loginFix, /RAISE EXCEPTION 'PIN_LOCKED'/)
     assert.match(loginFix, /RAISE EXCEPTION 'TEMP_PIN_EXPIRED'/)
     assert.match(loginFix, /pin_failed_attempts = pl\.pin_failed_attempts \+ 1/)
+    assert.match(loginFix, /DROP FUNCTION IF EXISTS public\.record_failed_pin_attempt/)
+    assert.doesNotMatch(loginFix, /\bdblink(?:_exec|_connect|_u)?\b/i)
+    assert.doesNotMatch(loginFix, /CREATE EXTENSION/i)
+    assert.doesNotMatch(
+      loginFix,
+      /CREATE(?:\s+OR\s+REPLACE)?\s+FUNCTION public\.record_failed_pin_attempt/,
+    )
     assert.match(api, /throw new ApiError\('INVALID_CREDENTIALS'/)
     assert.doesNotMatch(read('src/lib/errors.ts'), /code reçu/)
   })
