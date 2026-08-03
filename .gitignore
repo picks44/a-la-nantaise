@@ -19,6 +19,7 @@ dist-ssr
 
 # Previews / caches locaux
 .tmp-shots
+supabase/.temp/
 
 # Editor directories and files
 .vscode/*
