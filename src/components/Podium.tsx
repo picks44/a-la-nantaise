@@ -29,7 +29,7 @@ export function RaceLeaders({
           <span aria-hidden="true" className="h-5 w-1.5 bg-yellow" />
           <h2
             id="race-title"
-            className="text-sm font-black tracking-[0.08em] uppercase"
+            className="text-sm font-black tracking-[0.06em] uppercase"
           >
             {title}
           </h2>
@@ -48,7 +48,7 @@ export function RaceLeaders({
           <span aria-hidden="true" className="h-5 w-1.5 shrink-0 bg-yellow" />
           <h2
             id="race-title"
-            className="truncate text-sm font-black tracking-[0.08em] uppercase"
+            className="truncate text-sm font-black tracking-[0.06em] uppercase"
           >
             {title}
           </h2>
@@ -56,7 +56,7 @@ export function RaceLeaders({
         {showLink ? (
           <Link
             to="/classement"
-            className="shrink-0 text-[11px] font-bold tracking-[0.12em] text-green uppercase underline-offset-2 hover:underline"
+            className="shrink-0 text-[11px] font-bold tracking-[0.1em] text-green uppercase underline-offset-2 hover:underline"
           >
             Voir le classement
           </Link>
@@ -66,33 +66,43 @@ export function RaceLeaders({
       <ol className="divide-y divide-border">
         {topThree.map((player, index) => {
           const isActive = player.id === activePlayerId
-          const isLeader = index === 0
           const rank = ranks[index]
+          const isFirstOccurrenceOfRank =
+            ranks.findIndex((value) => value === rank) === index
 
           return (
             <li
               key={player.id}
               className={[
-                'flex items-center gap-3 px-4 py-3',
-                isLeader ? 'bg-yellow' : 'bg-surface',
-                isActive && !isLeader ? 'border-l-4 border-l-yellow' : '',
+                'flex items-center gap-3 bg-surface px-4 py-3',
+                isActive ? 'border-l-4 border-l-green bg-success-soft/60' : '',
               ].join(' ')}
             >
               <span
                 className={[
-                  'w-8 shrink-0 text-2xl font-black tabular-nums',
-                  isLeader ? 'text-ink' : 'text-green-dark',
+                  'flex w-8 shrink-0 flex-col items-start',
+                  rank === 1 && isFirstOccurrenceOfRank
+                    ? 'text-ink'
+                    : 'text-green-dark',
                 ].join(' ')}
                 aria-label={`${rank}e place`}
               >
-                {rank}
+                <span className="text-2xl font-black leading-none tabular-nums">
+                  {rank}
+                </span>
+                {rank === 1 && isFirstOccurrenceOfRank ? (
+                  <span
+                    aria-hidden="true"
+                    className="mt-1 h-1 w-5 rounded-sm bg-yellow"
+                  />
+                ) : null}
               </span>
 
               <div className="min-w-0 flex-1">
                 <p className="flex flex-wrap items-center gap-2 font-bold">
                   <span className="truncate">{player.pseudo}</span>
                   {isActive ? (
-                    <span className="rounded-[var(--radius-sm)] bg-ink px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-yellow uppercase">
+                    <span className="badge border-green bg-green text-white">
                       Toi
                     </span>
                   ) : null}

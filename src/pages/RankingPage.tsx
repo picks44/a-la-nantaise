@@ -64,38 +64,45 @@ export function RankingPage() {
             <span aria-hidden="true" className="h-5 w-1.5 bg-yellow" />
             <h2
               id="full-ranking-title"
-              className="text-sm font-black tracking-[0.08em] uppercase"
+              className="text-sm font-black tracking-[0.06em] uppercase"
             >
               Classement complet
             </h2>
           </div>
 
-          <ol className="divide-y divide-border">
+          <ol className="divide-y divide-border bg-surface">
             {ranking.map((player, index) => {
               const isActive = player.id === activePlayer?.id
               const rank = ranks[index]
-              const isLeader = rank === 1
               const isTie = ranks.filter((value) => value === rank).length > 1
+              const isFirstOccurrenceOfRank =
+                ranks.findIndex((value) => value === rank) === index
 
               return (
                 <li
                   key={player.id}
                   className={[
-                    'flex items-center gap-3 px-4 py-3.5',
-                    isLeader ? 'bg-yellow' : '',
-                    isActive && !isLeader ? 'bg-yellow/35' : '',
-                    isActive ? 'border-l-4 border-l-ink' : '',
+                    'flex items-center gap-3 px-4 py-3',
+                    isActive ? 'border-l-4 border-l-green bg-success-soft/70' : '',
                   ].join(' ')}
                 >
                   <div className="w-12 shrink-0">
                     <span
                       className={[
-                        'block text-3xl leading-none font-black tabular-nums',
-                        isLeader ? 'text-ink' : 'text-green-dark',
+                        'block text-2xl leading-none font-black tabular-nums',
+                        rank === 1 && isFirstOccurrenceOfRank
+                          ? 'text-ink'
+                          : 'text-green-dark',
                       ].join(' ')}
                     >
                       {rank}
                     </span>
+                    {rank === 1 && isFirstOccurrenceOfRank ? (
+                      <span
+                        aria-hidden="true"
+                        className="mt-1 block h-1 w-6 rounded-sm bg-yellow"
+                      />
+                    ) : null}
                     {isTie ? (
                       <span className="text-[10px] font-bold tracking-wider text-ink/60 uppercase">
                         ex æquo
@@ -107,7 +114,7 @@ export function RankingPage() {
                     <p className="flex flex-wrap items-center gap-2 font-bold">
                       <span className="truncate text-base">{player.pseudo}</span>
                       {isActive ? (
-                        <span className="rounded-[var(--radius-sm)] bg-ink px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-yellow uppercase">
+                        <span className="badge border-green bg-green text-white">
                           Toi
                         </span>
                       ) : null}

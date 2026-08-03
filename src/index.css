@@ -13,16 +13,22 @@
 @import "@fontsource/poppins/latin-ext-900.css";
 
 @theme {
-  --color-yellow: #ffdd00;
-  --color-green: #008a4b;
-  --color-green-dark: #063f2e;
+  /* brand-yellow */ --color-yellow: #ffdd00;
+  /* brand-green */ --color-green: #008a4b;
+  /* brand-green-dark */ --color-green-dark: #063f2e;
   --color-ink: #191919;
   --color-canvas: #f4f4f0;
   --color-surface: #ffffff;
+  --color-surface-muted: #ecece6;
   --color-muted: #5c5c56;
   --color-border: #d0d0c8;
+  --color-success: #008a4b;
+  --color-success-soft: #e6f4ec;
+  --color-warning: #9a6700;
+  --color-warning-soft: #faf0d7;
   --color-danger: #b42318;
   --color-danger-soft: #f8e8e6;
+  --color-focus: #008a4b;
 
   --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
 
@@ -61,8 +67,19 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-ink);
+    outline: 2px solid var(--color-focus);
     outline-offset: 2px;
+  }
+
+  .bg-yellow :focus-visible,
+  .bg-ink :focus-visible,
+  header.bg-yellow :focus-visible {
+    outline-color: var(--color-ink);
+    outline-offset: 3px;
+  }
+
+  .bg-ink :focus-visible {
+    outline-color: var(--color-yellow);
   }
 
   input[type="number"] {
@@ -80,7 +97,7 @@
 
 @layer components {
   .label-caps {
-    @apply text-[11px] font-bold tracking-[0.14em] uppercase text-muted;
+    @apply text-[11px] font-bold tracking-[0.1em] uppercase text-muted;
   }
 
   .title-display {
@@ -91,15 +108,32 @@
     @apply rounded-[var(--radius-md)] border border-border bg-surface;
   }
 
-  .btn-ink {
-    @apply inline-flex w-full items-center justify-center rounded-[var(--radius-sm)] bg-ink px-4 py-3.5 text-sm font-extrabold tracking-[0.06em] text-yellow uppercase transition hover:bg-green-dark disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[14rem];
+  .badge {
+    @apply inline-flex shrink-0 items-center border px-2 py-0.5 text-[10px] font-black tracking-[0.08em] uppercase;
   }
 
+  .btn-ink {
+    @apply inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-sm)] border border-ink bg-ink px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-yellow uppercase transition hover:bg-green-dark disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[12rem];
+  }
+
+  .btn-secondary {
+    @apply inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-sm)] border border-ink bg-surface px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-ink uppercase transition hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto;
+  }
+
+  .btn-ghost {
+    @apply inline-flex min-h-11 items-center justify-center rounded-[var(--radius-sm)] border border-transparent px-3 py-2 text-sm font-bold tracking-[0.06em] text-ink uppercase transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-danger {
+    @apply inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-danger bg-danger-soft px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-danger uppercase transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto;
+  }
+
+  /* Alias conservé pour les appels existants. */
   .btn-yellow {
-    @apply inline-flex w-full items-center justify-center rounded-[var(--radius-sm)] bg-yellow px-4 py-3.5 text-sm font-extrabold tracking-[0.06em] text-ink uppercase transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-sm)] border border-ink bg-yellow px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-ink uppercase transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto;
   }
 
   .field-input {
-    @apply w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas px-3 py-2.5 font-semibold text-ink;
+    @apply w-full rounded-[var(--radius-sm)] border border-ink bg-canvas px-3 py-2.5 font-semibold text-ink;
   }
 }

@@ -80,8 +80,10 @@ export function SettingsPage() {
                 <label
                   key={player.id}
                   className={[
-                    'flex cursor-pointer items-center gap-3 px-4 py-3 transition',
-                    checked ? 'bg-yellow' : 'bg-surface hover:bg-canvas',
+                    'flex min-h-11 cursor-pointer items-center gap-3 px-4 py-3 transition',
+                    checked
+                      ? 'border-l-4 border-l-green bg-success-soft'
+                      : 'bg-surface hover:bg-canvas',
                   ].join(' ')}
                 >
                   <input
@@ -90,9 +92,16 @@ export function SettingsPage() {
                     value={player.id}
                     checked={checked}
                     onChange={() => void handleChangePlayer(player.id)}
-                    className="size-4 accent-ink"
+                    className="size-4 accent-green"
                   />
-                  <span className="font-bold text-ink">{player.pseudo}</span>
+                  <span className="font-bold text-ink">
+                    {player.pseudo}
+                    {checked ? (
+                      <span className="ml-2 text-xs font-semibold text-green-dark">
+                        (actuel)
+                      </span>
+                    ) : null}
+                  </span>
                 </label>
               )
             })
@@ -110,11 +119,7 @@ export function SettingsPage() {
         <p className="mt-1 text-sm text-muted">
           Efface le code et le pseudo mémorisés sur cet appareil.
         </p>
-        <button
-          type="button"
-          onClick={leaveGroup}
-          className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border-2 border-danger bg-danger-soft px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-danger uppercase transition hover:bg-white sm:w-auto"
-        >
+        <button type="button" onClick={leaveGroup} className="btn-danger mt-4">
           <LogOut aria-hidden="true" className="size-4" />
           Quitter le groupe
         </button>

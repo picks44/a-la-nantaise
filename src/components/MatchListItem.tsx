@@ -9,29 +9,42 @@ import { pointsResultLabel, statusClassName, statusLabel } from '../lib/status'
 interface MatchListItemProps {
   match: Match
   prediction?: Prediction
+  /** Prochain match ouvert aux pronostics — seul fond jaune dominant. */
+  isNext?: boolean
 }
 
-export function MatchListItem({ match, prediction }: MatchListItemProps) {
-  const isOpen = match.status === 'to_predict' || match.status === 'predicted'
+export function MatchListItem({
+  match,
+  prediction,
+  isNext = false,
+}: MatchListItemProps) {
   const isFinished = match.status === 'finished'
+  const isPredicted = match.status === 'predicted'
   const stadium = venueSecondaryLabel(match.venue)
   const resultLabel = pointsResultLabel(prediction?.points)
 
+  const shellClass = isNext
+    ? 'border-ink bg-yellow'
+    : isFinished
+      ? 'border-ink bg-ink text-white'
+      : 'border-border bg-surface'
+
   return (
     <article
+      id={isNext ? 'prochain-match' : undefined}
       className={[
-        'overflow-hidden rounded-[var(--radius-md)] border-2',
-        isOpen
-          ? 'border-ink bg-yellow'
-          : isFinished
-            ? 'border-ink bg-ink text-white'
-            : 'border-border bg-surface',
+        'overflow-hidden rounded-[var(--radius-md)] border scroll-mt-20',
+        shellClass,
+        isPredicted && !isNext ? 'border-l-4 border-l-green' : '',
+        match.status === 'to_predict' && !isNext
+          ? 'border-l-4 border-l-yellow'
+          : '',
       ].join(' ')}
     >
       <div
         className={[
-          'flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5',
-          isOpen
+          'flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2',
+          isNext
             ? 'border-ink/15'
             : isFinished
               ? 'border-white/15'
@@ -40,7 +53,7 @@ export function MatchListItem({ match, prediction }: MatchListItemProps) {
       >
         <p
           className={[
-            'text-[11px] font-bold tracking-[0.12em] uppercase',
+            'text-[11px] font-bold tracking-[0.08em] uppercase',
             isFinished ? 'text-white/60' : 'text-ink/65',
           ].join(' ')}
         >
@@ -50,19 +63,18 @@ export function MatchListItem({ match, prediction }: MatchListItemProps) {
           {formatMatchTime(match.kickoffAt)}
         </p>
         <span
-          className={[
-            'inline-flex shrink-0 border px-2 py-0.5 text-[10px] font-black tracking-[0.1em] uppercase',
-            statusClassName(match.status),
-          ].join(' ')}
+          className={['badge', statusClassName(match.status)].join(' ')}
         >
-          {statusLabel(match.status)}
+          {isNext && match.status === 'to_predict'
+            ? 'Prochain'
+            : statusLabel(match.status)}
         </span>
       </div>
 
-      <div className="px-4 py-4">
+      <div className="px-3 py-3">
         <p
           className={[
-            'mb-2 text-center text-[10px] font-bold tracking-[0.16em] uppercase',
+            'mb-1.5 text-center text-[10px] font-bold tracking-[0.12em] uppercase',
             isFinished ? 'text-yellow' : 'text-green-dark',
           ].join(' ')}
         >
@@ -79,9 +91,9 @@ export function MatchListItem({ match, prediction }: MatchListItemProps) {
             {match.homeTeam}
           </p>
 
-          <div className="min-w-[4.5rem] text-center">
+          <div className="min-w-[4rem] text-center">
             {isFinished && match.finalScore ? (
-              <p className="font-black text-yellow tabular-nums text-2xl">
+              <p className="font-black text-yellow tabular-nums text-xl">
                 {match.finalScore.home}
                 <span className="mx-1 text-white/40">–</span>
                 {match.finalScore.away}
@@ -89,8 +101,8 @@ export function MatchListItem({ match, prediction }: MatchListItemProps) {
             ) : (
               <p
                 className={[
-                  'text-xl font-black',
-                  isOpen ? 'text-ink/35' : 'text-muted',
+                  'text-lg font-black',
+                  isNext ? 'text-ink/35' : 'text-muted',
                 ].join(' ')}
               >
                 vs
@@ -109,7 +121,7 @@ export function MatchListItem({ match, prediction }: MatchListItemProps) {
         </div>
 
         {isFinished ? (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border border-white/15 bg-white/5 px-3 py-2.5 text-sm">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border border-white/15 bg-white/5 px-3 py-2 text-sm">
             <p>
               <span className="text-[10px] font-bold tracking-wider text-white/50 uppercase">
                 Ton prono
@@ -121,7 +133,7 @@ export function MatchListItem({ match, prediction }: MatchListItemProps) {
               </span>
             </p>
             {resultLabel ? (
-              <span className="border border-yellow bg-yellow px-2 py-1 text-[10px] font-black tracking-[0.08em] text-ink uppercase">
+              <span className="badge border-yellow bg-yellow text-ink">
                 {resultLabel}
               </span>
             ) : (
@@ -134,25 +146,30 @@ export function MatchListItem({ match, prediction }: MatchListItemProps) {
         prediction ? (
           <p
             className={[
-              'mt-3 border-t pt-3 text-sm',
-              isOpen ? 'border-ink/15 text-ink/75' : 'border-border text-muted',
+              'mt-2.5 border-t pt-2.5 text-sm',
+              isNext ? 'border-ink/15 text-ink/75' : 'border-border text-muted',
             ].join(' ')}
           >
             Pronostic :{' '}
-            <span className="font-black tabular-nums text-ink">
+            <span
+              className={[
+                'font-black tabular-nums',
+                isPredicted ? 'text-green-dark' : 'text-ink',
+              ].join(' ')}
+            >
               {prediction.homeScore} – {prediction.awayScore}
             </span>
           </p>
         ) : null}
 
         {match.status === 'postponed' ? (
-          <p className="mt-3 border-t border-border pt-3 text-sm text-muted">
+          <p className="mt-2.5 border-t border-border pt-2.5 text-sm text-muted">
             Match reporté — nouveau créneau à venir.
           </p>
         ) : null}
 
         {match.status === 'cancelled' ? (
-          <p className="mt-3 border-t border-border pt-3 text-sm text-muted">
+          <p className="mt-2.5 border-t border-border pt-2.5 text-sm text-muted">
             Match annulé — aucun point attribué.
           </p>
         ) : null}
