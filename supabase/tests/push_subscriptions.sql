@@ -254,26 +254,42 @@ BEGIN
     RAISE EXCEPTION 'TEST_FAIL: legacy access-code register_push_subscription must be dropped';
   END IF;
 
-  IF has_function_privilege(
-    'PUBLIC',
-    'public.register_push_subscription(text, text, text, text, timestamptz, text)',
-    'EXECUTE'
+  -- PUBLIC is a pseudo-role (OID 0); has_function_privilege('PUBLIC', …) fails on PG17.
+  IF EXISTS (
+    SELECT 1
+    FROM pg_proc AS p
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(p.proacl, acldefault('f', p.proowner))
+    ) AS acl
+    WHERE p.oid = 'public.register_push_subscription(text, text, text, text, timestamptz, text)'::regprocedure
+      AND acl.grantee = 0
+      AND acl.privilege_type = 'EXECUTE'
   ) THEN
     RAISE EXCEPTION 'TEST_FAIL: PUBLIC must not execute register_push_subscription';
   END IF;
 
-  IF has_function_privilege(
-    'PUBLIC',
-    'public.deactivate_push_subscription(text, text)',
-    'EXECUTE'
+  IF EXISTS (
+    SELECT 1
+    FROM pg_proc AS p
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(p.proacl, acldefault('f', p.proowner))
+    ) AS acl
+    WHERE p.oid = 'public.deactivate_push_subscription(text, text)'::regprocedure
+      AND acl.grantee = 0
+      AND acl.privilege_type = 'EXECUTE'
   ) THEN
     RAISE EXCEPTION 'TEST_FAIL: PUBLIC must not execute deactivate_push_subscription';
   END IF;
 
-  IF has_function_privilege(
-    'PUBLIC',
-    'public.get_push_subscription_status(text, text)',
-    'EXECUTE'
+  IF EXISTS (
+    SELECT 1
+    FROM pg_proc AS p
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(p.proacl, acldefault('f', p.proowner))
+    ) AS acl
+    WHERE p.oid = 'public.get_push_subscription_status(text, text)'::regprocedure
+      AND acl.grantee = 0
+      AND acl.privilege_type = 'EXECUTE'
   ) THEN
     RAISE EXCEPTION 'TEST_FAIL: PUBLIC must not execute get_push_subscription_status';
   END IF;

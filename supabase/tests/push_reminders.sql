@@ -402,7 +402,7 @@ BEGIN
 END;
 $$;
 
--- 10) preview / eligibility réservés (pas d’EXECUTE pour anon)
+-- 10) preview / eligibility réservés (pas d’EXECUTE pour anon / PUBLIC)
 DO $$
 BEGIN
   IF has_function_privilege(
@@ -421,12 +421,39 @@ BEGIN
     RAISE EXCEPTION 'TEST_FAIL: anon must not execute push_reminder_eligibility';
   END IF;
 
-  IF has_function_privilege(
-    'PUBLIC',
+  -- PUBLIC is a pseudo-role (OID 0); has_function_privilege('PUBLIC', …) fails on PG17.
+  IF EXISTS (
+    SELECT 1
+    FROM pg_proc AS p
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(p.proacl, acldefault('f', p.proowner))
+    ) AS acl
+    WHERE p.oid = 'public.preview_push_reminder_batch(timestamptz)'::regprocedure
+      AND acl.grantee = 0
+      AND acl.privilege_type = 'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'TEST_FAIL: PUBLIC must not execute preview_push_reminder_batch';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_proc AS p
+    CROSS JOIN LATERAL aclexplode(
+      COALESCE(p.proacl, acldefault('f', p.proowner))
+    ) AS acl
+    WHERE p.oid = 'public.push_reminder_eligibility(timestamptz)'::regprocedure
+      AND acl.grantee = 0
+      AND acl.privilege_type = 'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'TEST_FAIL: PUBLIC must not execute push_reminder_eligibility';
+  END IF;
+
+  IF NOT has_function_privilege(
+    'service_role',
     'public.preview_push_reminder_batch(timestamptz)',
     'EXECUTE'
   ) THEN
-    RAISE EXCEPTION 'TEST_FAIL: PUBLIC must not execute preview_push_reminder_batch';
+    RAISE EXCEPTION 'TEST_FAIL: service_role must execute preview_push_reminder_batch';
   END IF;
 END;
 $$;
