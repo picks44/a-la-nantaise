@@ -269,7 +269,13 @@ npm audit --omit=dev
 
 Ne pas utiliser `npm audit fix --force`. Toute mise à jour majeure doit être justifiée.
 
-Les alertes restantes (le cas échéant) et leur applicabilité à cette SPA sont notées dans le rapport de la PR de production readiness ; la surface d’attaque navigateur se limite au bundle Vite + clé anon.
+### Alertes connues (`npm audit --omit=dev`, août 2026)
+
+| Paquet | Sévérité | Advisory | Applicabilité SPA |
+|---|---|---|---|
+| `react-router` / `react-router-dom` (7.12.0–8.2.0) | high | [GHSA-qwww-vcr4-c8h2](https://github.com/advisories/GHSA-qwww-vcr4-c8h2) (CSRF en mode RSC) | **Faible** : l’app utilise `BrowserRouter` côté client, pas le mode RSC. `npm audit fix --force` proposerait une rétrogradation vers `7.11.0` (changement cassant non souhaité). Une correction amont peut nécessiter une montée majeure (`react-router` 8.3+) — reportée jusqu’à validation manuelle. |
+
+La surface navigateur se limite au bundle Vite + clé anon Supabase.
 
 ## Structure utile
 
