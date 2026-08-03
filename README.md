@@ -213,33 +213,63 @@ Pour désactiver l'automatisation :
 SELECT cron.unschedule('a-la-nantaise-daily-fixture-sync');
 ```
 
-## Hébergement SPA
+## Déploiement Vercel
 
-Aucune plateforme d’hébergement n’est encore déclarée dans le dépôt (pas de `vercel.json` / `netlify.toml` / Pages, `homepage` GitHub vide).
+L’hébergement cible est **Vercel**. Le fichier `vercel.json` configure le fallback SPA afin que l’actualisation directe de `/admin`, `/calendrier`, `/classement` et `/parametres` renvoie `index.html`.
 
-Quel que soit l’hébergeur choisi, configure un **fallback SPA** :
+### Réglages projet
 
-- toutes les routes applicatives (`/calendrier`, `/classement`, `/admin`, etc.) doivent renvoyer `index.html` ;
-- règle typique : `/* → /index.html` (rewrite, pas redirect).
+| Réglage | Valeur |
+|---|---|
+| Framework Preset | Vite |
+| Production Branch | `main` |
+| Install Command | `npm ci` |
+| Build Command | `npm run build` |
+| Output Directory | `dist` |
 
-Sans ce fallback, un rafraîchissement sur une URL directe renvoie une 404.
+### Variables d’environnement (Production et Preview)
+
+| Variable | Obligatoire |
+|---|---|
+| `VITE_SUPABASE_URL` | oui |
+| `VITE_SUPABASE_ANON_KEY` | oui |
+
+**Ne jamais** ajouter dans Vercel :
+
+- la clé Supabase `service_role` ;
+- le code administrateur ;
+- les secrets Vault (`project_url`, `function_anon_key`, `fixture_sync_admin_code`).
+
+Les variables `VITE_*` sont **publiques** : elles sont intégrées au bundle frontend au moment du build.
+
+### Tests post-déploiement
+
+Après un déploiement Preview ou Production :
+
+- [ ] chargement de l’accueil ;
+- [ ] connexion participant (code commun + choix de pseudo) ;
+- [ ] enregistrement d’un pronostic ;
+- [ ] accès `/admin` ;
+- [ ] actualisation directe (F5) de `/admin`, `/calendrier`, `/classement`, `/parametres` (pas de 404) ;
+- [ ] synchronisation manuelle des matchs (admin) ;
+- [ ] absence d’erreur dans la console navigateur.
 
 ## Checklist production
 
-- [ ] Variables frontend `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` configurées chez l’hébergeur (anon uniquement)
+- [ ] Variables frontend `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` configurées chez Vercel (anon uniquement)
 - [ ] Migrations SQL appliquées dans l’ordre (voir ci-dessus)
 - [ ] Edge Function `sync-fc-nantes` déployée
 - [ ] Secrets Vault `project_url`, `function_anon_key`, `fixture_sync_admin_code` créés
 - [ ] Job Cron `a-la-nantaise-daily-fixture-sync` actif (`15 5 * * *`)
 - [ ] Données de démonstration nettoyées (seed retiré) ; participants / pronostics réels autorisés
 - [ ] CI GitHub verte sur `main`
-- [ ] Fallback SPA `/* → /index.html` actif
-- [ ] Smoke tests (accès, prono, calendrier J1–J34, classement, admin, sync, refresh URL, mobile)
-- [ ] Procédure de rollback connue (redeploy précédent côté hébergeur)
+- [ ] Fallback SPA Vercel actif (`vercel.json`)
+- [ ] Smoke tests post-déploiement (voir ci-dessus)
+- [ ] Procédure de rollback connue (redeploy précédent côté Vercel)
 
 ### Rollback
 
-1. Republier le déploiement précédent sur l’hébergeur (Promote / Rollback).
+1. Republier le déploiement précédent sur Vercel (Promote / Rollback).
 2. En cas de régression code : `git revert` du commit déployé puis nouveau build.
 3. Ne pas exécuter `supabase db reset`.
 4. Désactiver le Cron seulement si nécessaire :
