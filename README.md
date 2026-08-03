@@ -54,7 +54,7 @@ Les Edge Functions reçoivent automatiquement `SUPABASE_URL` et `SUPABASE_ANON_K
 ## Configuration locale
 
 1. Copie `.env.example` vers `.env`
-2. Renseigne `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` (anon uniquement)
+2. Renseigne `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (anon uniquement) et, pour les rappels, `VITE_VAPID_PUBLIC_KEY`
 
 ## Mise en place Supabase
 
@@ -72,6 +72,7 @@ Dans le **SQL Editor**, exécute **dans l’ordre** (ne pas appliquer automatiqu
 4. `supabase/migrations/20260803140000_fixture_download_sync.sql`
 5. `supabase/migrations/20260803150000_match_list_order.sql`
 6. `supabase/migrations/20260803160000_admin_update_access_code.sql`
+7. `supabase/migrations/20260803170000_web_push.sql` (rappels Web Push ; envois désactivés par défaut)
 
 La migration sync ajoute les champs `source`, `last_synced_at`, `manual_override`, l’unicité `(source, external_id)`, et les RPC de commit / levée d’override. **Aucune donnée existante n’est supprimée.**
 
@@ -295,6 +296,55 @@ self.addEventListener('activate', (event) => {
 ```
 
 Ne pas laisser ce kill switch en production en permanence.
+
+## Rappels Web Push (MVP)
+
+Les rappels de pronostic (≈24 h et ≈2 h avant un match) utilisent le Web Push natif.
+
+### Composants
+
+- Migration `supabase/migrations/20260803170000_web_push.sql` (tables + RPC)
+- Edge Function `send-prediction-reminders` (`jsr:@negrel/webpush@0.5.0`, `aes128gcm`)
+- Handlers SW `public/push-events.js` via `workbox.importScripts`
+- Section **Rappels de pronostic** dans Paramètres
+
+### Secrets (noms uniquement — jamais dans le dépôt)
+
+| Nom | Emplacement |
+|---|---|
+| `VITE_VAPID_PUBLIC_KEY` | Vercel / `.env` local (clé publique base64url) |
+| `VAPID_KEYS_JSON` | Secrets Edge Function (JSON JWK exporté par `@negrel/webpush`) |
+| `VAPID_SUBJECT` | Secrets Edge (`mailto:…` ou URL de contact) |
+| `PUSH_CRON_SECRET` | Secrets Edge + Vault `push_reminders_cron_secret` |
+
+Génération locale des clés (exemple) :
+
+```bash
+deno run https://raw.githubusercontent.com/negrel/webpush/master/cmd/generate-vapid-keys.ts
+```
+
+Conserver la paire : une rotation oblige les appareils à se réabonner.
+
+### Déploiement contrôlé
+
+1. Appliquer la migration (`push_sending_enabled` reste `false`).
+2. Configurer les secrets VAPID + Cron.
+3. Déployer `supabase functions deploy send-prediction-reminders`.
+4. Déployer le frontend.
+5. Abonner un appareil propriétaire (Paramètres → Activer les rappels).
+6. Invoke manuelle avec `{ "cron_secret": "…", "dry_run": true }` puis sans `dry_run` après `push_sending_enabled = true` sur un match de test.
+7. Valider Chrome/Android **et** PWA iOS ≥ 16.4.
+8. Ensuite seulement décommenter / exécuter `supabase/schedule_push_reminders.example.sql` (toutes les 15 min).
+
+### Rollback immédiat
+
+```sql
+UPDATE public.app_settings
+SET value = 'false', updated_at = now()
+WHERE key = 'push_sending_enabled';
+
+SELECT cron.unschedule('a-la-nantaise-push-reminders');
+```
 
 ## Déploiement Vercel
 

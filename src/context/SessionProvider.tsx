@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
+  deactivatePushSubscription,
   fetchActivePlayers,
+  registerPushSubscription,
   setAccessInvalidationHandler,
   verifyAccessCode,
 } from '../lib/api'
 import { toUserMessage } from '../lib/errors'
+import {
+  getExistingPushSubscription,
+  serializationFromSubscription,
+  unsubscribeLocalPush,
+} from '../lib/push'
 import {
   clearLocalSession,
   clearPlayerId,
@@ -14,10 +21,7 @@ import {
 } from '../lib/session'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { PlayerOption } from '../types'
-import {
-  SessionContext,
-  type SessionPhase,
-} from './session-context'
+import { SessionContext, type SessionPhase } from './session-context'
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState<SessionPhase>('loading')
@@ -144,19 +148,48 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const changePlayer = useCallback(
     async (nextPlayerId: string) => {
+      if (!accessCode) {
+        throw new Error('INVALID_ACCESS_CODE')
+      }
+
+      const subscription = await getExistingPushSubscription()
+      if (subscription) {
+        const serialized = serializationFromSubscription(subscription)
+        await registerPushSubscription({
+          accessCode,
+          playerId: nextPlayerId,
+          endpoint: serialized.endpoint,
+          p256dh: serialized.p256dh,
+          auth: serialized.auth,
+          expirationTime: serialized.expirationTime,
+          userAgent: navigator.userAgent,
+        })
+      }
+
       await selectPlayer(nextPlayerId)
     },
-    [selectPlayer],
+    [accessCode, selectPlayer],
   )
 
-  const leaveGroup = useCallback(() => {
+  const leaveGroup = useCallback(async () => {
+    const code = accessCode
+    try {
+      const subscription = await getExistingPushSubscription()
+      if (subscription && code) {
+        await deactivatePushSubscription(code, subscription.endpoint)
+        await unsubscribeLocalPush()
+      }
+    } catch {
+      // Ne bloque pas la sortie de groupe si le réseau échoue.
+    }
+
     clearLocalSession()
     setAccessCode(null)
     setPlayerId(null)
     setPlayers([])
     setBootstrapError(null)
     setPhase('needs_code')
-  }, [])
+  }, [accessCode])
 
   const refreshPlayers = useCallback(async () => {
     if (!accessCode) return

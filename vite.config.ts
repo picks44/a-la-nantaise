@@ -71,6 +71,8 @@ export default defineConfig({
       },
       workbox: {
         // Shell + static hashed assets only. Never cache Supabase traffic.
+        // Push handlers only — no fetch logic in push-events.js.
+        importScripts: ['/push-events.js'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
         globPatterns: ['**/*.{js,css,html,ico,svg,png,woff2,webmanifest}'],

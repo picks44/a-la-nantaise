@@ -2,11 +2,14 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { LogOut, Shield, UserRound } from 'lucide-react'
 import { PwaInstallSection } from '../components/PwaInstallSection'
+import { PushNotificationsSection } from '../components/PushNotificationsSection'
 import { useSession } from '../context/useSession'
 import { toUserMessage } from '../lib/errors'
 
 export function SettingsPage() {
   const {
+    accessCode,
+    playerId,
     activePlayer,
     players,
     changePlayer,
@@ -120,13 +123,21 @@ export function SettingsPage() {
         <p className="mt-1 text-sm text-muted">
           Efface le code et le pseudo mémorisés sur cet appareil.
         </p>
-        <button type="button" onClick={leaveGroup} className="btn-danger mt-4">
+        <button type="button" onClick={() => void leaveGroup()} className="btn-danger mt-4">
           <LogOut aria-hidden="true" className="size-4" />
           Quitter le groupe
         </button>
       </section>
 
       <PwaInstallSection />
+
+      {accessCode && playerId && activePlayer ? (
+        <PushNotificationsSection
+          accessCode={accessCode}
+          playerId={playerId}
+          playerPseudo={activePlayer.pseudo}
+        />
+      ) : null}
 
       <section className="panel p-4">
         <Link

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { MatchListItem } from '../components/MatchListItem'
 import { useSession } from '../context/useSession'
 import {
@@ -12,8 +13,17 @@ import { shouldShowJumpToNextMatch } from '../lib/matchOrder'
 import { toUserMessage } from '../lib/errors'
 import type { Match, Prediction } from '../types'
 
+const MATCH_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 export function CalendarPage() {
   const { accessCode, playerId } = useSession()
+  const [searchParams] = useSearchParams()
+  const highlightMatchId = useMemo(() => {
+    const raw = searchParams.get('match')
+    return raw && MATCH_ID_RE.test(raw) ? raw : null
+  }, [searchParams])
+
   const [matches, setMatches] = useState<Match[]>([])
   const [predictions, setPredictions] = useState<Prediction[]>([])
   const [loading, setLoading] = useState(true)
@@ -78,6 +88,13 @@ export function CalendarPage() {
     [items, nextOpenId],
   )
 
+  useEffect(() => {
+    if (loading || !highlightMatchId) return
+    const el = document.getElementById(`match-${highlightMatchId}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [loading, highlightMatchId, items])
+
   return (
     <div className="space-y-4">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -116,6 +133,7 @@ export function CalendarPage() {
                 match={match}
                 prediction={prediction}
                 isNext={match.id === nextOpenId}
+                highlighted={match.id === highlightMatchId}
               />
             </li>
           ))}

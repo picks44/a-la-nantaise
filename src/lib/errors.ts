@@ -42,6 +42,13 @@ const KNOWN_CODES = [
   'FEED_TIMEOUT',
   'FEED_TOO_LARGE',
   'FEED_NOT_JSON',
+  'INVALID_PUSH_ENDPOINT',
+  'INVALID_PUSH_KEYS',
+  'PUSH_DEVICE_LIMIT',
+  'PUSH_UNSUPPORTED',
+  'PUSH_MISCONFIGURED',
+  'PUSH_PERMISSION_DENIED',
+  'PUSH_SUBSCRIPTION_INVALID',
 ] as const
 
 export function getErrorCode(error: unknown): string | null {
@@ -129,6 +136,20 @@ export function toUserMessage(error: unknown): string {
       return 'La réponse du calendrier est trop volumineuse.'
     case 'FEED_NOT_JSON':
       return 'La réponse du calendrier n’est pas un JSON valide.'
+    case 'INVALID_PUSH_ENDPOINT':
+      return 'Endpoint de notification invalide.'
+    case 'INVALID_PUSH_KEYS':
+      return 'Clés d’abonnement push invalides.'
+    case 'PUSH_DEVICE_LIMIT':
+      return 'Trop d’appareils actifs pour les rappels.'
+    case 'PUSH_UNSUPPORTED':
+      return 'Les notifications push ne sont pas disponibles sur ce navigateur.'
+    case 'PUSH_MISCONFIGURED':
+      return 'Les rappels ne sont pas encore configurés sur ce déploiement.'
+    case 'PUSH_PERMISSION_DENIED':
+      return 'Permission de notification refusée.'
+    case 'PUSH_SUBSCRIPTION_INVALID':
+      return 'Abonnement push incomplet. Réessaie.'
     default:
       if (error instanceof Error && error.message) return error.message
       return 'Une erreur est survenue. Réessaie dans un instant.'

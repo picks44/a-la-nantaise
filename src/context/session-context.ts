@@ -18,7 +18,7 @@ export interface SessionContextValue {
   submitAccessCode: (code: string) => Promise<void>
   selectPlayer: (playerId: string) => Promise<void>
   changePlayer: (playerId: string) => Promise<void>
-  leaveGroup: () => void
+  leaveGroup: () => void | Promise<void>
   refreshPlayers: () => Promise<void>
 }
 

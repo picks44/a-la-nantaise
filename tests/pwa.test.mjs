@@ -37,9 +37,21 @@ describe('pwa helpers', () => {
     assert.match(config, /supabase/)
     assert.match(config, /rest\|rpc\|auth\|functions\|storage/)
     assert.match(config, /SUPABASE_HOST_PATTERN/)
+    assert.match(config, /importScripts:\s*\['\/push-events\.js'\]/)
     assert.doesNotMatch(config, /BackgroundSync/)
     assert.doesNotMatch(config, /StaleWhileRevalidate/)
     assert.doesNotMatch(config, /CacheFirst/)
+    assert.doesNotMatch(config, /strategies:\s*'injectManifest'/)
+  })
+
+  it('ships push-events.js with push handlers only (no fetch / Supabase)', () => {
+    const push = read('public/push-events.js')
+    assert.match(push, /addEventListener\('push'/)
+    assert.match(push, /addEventListener\('notificationclick'/)
+    assert.match(push, /\/calendrier\?match=/)
+    assert.match(push, /renotify:\s*false/)
+    assert.doesNotMatch(push, /addEventListener\('fetch'/)
+    assert.doesNotMatch(push, /supabase|service_role|VAPID_PRIVATE|aln_access_code/)
   })
 
   it('ships real icon dimensions and temporary ALN branding files', () => {
@@ -70,6 +82,7 @@ describe('pwa helpers', () => {
     const vercel = read('vercel.json')
     assert.match(vercel, /"destination": "\/index\.html"/)
     assert.match(vercel, /"\/sw\.js"/)
+    assert.match(vercel, /"\/push-events\.js"/)
     assert.match(vercel, /no-cache, no-store, must-revalidate/)
     assert.doesNotMatch(vercel, /Service-Worker-Allowed/)
   })
@@ -90,6 +103,7 @@ describe('pwa dist artifacts', () => {
     assert.match(swSource, /NetworkOnly/)
     assert.match(swSource, /supabase/)
     assert.match(swSource, /rest\|rpc\|auth\|functions\|storage/)
+    assert.match(swSource, /push-events\.js/)
     assert.doesNotMatch(swSource, /isSupabaseUrl/)
     assert.doesNotMatch(swSource, /service_role/)
     assert.doesNotMatch(swSource, /eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]+\./) // JWT-like
@@ -100,6 +114,11 @@ describe('pwa dist artifacts', () => {
     // No caching strategies that could retain business data.
     assert.doesNotMatch(swSource, /StaleWhileRevalidate|CacheFirst/)
 
+    assert.equal(
+      existsSync(join(dist, 'push-events.js')),
+      true,
+      'push-events.js missing in dist',
+    )
     const manifestName = files.find((name) => name.endsWith('.webmanifest'))
     assert.ok(manifestName, 'webmanifest missing')
     const manifest = JSON.parse(readFileSync(join(dist, manifestName), 'utf8'))

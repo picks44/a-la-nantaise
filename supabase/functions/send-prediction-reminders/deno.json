@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.111.0",
+    "@negrel/webpush": "jsr:@negrel/webpush@0.5.0"
+  }
+}

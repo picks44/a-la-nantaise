@@ -314,3 +314,70 @@ export function getPredictionForMatch(
       (playerId == null || prediction.playerId === playerId),
   )
 }
+
+interface DbPushStatusRow {
+  active: boolean
+  status: string
+  player_id: string
+}
+
+export async function registerPushSubscription(input: {
+  accessCode: string
+  playerId: string
+  endpoint: string
+  p256dh: string
+  auth: string
+  expirationTime?: string | null
+  userAgent?: string | null
+}): Promise<{ id: string; playerId: string; status: string }> {
+  const rows = await rpc<
+    Array<{ id: string; player_id: string; status: string; updated_at: string }>
+  >('register_push_subscription', {
+    p_access_code: input.accessCode,
+    p_player_id: input.playerId,
+    p_endpoint: input.endpoint,
+    p_p256dh: input.p256dh,
+    p_auth: input.auth,
+    p_expiration_time: input.expirationTime ?? null,
+    p_user_agent: input.userAgent ?? null,
+  })
+
+  const row = rows?.[0]
+  if (!row) {
+    throw new ApiError('RPC_ERROR', 'Inscription push sans réponse.')
+  }
+
+  return {
+    id: row.id,
+    playerId: row.player_id,
+    status: row.status,
+  }
+}
+
+export async function deactivatePushSubscription(
+  accessCode: string,
+  endpoint: string,
+): Promise<boolean> {
+  const result = await rpc<boolean>('deactivate_push_subscription', {
+    p_access_code: accessCode,
+    p_endpoint: endpoint,
+  })
+  return Boolean(result)
+}
+
+export async function getPushSubscriptionStatus(
+  accessCode: string,
+  endpoint: string,
+): Promise<{ active: boolean; status: string; playerId: string } | null> {
+  const rows = await rpc<DbPushStatusRow[]>('get_push_subscription_status', {
+    p_access_code: accessCode,
+    p_endpoint: endpoint,
+  })
+  const row = rows?.[0]
+  if (!row) return null
+  return {
+    active: Boolean(row.active),
+    status: row.status,
+    playerId: row.player_id,
+  }
+}

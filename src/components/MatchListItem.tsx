@@ -11,12 +11,15 @@ interface MatchListItemProps {
   prediction?: Prediction
   /** Prochain match ouvert aux pronostics — seul fond jaune dominant. */
   isNext?: boolean
+  /** Deep link depuis une notification (`?match=`). */
+  highlighted?: boolean
 }
 
 export function MatchListItem({
   match,
   prediction,
   isNext = false,
+  highlighted = false,
 }: MatchListItemProps) {
   const isFinished = match.status === 'finished'
   const isPredicted = match.status === 'predicted'
@@ -25,18 +28,22 @@ export function MatchListItem({
 
   const shellClass = isNext
     ? 'border-ink bg-yellow'
-    : isFinished
-      ? 'border-ink bg-ink text-white'
-      : 'border-border bg-surface'
+    : highlighted
+      ? 'border-green bg-success-soft ring-2 ring-green/40'
+      : isFinished
+        ? 'border-ink bg-ink text-white'
+        : 'border-border bg-surface'
 
   return (
     <article
-      id={isNext ? 'prochain-match' : undefined}
+      id={`match-${match.id}`}
+      data-match-id={match.id}
       className={[
         'overflow-hidden rounded-[var(--radius-md)] border scroll-mt-24',
         shellClass,
       ].join(' ')}
     >
+      {isNext ? <span id="prochain-match" className="sr-only" /> : null}
       <div
         className={[
           'flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2',
