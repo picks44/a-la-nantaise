@@ -2,7 +2,7 @@ import type { MatchUiStatus } from '../types'
 
 const STATUS_LABELS: Record<MatchUiStatus, string> = {
   to_predict: 'À pronostiquer',
-  predicted: 'Pronostic enregistré',
+  predicted: 'Prédit',
   locked: 'Verrouillé',
   finished: 'Terminé',
   postponed: 'Reporté',
@@ -10,11 +10,11 @@ const STATUS_LABELS: Record<MatchUiStatus, string> = {
 }
 
 const STATUS_STYLES: Record<MatchUiStatus, string> = {
-  to_predict: 'bg-yellow text-ink border-ink',
-  predicted: 'bg-green text-white border-green',
-  locked: 'bg-canvas text-muted border-border',
-  finished: 'bg-ink text-yellow border-ink',
-  postponed: 'bg-danger-soft text-danger border-danger/30',
+  to_predict: 'bg-yellow/40 text-ink border-ink/20',
+  predicted: 'bg-success-soft text-green-dark border-green/35',
+  locked: 'bg-surface-muted text-muted border-border',
+  finished: 'bg-surface-muted text-ink border-border',
+  postponed: 'bg-warning-soft text-warning border-warning/30',
   cancelled: 'bg-danger-soft text-danger border-danger/30',
 }
 

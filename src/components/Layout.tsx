@@ -10,9 +10,9 @@ const navItems = [
 
 function desktopNavClass({ isActive }: { isActive: boolean }): string {
   return [
-    'relative px-2 py-1 text-xs font-extrabold tracking-[0.12em] uppercase transition-colors',
+    'relative inline-flex min-h-11 items-center px-2 py-1 text-xs font-extrabold tracking-[0.1em] uppercase transition-colors',
     isActive
-      ? 'text-ink after:absolute after:right-0 after:bottom-0 after:left-0 after:h-0.5 after:bg-ink'
+      ? 'text-green-dark after:absolute after:right-0 after:bottom-0 after:left-0 after:h-0.5 after:bg-green'
       : 'text-ink/65 hover:text-ink',
   ].join(' ')
 }
@@ -28,12 +28,12 @@ export function Header() {
   const { activePlayer } = useSession()
 
   return (
-    <header className="border-b-2 border-ink bg-yellow">
+    <header className="sticky top-0 z-40 border-b border-ink bg-yellow">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <span
             aria-hidden="true"
-            className="hidden size-9 shrink-0 items-center justify-center border-2 border-ink bg-ink text-[11px] font-black tracking-tight text-yellow sm:inline-flex"
+            className="hidden size-9 shrink-0 items-center justify-center border border-ink bg-ink text-[11px] font-black tracking-tight text-yellow sm:inline-flex"
           >
             ALN
           </span>
@@ -44,7 +44,7 @@ export function Header() {
             >
               À la Nantaise
             </Link>
-            <p className="text-[10px] font-bold tracking-[0.16em] text-green-dark uppercase">
+            <p className="text-[10px] font-bold tracking-[0.12em] text-green-dark uppercase">
               Pronos 26/27
               <span className="mx-1.5 text-ink/30">·</span>
               <span className="tracking-normal text-ink/70 normal-case">
@@ -56,7 +56,7 @@ export function Header() {
 
         <div className="flex items-center gap-1 sm:gap-3">
           <nav
-            className="hidden items-center gap-4 md:flex"
+            className="hidden items-center gap-3 md:flex"
             aria-label="Navigation principale"
           >
             {navItems.map(({ to, label, end }) => (
@@ -68,7 +68,7 @@ export function Header() {
 
           <Link
             to="/parametres"
-            className="inline-flex size-10 items-center justify-center border border-ink/20 text-ink transition hover:border-ink hover:bg-ink hover:text-yellow"
+            className="inline-flex size-11 items-center justify-center border border-ink/25 text-ink transition hover:border-ink hover:bg-ink hover:text-yellow"
             aria-label="Paramètres d’accès"
             title="Paramètres d’accès"
           >
