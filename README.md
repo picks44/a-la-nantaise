@@ -43,6 +43,7 @@ Dans le **SQL Editor**, exécute **dans l’ordre** (ne pas appliquer automatiqu
 2. `supabase/migrations/20260803120000_fix_upsert_prediction_ambiguity.sql`
 3. `supabase/migrations/20260803130000_admin_rpcs.sql`
 4. `supabase/migrations/20260803140000_fixture_download_sync.sql`
+5. `supabase/migrations/20260803150000_match_list_order.sql`
 
 La migration sync ajoute les champs `source`, `last_synced_at`, `manual_override`, l’unicité `(source, external_id)`, et les RPC de commit / levée d’override. **Aucune donnée existante n’est supprimée.**
 
@@ -111,6 +112,59 @@ SELECT public.verify_admin_code('TON_CODE_ADMIN'); -- doit renvoyer true
 4. Cliquer **Synchroniser les matchs**
 5. Vérifier le résumé (créés / mis à jour / inchangés / protégés) et les pastilles Synchronisé / Modifié manuellement / Match manuel
 
+### Synchronisation automatique quotidienne
+
+Le bouton de synchronisation manuelle reste disponible. Pour ajouter une
+synchronisation quotidienne à **05:15 UTC** :
+
+1. Dans **Supabase → SQL Editor**, crée les trois secrets Vault ci-dessous en
+   remplaçant uniquement les valeurs. Utilise la clé `anon` JWT du projet,
+   jamais la clé `service_role` :
+
+```sql
+SELECT vault.create_secret(
+  'https://PROJECT_REF.supabase.co',
+  'project_url'
+);
+SELECT vault.create_secret(
+  'CLE_ANON_JWT',
+  'function_anon_key'
+);
+SELECT vault.create_secret(
+  'CODE_ADMINISTRATEUR',
+  'fixture_sync_admin_code'
+);
+```
+
+2. Dans le SQL Editor, exécute tout le contenu de
+   `supabase/schedule_fixture_sync.example.sql`.
+3. Vérifie que la requête finale affiche un job actif nommé
+   `a-la-nantaise-daily-fixture-sync`.
+
+Les valeurs sensibles restent chiffrées dans Vault. Le script active
+`pg_cron` et `pg_net`, remplace proprement un ancien job du même nom et appelle
+la même Edge Function que le bouton de l'admin.
+
+Pour consulter les dernières exécutions :
+
+```sql
+SELECT status, start_time, end_time, return_message
+FROM cron.job_run_details
+WHERE jobid = (
+  SELECT jobid
+  FROM cron.job
+  WHERE jobname = 'a-la-nantaise-daily-fixture-sync'
+)
+ORDER BY start_time DESC
+LIMIT 10;
+```
+
+Pour désactiver l'automatisation :
+
+```sql
+SELECT cron.unschedule('a-la-nantaise-daily-fixture-sync');
+```
+
 ## Règles produit
 
 - Un seul pronostic par joueur et par match
@@ -149,5 +203,6 @@ Pour valider en base (transaction annulée) :
 - `src/pages/AdminPage.tsx` — administration (matchs, sync, participants)
 - `supabase/migrations/` — schéma + RPC
 - `supabase/functions/sync-fc-nantes/` — synchronisation serveur
+- `supabase/schedule_fixture_sync.example.sql` — planification quotidienne via Cron + Vault
 - `supabase/seed.sql` — joueurs / matchs / pronos de test
 - `tests/fixtures/ligue-2-2026-fc-nantes.json` — flux local de test
