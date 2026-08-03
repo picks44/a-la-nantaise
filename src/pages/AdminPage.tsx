@@ -10,8 +10,10 @@ import { Link } from 'react-router-dom'
 import { KeyRound, LogOut } from 'lucide-react'
 import { ConfirmModal } from '../components/ConfirmModal'
 import {
+  adminClearMatchOverride,
   adminCreateMatch,
   adminCreatePlayer,
+  adminGetFixtureSyncMeta,
   adminGetMatches,
   adminGetPlayers,
   adminGetStats,
@@ -19,10 +21,14 @@ import {
   adminSetPlayerActive,
   adminUpdateMatch,
   adminUpdatePlayerName,
+  matchHasSourceDrift,
+  matchSyncBadge,
+  syncFcNantesMatches,
   verifyAdminCode,
   type AdminMatch,
   type AdminPlayer,
   type AdminStats,
+  type FixtureSyncResult,
   TRACKED_TEAM,
 } from '../lib/adminApi'
 import {
@@ -191,6 +197,10 @@ function AdminShell({
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-5 sm:px-6">
         {children}
       </main>
+      <footer className="border-t border-border px-4 py-3 text-center text-[10px] text-muted">
+        Calendrier FC Nantes : données Fixture Download (mise à jour quotidienne
+        annoncée, schéma non garanti).
+      </footer>
     </div>
   )
 }
@@ -476,6 +486,9 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
   const [editing, setEditing] = useState<AdminMatch | null>(null)
   const [form, setForm] = useState<MatchFormState>(emptyMatchForm)
   const [pending, setPending] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
+  const [syncSummary, setSyncSummary] = useState<FixtureSyncResult | null>(null)
   const [confirmResult, setConfirmResult] = useState<null | {
     mode: 'create' | 'update' | 'result'
     payload: MatchFormState
@@ -488,8 +501,14 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
       setLoading(true)
       setError(null)
       try {
-        const rows = await adminGetMatches(adminCode)
-        if (!cancelled) setMatches(rows)
+        const [rows, meta] = await Promise.all([
+          adminGetMatches(adminCode),
+          adminGetFixtureSyncMeta(adminCode),
+        ])
+        if (!cancelled) {
+          setMatches(rows)
+          setLastSyncedAt(meta.lastSyncedAt)
+        }
       } catch (err) {
         if (!cancelled) setError(toUserMessage(err))
       } finally {
@@ -506,7 +525,12 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
     setLoading(true)
     setError(null)
     try {
-      setMatches(await adminGetMatches(adminCode))
+      const [rows, meta] = await Promise.all([
+        adminGetMatches(adminCode),
+        adminGetFixtureSyncMeta(adminCode),
+      ])
+      setMatches(rows)
+      setLastSyncedAt(meta.lastSyncedAt)
     } catch (err) {
       setError(toUserMessage(err))
     } finally {
@@ -609,6 +633,43 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
     }
   }
 
+  async function handleSync() {
+    setSyncing(true)
+    setError(null)
+    setMessage(null)
+    setSyncSummary(null)
+    try {
+      const result = await syncFcNantesMatches(adminCode)
+      setSyncSummary(result)
+      setLastSyncedAt(result.lastSyncedAt)
+      setMessage('Synchronisation terminée.')
+      await reload()
+    } catch (err) {
+      setError(toUserMessage(err))
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  async function handleClearOverride(matchId: string) {
+    setPending(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const result = await adminClearMatchOverride(adminCode, matchId)
+      setMessage(
+        result.recalculatedCount > 0
+          ? `Match remis sous synchronisation. ${result.recalculatedCount} pronostic(s) recalculé(s).`
+          : 'Match remis sous synchronisation.',
+      )
+      await reload()
+    } catch (err) {
+      setError(toUserMessage(err))
+    } finally {
+      setPending(false)
+    }
+  }
+
   const sorted = useMemo(
     () =>
       [...matches].sort(
@@ -624,13 +685,39 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
         <div>
           <h1 className="title-display text-xl">Matchs</h1>
           <p className="mt-1 text-sm text-muted">
-            Gestion manuelle — pas d’API sportive pour l’instant.
+            Synchronisation Fixture Download ou saisie manuelle.
           </p>
         </div>
-        <button type="button" className="btn-ink sm:w-auto" onClick={openCreate}>
-          Ajouter un match
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn-ink sm:w-auto"
+            disabled={syncing || pending}
+            onClick={() => void handleSync()}
+          >
+            {syncing ? 'Synchronisation…' : 'Synchroniser les matchs'}
+          </button>
+          <button type="button" className="border-2 border-ink px-4 py-3 text-xs font-extrabold tracking-wider uppercase sm:w-auto" onClick={openCreate}>
+            Ajouter un match
+          </button>
+        </div>
       </header>
+
+      <section className="panel space-y-2 p-4 text-sm">
+        <p>
+          <span className="font-bold text-ink">Source</span>
+          <span className="text-muted"> · </span>
+          Fixture Download
+        </p>
+        <p className="text-muted">
+          Dernière synchronisation :{' '}
+          {lastSyncedAt
+            ? new Date(lastSyncedAt).toLocaleString('fr-FR', {
+                timeZone: 'Europe/Paris',
+              })
+            : 'jamais'}
+        </p>
+      </section>
 
       {error ? (
         <p role="alert" className="text-sm font-semibold text-danger">
@@ -641,6 +728,23 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
         <p role="status" aria-live="polite" className="text-sm font-semibold text-green-dark">
           {message}
         </p>
+      ) : null}
+
+      {syncSummary ? (
+        <section className="panel space-y-1 p-4 text-sm" aria-live="polite">
+          <p className="text-xs font-black tracking-[0.12em] uppercase">
+            Résumé de synchronisation
+          </p>
+          <ul className="mt-2 space-y-1 text-muted">
+            <li>Créés : {syncSummary.created}</li>
+            <li>Mis à jour : {syncSummary.updated}</li>
+            <li>Inchangés : {syncSummary.unchanged}</li>
+            <li>Nouveaux résultats : {syncSummary.newResults}</li>
+            <li>Points recalculés : {syncSummary.pointsRecalculated}</li>
+            <li>Protégés (modif. manuelle) : {syncSummary.protected}</li>
+            <li>Conflits : {syncSummary.conflicts.length}</li>
+          </ul>
+        </section>
       ) : null}
 
       {formOpen ? (
@@ -804,37 +908,76 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
         <p className="text-sm text-muted">Chargement…</p>
       ) : (
         <ul className="space-y-2">
-          {sorted.map((match) => (
-            <li key={match.id} className="panel p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-[11px] font-bold tracking-[0.12em] text-muted uppercase">
-                    Journée {match.matchday} · {formatKickoff(match.kickoffAt)}
-                  </p>
-                  <p className="mt-1 font-black uppercase">
-                    {match.homeTeam}
-                    <span className="mx-2 text-muted">–</span>
-                    {match.awayTeam}
-                  </p>
-                  {match.finalScore ? (
-                    <p className="mt-1 text-lg font-black tabular-nums">
-                      {match.finalScore.home} – {match.finalScore.away}
+          {sorted.map((match) => {
+            const badge = matchSyncBadge(match)
+            const drift = matchHasSourceDrift(match)
+            return (
+              <li key={match.id} className="panel p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="text-[11px] font-bold tracking-[0.12em] text-muted uppercase">
+                      Journée {match.matchday} · {formatKickoff(match.kickoffAt)}
                     </p>
+                    <p className="mt-1 font-black uppercase">
+                      {match.homeTeam}
+                      <span className="mx-2 text-muted">–</span>
+                      {match.awayTeam}
+                    </p>
+                    {match.finalScore ? (
+                      <p className="mt-1 text-lg font-black tabular-nums">
+                        {match.finalScore.home} – {match.finalScore.away}
+                      </p>
+                    ) : null}
+                    {drift ? (
+                      <p className="mt-2 text-xs font-semibold text-danger">
+                        Écart avec la source (horaire ou équipes).
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="border border-ink px-2 py-1 text-[10px] font-black tracking-wider uppercase">
+                      {DB_STATUS_LABELS[match.dbStatus]}
+                    </span>
+                    <span
+                      className={[
+                        'border px-2 py-1 text-[10px] font-black tracking-wider uppercase',
+                        badge === 'synced'
+                          ? 'border-green bg-green text-white'
+                          : badge === 'manual_override'
+                            ? 'border-ink bg-yellow text-ink'
+                            : 'border-border bg-canvas text-muted',
+                      ].join(' ')}
+                    >
+                      {badge === 'synced'
+                        ? 'Synchronisé'
+                        : badge === 'manual_override'
+                          ? 'Modifié manuellement'
+                          : 'Match manuel'}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="border-2 border-ink px-3 py-2 text-[11px] font-extrabold tracking-wider uppercase"
+                    onClick={() => openEdit(match)}
+                  >
+                    Modifier
+                  </button>
+                  {badge === 'manual_override' ? (
+                    <button
+                      type="button"
+                      className="border-2 border-ink px-3 py-2 text-[11px] font-extrabold tracking-wider uppercase"
+                      disabled={pending}
+                      onClick={() => void handleClearOverride(match.id)}
+                    >
+                      Remettre sous sync
+                    </button>
                   ) : null}
                 </div>
-                <span className="border border-ink px-2 py-1 text-[10px] font-black tracking-wider uppercase">
-                  {DB_STATUS_LABELS[match.dbStatus]}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="mt-3 border-2 border-ink px-3 py-2 text-[11px] font-extrabold tracking-wider uppercase"
-                onClick={() => openEdit(match)}
-              >
-                Modifier
-              </button>
-            </li>
-          ))}
+              </li>
+            )
+          })}
         </ul>
       )}
 

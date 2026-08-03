@@ -15,6 +15,15 @@ export interface AdminMatch extends Match {
   externalId: string | null
   createdAt: string
   updatedAt: string
+  source: 'manual' | 'fixturedownload' | string
+  lastSyncedAt: string | null
+  manualOverride: boolean
+  sourceHomeTeam: string | null
+  sourceAwayTeam: string | null
+  sourceKickoffAt: string | null
+  sourceHomeScore: number | null
+  sourceAwayScore: number | null
+  sourceStatus: 'scheduled' | 'finished' | null
 }
 
 export interface AdminMatchMutationResult {
@@ -28,6 +37,33 @@ export interface AdminStats {
   matchesCount: number
   finishedMatchesCount: number
   supabaseOk: boolean
+}
+
+export interface FixtureSyncMeta {
+  lastSyncedAt: string | null
+  sourceLabel: string
+}
+
+export interface FixtureSyncProtectedDetail {
+  id: string
+  externalId: string
+  driftTeams: boolean
+  driftKickoff: boolean
+  driftResult: boolean
+}
+
+export interface FixtureSyncResult {
+  ok: true
+  source: string
+  created: number
+  updated: number
+  unchanged: number
+  newResults: number
+  pointsRecalculated: number
+  protected: number
+  conflicts: unknown[]
+  protectedDetails: FixtureSyncProtectedDetail[]
+  lastSyncedAt: string | null
 }
 
 interface DbPlayerRow {
@@ -49,6 +85,15 @@ interface DbMatchAdminRow {
   away_score: number | null
   created_at: string
   updated_at: string
+  source?: string | null
+  last_synced_at?: string | null
+  manual_override?: boolean | null
+  source_home_team?: string | null
+  source_away_team?: string | null
+  source_kickoff_at?: string | null
+  source_home_score?: number | null
+  source_away_score?: number | null
+  source_status?: string | null
   recalculated_count?: number | string
 }
 
@@ -58,6 +103,11 @@ interface DbStatsRow {
   matches_count: number | string
   finished_matches_count: number | string
   supabase_ok: boolean
+}
+
+interface DbSyncMetaRow {
+  last_synced_at: string | null
+  source_label: string
 }
 
 async function adminRpc<T>(
@@ -88,6 +138,18 @@ function mapAdminMatch(row: DbMatchAdminRow): AdminMatch {
     externalId: row.external_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    source: row.source ?? 'manual',
+    lastSyncedAt: row.last_synced_at ?? null,
+    manualOverride: Boolean(row.manual_override),
+    sourceHomeTeam: row.source_home_team ?? null,
+    sourceAwayTeam: row.source_away_team ?? null,
+    sourceKickoffAt: row.source_kickoff_at ?? null,
+    sourceHomeScore: row.source_home_score ?? null,
+    sourceAwayScore: row.source_away_score ?? null,
+    sourceStatus:
+      row.source_status === 'scheduled' || row.source_status === 'finished'
+        ? row.source_status
+        : null,
   }
 }
 
@@ -100,6 +162,28 @@ function mapMutationResult(rows: DbMatchAdminRow[] | null): AdminMatchMutationRe
     match: mapAdminMatch(row),
     recalculatedCount: Number(row.recalculated_count ?? 0),
   }
+}
+
+export function matchSyncBadge(
+  match: AdminMatch,
+): 'synced' | 'manual_override' | 'manual' {
+  if (match.manualOverride) return 'manual_override'
+  if (match.source === 'fixturedownload') return 'synced'
+  return 'manual'
+}
+
+export function matchHasSourceDrift(match: AdminMatch): boolean {
+  if (!match.manualOverride || match.source !== 'fixturedownload') return false
+  if (!match.sourceHomeTeam || !match.sourceAwayTeam || !match.sourceKickoffAt) {
+    return false
+  }
+  const teamsDiffer =
+    match.homeTeam !== match.sourceHomeTeam ||
+    match.awayTeam !== match.sourceAwayTeam
+  const kickoffDiffer =
+    new Date(match.kickoffAt).getTime() !==
+    new Date(match.sourceKickoffAt).getTime()
+  return teamsDiffer || kickoffDiffer
 }
 
 export async function verifyAdminCode(adminCode: string): Promise<boolean> {
@@ -240,6 +324,100 @@ export async function adminSetMatchResult(
     p_away_score: awayScore,
   })
   return mapMutationResult(rows)
+}
+
+export async function adminClearMatchOverride(
+  adminCode: string,
+  matchId: string,
+): Promise<AdminMatchMutationResult> {
+  const rows = await adminRpc<DbMatchAdminRow[]>('admin_clear_match_override', {
+    p_admin_code: adminCode,
+    p_match_id: matchId,
+  })
+  return mapMutationResult(rows)
+}
+
+export async function adminGetFixtureSyncMeta(
+  adminCode: string,
+): Promise<FixtureSyncMeta> {
+  const rows = await adminRpc<DbSyncMetaRow[]>('admin_get_fixture_sync_meta', {
+    p_admin_code: adminCode,
+  })
+  const row = rows?.[0]
+  return {
+    lastSyncedAt: row?.last_synced_at ?? null,
+    sourceLabel: row?.source_label ?? 'Fixture Download',
+  }
+}
+
+export async function syncFcNantesMatches(
+  adminCode: string,
+): Promise<FixtureSyncResult> {
+  const { data, error } = await getSupabase().functions.invoke('sync-fc-nantes', {
+    body: { admin_code: adminCode },
+  })
+
+  if (error) {
+    const nested =
+      data && typeof data === 'object'
+        ? (data as { error?: { code?: string; message?: string } }).error
+        : null
+    if (nested?.code) {
+      throw new ApiError(nested.code, nested.message ?? nested.code)
+    }
+    throw new ApiError(
+      getErrorCode(error) ?? 'SYNC_FAILED',
+      error.message || 'La synchronisation a échoué.',
+    )
+  }
+
+  const payload = data as {
+    ok?: boolean
+    error?: { code?: string; message?: string }
+    source?: string
+    created?: number
+    updated?: number
+    unchanged?: number
+    new_results?: number
+    points_recalculated?: number
+    protected?: number
+    conflicts?: unknown[]
+    protected_details?: Array<{
+      id: string
+      external_id: string
+      drift_teams: boolean
+      drift_kickoff: boolean
+      drift_result: boolean
+    }>
+    last_synced_at?: string | null
+  }
+
+  if (!payload?.ok) {
+    throw new ApiError(
+      payload?.error?.code ?? 'SYNC_FAILED',
+      payload?.error?.message ?? 'La synchronisation a échoué.',
+    )
+  }
+
+  return {
+    ok: true,
+    source: payload.source ?? 'Fixture Download',
+    created: Number(payload.created ?? 0),
+    updated: Number(payload.updated ?? 0),
+    unchanged: Number(payload.unchanged ?? 0),
+    newResults: Number(payload.new_results ?? 0),
+    pointsRecalculated: Number(payload.points_recalculated ?? 0),
+    protected: Number(payload.protected ?? 0),
+    conflicts: payload.conflicts ?? [],
+    protectedDetails: (payload.protected_details ?? []).map((item) => ({
+      id: item.id,
+      externalId: item.external_id,
+      driftTeams: item.drift_teams,
+      driftKickoff: item.drift_kickoff,
+      driftResult: item.drift_result,
+    })),
+    lastSyncedAt: payload.last_synced_at ?? null,
+  }
 }
 
 export async function adminGetStats(adminCode: string): Promise<AdminStats> {

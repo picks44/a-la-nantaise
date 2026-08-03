@@ -4,4 +4,8 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  build: {
+    // Bundle principal ~500 kB (supabase-js + fonts déjà hors chunk JS).
+    chunkSizeWarningLimit: 600,
+  },
 })

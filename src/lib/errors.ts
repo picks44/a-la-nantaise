@@ -28,9 +28,24 @@ const KNOWN_CODES = [
   'MATCH_NOT_OPENABLE',
   'MATCH_LOCKED',
   'MATCH_NOT_FINISHED',
+  'SYNC_CONFLICT',
+  'SYNC_FAILED',
+  'INVALID_SYNC_PLAN',
+  'INVALID_FEED_SHAPE',
+  'INVALID_FEED_COUNT',
+  'DUPLICATE_ROUND',
+  'MISSING_ROUND',
+  'INVALID_FIXTURE_DATE',
+  'INVALID_FIXTURE_SCORE',
+  'FEED_HTTP_ERROR',
+  'FEED_TIMEOUT',
+  'FEED_TOO_LARGE',
+  'FEED_NOT_JSON',
 ] as const
 
 export function getErrorCode(error: unknown): string | null {
+  if (error instanceof ApiError) return error.code
+
   const message =
     error instanceof Error
       ? error.message
@@ -42,7 +57,6 @@ export function getErrorCode(error: unknown): string | null {
     if (message.includes(code)) return code
   }
 
-  if (error instanceof ApiError) return error.code
   return null
 }
 
@@ -86,6 +100,32 @@ export function toUserMessage(error: unknown): string {
       return 'Match introuvable.'
     case 'MATCH_NOT_FINISHED':
       return 'Le match doit être terminé pour calculer les points.'
+    case 'SYNC_CONFLICT':
+      return 'Conflit de rapprochement : plusieurs matchs correspondent à la même rencontre.'
+    case 'SYNC_FAILED':
+      return 'La synchronisation a échoué. Réessaie dans un instant.'
+    case 'INVALID_SYNC_PLAN':
+      return 'Plan de synchronisation invalide.'
+    case 'INVALID_FEED_SHAPE':
+      return 'Le calendrier reçu n’a pas le format attendu.'
+    case 'INVALID_FEED_COUNT':
+      return 'Le flux ne contient pas exactement 34 matchs.'
+    case 'DUPLICATE_ROUND':
+      return 'Le flux contient des journées dupliquées.'
+    case 'MISSING_ROUND':
+      return 'Le flux ne couvre pas toutes les journées 1 à 34.'
+    case 'INVALID_FIXTURE_DATE':
+      return 'Une date de match du flux est invalide.'
+    case 'INVALID_FIXTURE_SCORE':
+      return 'Un score du flux est invalide.'
+    case 'FEED_HTTP_ERROR':
+      return 'Impossible de télécharger le calendrier Fixture Download.'
+    case 'FEED_TIMEOUT':
+      return 'Délai dépassé lors du téléchargement du calendrier.'
+    case 'FEED_TOO_LARGE':
+      return 'La réponse du calendrier est trop volumineuse.'
+    case 'FEED_NOT_JSON':
+      return 'La réponse du calendrier n’est pas un JSON valide.'
     default:
       if (error instanceof Error && error.message) return error.message
       return 'Une erreur est survenue. Réessaie dans un instant.'
