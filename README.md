@@ -10,11 +10,13 @@ Accès par **code commun** (pas de compte, pas d’e-mail). Données hébergées
 - React Router + Lucide React
 - `@supabase/supabase-js` (clé **anon** uniquement côté client)
 - Supabase Edge Function `sync-fc-nantes` (appel serveur du flux public)
+- npm (voir `package-lock.json` ; Node `>=22.12.0`, fichier `.nvmrc`)
 
 ## Commandes
 
 ```bash
-npm install
+npm ci          # install figé (CI / prod)
+npm install     # développement local
 npm run dev
 npm run build
 npm run preview
@@ -22,12 +24,37 @@ npm run lint
 npm test
 ```
 
+## Variables d’environnement
+
+### Frontend (seules variables injectées dans le navigateur)
+
+| Variable | Rôle |
+|---|---|
+| `VITE_SUPABASE_URL` | URL publique du projet Supabase |
+| `VITE_SUPABASE_ANON_KEY` | Clé **anon** / publique JWT |
+
+Modèle : `.env.example` (placeholders uniquement). Copie vers `.env` en local.
+
+**Règles :**
+
+- Seules les variables préfixées `VITE_*` entrent dans le bundle frontend.
+- N’utilise **jamais** la clé `service_role` dans le frontend, Vault Cron côté client, ni `.env` versionné.
+- Ne committe jamais de valeurs réelles.
+
+### Vault Supabase (serveur uniquement, jamais dans le frontend)
+
+| Secret Vault | Rôle |
+|---|---|
+| `project_url` | URL du projet (`https://<ref>.supabase.co`) pour l’appel Cron |
+| `function_anon_key` | Clé **anon** JWT pour invoquer l’Edge Function (pas `service_role`) |
+| `fixture_sync_admin_code` | Code administrateur de l’app, lu uniquement côté serveur |
+
+Les Edge Functions reçoivent automatiquement `SUPABASE_URL` et `SUPABASE_ANON_KEY` (anon) dans l’environnement Supabase.
+
 ## Configuration locale
 
 1. Copie `.env.example` vers `.env`
-2. Renseigne :
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY` (clé publique anon, jamais la `service_role`)
+2. Renseigne `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` (anon uniquement)
 
 ## Mise en place Supabase
 
@@ -50,11 +77,12 @@ La migration sync ajoute les champs `source`, `last_synced_at`, `manual_override
 
 La migration `admin_update_access_code` permet de remplacer le hash du code commun depuis `/admin` → Réglages (le code admin n’est pas modifié).
 
-### 3. Charger les données de test
-
+### 3. Charger les données de test (optionnel, environnement de démo uniquement)
 Exécute ensuite :
 
 `supabase/seed.sql`
+
+En production, après nettoyage des données de démo, les participants et pronostics réels peuvent exister : **ne pas** exiger « 1 participant » ou « 0 pronostic » comme critère de santé.
 
 ### 4. Définir le hash du code commun
 
@@ -185,6 +213,38 @@ Pour désactiver l'automatisation :
 SELECT cron.unschedule('a-la-nantaise-daily-fixture-sync');
 ```
 
+## Hébergement SPA
+
+Aucune plateforme d’hébergement n’est encore déclarée dans le dépôt (pas de `vercel.json` / `netlify.toml` / Pages, `homepage` GitHub vide).
+
+Quel que soit l’hébergeur choisi, configure un **fallback SPA** :
+
+- toutes les routes applicatives (`/calendrier`, `/classement`, `/admin`, etc.) doivent renvoyer `index.html` ;
+- règle typique : `/* → /index.html` (rewrite, pas redirect).
+
+Sans ce fallback, un rafraîchissement sur une URL directe renvoie une 404.
+
+## Checklist production
+
+- [ ] Variables frontend `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` configurées chez l’hébergeur (anon uniquement)
+- [ ] Migrations SQL appliquées dans l’ordre (voir ci-dessus)
+- [ ] Edge Function `sync-fc-nantes` déployée
+- [ ] Secrets Vault `project_url`, `function_anon_key`, `fixture_sync_admin_code` créés
+- [ ] Job Cron `a-la-nantaise-daily-fixture-sync` actif (`15 5 * * *`)
+- [ ] Données de démonstration nettoyées (seed retiré) ; participants / pronostics réels autorisés
+- [ ] CI GitHub verte sur `main`
+- [ ] Fallback SPA `/* → /index.html` actif
+- [ ] Smoke tests (accès, prono, calendrier J1–J34, classement, admin, sync, refresh URL, mobile)
+- [ ] Procédure de rollback connue (redeploy précédent côté hébergeur)
+
+### Rollback
+
+1. Republier le déploiement précédent sur l’hébergeur (Promote / Rollback).
+2. En cas de régression code : `git revert` du commit déployé puis nouveau build.
+3. Ne pas exécuter `supabase db reset`.
+4. Désactiver le Cron seulement si nécessaire :
+   `SELECT cron.unschedule('a-la-nantaise-daily-fixture-sync');`
+
 ## Règles produit
 
 - Un seul pronostic par joueur et par match
@@ -193,17 +253,23 @@ SELECT cron.unschedule('a-la-nantaise-daily-fixture-sync');
 - Les pronostics des autres ne sont visibles qu’à partir du coup d’envoi
 - Dates stockées en UTC, affichées en `Europe/Paris`
 
-## Tests
+## Tests & CI
 
 ```bash
+npm ci
 npm test
+npm run lint
+npm run build
 ```
+
+La CI GitHub (`.github/workflows/ci.yml`) exécute ces commandes sur les PR et les pushes `main`, sans secrets Supabase et sans déploiement.
 
 Couvre notamment :
 
 - parsing / validation du flux Fixture Download (fixtures JSON locales, sans réseau)
 - planification d’upsert (idempotence, rapprochement, conflit ambigu, override manuel)
 - migrations / Edge Function (vérification admin avant fetch)
+- planification Cron + Vault (pas de secrets en clair)
 
 Pour valider en base (transaction annulée) :
 
@@ -211,6 +277,24 @@ Pour valider en base (transaction annulée) :
 -- Dans le SQL Editor Supabase : coller supabase/tests/upsert_prediction.sql
 -- Le script se termine par ROLLBACK.
 ```
+
+## Sécurité des dépendances
+
+Contrôle périodique :
+
+```bash
+npm audit --omit=dev
+```
+
+Ne pas utiliser `npm audit fix --force`. Toute mise à jour majeure doit être justifiée.
+
+### Alertes connues (`npm audit --omit=dev`, août 2026)
+
+| Paquet | Sévérité | Advisory | Applicabilité SPA |
+|---|---|---|---|
+| `react-router` / `react-router-dom` (7.12.0–8.2.0) | high | [GHSA-qwww-vcr4-c8h2](https://github.com/advisories/GHSA-qwww-vcr4-c8h2) (CSRF en mode RSC) | **Faible** : l’app utilise `BrowserRouter` côté client, pas le mode RSC. `npm audit fix --force` proposerait une rétrogradation vers `7.11.0` (changement cassant non souhaité). Une correction amont peut nécessiter une montée majeure (`react-router` 8.3+) — reportée jusqu’à validation manuelle. |
+
+La surface navigateur se limite au bundle Vite + clé anon Supabase.
 
 ## Structure utile
 
@@ -226,3 +310,4 @@ Pour valider en base (transaction annulée) :
 - `supabase/schedule_fixture_sync.example.sql` — planification quotidienne via Cron + Vault
 - `supabase/seed.sql` — joueurs / matchs / pronos de test
 - `tests/fixtures/ligue-2-2026-fc-nantes.json` — flux local de test
+- `.github/workflows/ci.yml` — contrôles automatiques
