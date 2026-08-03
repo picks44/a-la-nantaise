@@ -8,6 +8,14 @@ import type {
 } from '../types'
 import { ApiError, getErrorCode } from './errors'
 import { getSupabase } from './supabase'
+import {
+  findLastFinishedMatch,
+  findNextOpenMatch,
+  sortMatchesForList,
+} from './matchOrder'
+
+export { findLastFinishedMatch, findNextOpenMatch, sortMatchesForList }
+export { compareMatchesForList } from './matchOrder'
 
 export const TRACKED_TEAM = 'FC Nantes'
 
@@ -93,7 +101,7 @@ export async function fetchMatches(accessCode: string): Promise<Match[]> {
     p_access_code: accessCode,
   })
 
-  return (rows ?? []).map((row) => mapMatch(row))
+  return sortMatchesForList((rows ?? []).map((row) => mapMatch(row)))
 }
 
 export async function fetchMyPredictions(
@@ -275,32 +283,6 @@ export function getDenseRanks(rankedPlayers: Player[]): number[] {
   })
 
   return ranks
-}
-
-export function findNextOpenMatch(matches: Match[], now = new Date()): Match | null {
-  const upcoming = matches
-    .filter(
-      (match) =>
-        match.dbStatus === 'scheduled' &&
-        new Date(match.kickoffAt).getTime() > now.getTime(),
-    )
-    .sort(
-      (a, b) =>
-        new Date(a.kickoffAt).getTime() - new Date(b.kickoffAt).getTime(),
-    )
-
-  return upcoming[0] ?? null
-}
-
-export function findLastFinishedMatch(matches: Match[]): Match | null {
-  const finished = matches
-    .filter((match) => match.dbStatus === 'finished' && match.finalScore)
-    .sort(
-      (a, b) =>
-        new Date(b.kickoffAt).getTime() - new Date(a.kickoffAt).getTime(),
-    )
-
-  return finished[0] ?? null
 }
 
 export function getPredictionForMatch(

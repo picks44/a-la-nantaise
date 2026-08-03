@@ -1,6 +1,7 @@
 import type { DbMatchStatus } from '../types'
 import { ApiError, getErrorCode } from './errors'
 import { mapMatch, TRACKED_TEAM } from './api'
+import { sortMatchesForList } from './matchOrder'
 import { getSupabase } from './supabase'
 import type { Match } from '../types'
 
@@ -252,7 +253,7 @@ export async function adminGetMatches(adminCode: string): Promise<AdminMatch[]> 
   const rows = await adminRpc<DbMatchAdminRow[]>('admin_get_matches', {
     p_admin_code: adminCode,
   })
-  return (rows ?? []).map(mapAdminMatch)
+  return sortMatchesForList((rows ?? []).map(mapAdminMatch))
 }
 
 export async function adminCreateMatch(

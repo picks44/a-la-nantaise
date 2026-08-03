@@ -31,6 +31,7 @@ import {
   type FixtureSyncResult,
   TRACKED_TEAM,
 } from '../lib/adminApi'
+import { sortMatchesForList } from '../lib/matchOrder'
 import {
   clearAdminCode,
   readAdminCode,
@@ -670,14 +671,7 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
     }
   }
 
-  const sorted = useMemo(
-    () =>
-      [...matches].sort(
-        (a, b) =>
-          new Date(b.kickoffAt).getTime() - new Date(a.kickoffAt).getTime(),
-      ),
-    [matches],
-  )
+  const sorted = useMemo(() => sortMatchesForList(matches), [matches])
 
   return (
     <div className="space-y-4">
