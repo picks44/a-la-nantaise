@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import {
   findLastFinishedMatch,
   findNextOpenMatch,
+  shouldShowJumpToNextMatch,
   sortMatchesForList,
 } from '../src/lib/matchOrder.ts'
 
@@ -149,5 +150,41 @@ describe('match list order', () => {
       source,
       /new Date\(b\.kickoffAt\)\.getTime\(\) - new Date\(a\.kickoffAt\)\.getTime\(\)/,
     )
+  })
+})
+
+describe('jump to next match link', () => {
+  it('hides the link when the next match is first in the ordered list', () => {
+    assert.equal(shouldShowJumpToNextMatch(['next', 'later'], 'next'), false)
+  })
+
+  it('shows the link when finished matches precede the next open match', () => {
+    assert.equal(
+      shouldShowJumpToNextMatch(['done-1', 'done-2', 'next', 'later'], 'next'),
+      true,
+    )
+  })
+
+  it('hides the link when there is no next open match', () => {
+    assert.equal(shouldShowJumpToNextMatch(['done-1', 'done-2'], null), false)
+    assert.equal(shouldShowJumpToNextMatch([], null), false)
+  })
+
+  it('wires the calendar jump link to #prochain-match only when needed', () => {
+    const calendar = readFileSync(
+      join(root, 'src/pages/CalendarPage.tsx'),
+      'utf8',
+    )
+    const item = readFileSync(
+      join(root, 'src/components/MatchListItem.tsx'),
+      'utf8',
+    )
+    assert.match(calendar, /shouldShowJumpToNextMatch/)
+    assert.match(calendar, /showJumpToNext/)
+    assert.match(calendar, /href="#prochain-match"/)
+    assert.match(calendar, /\{showJumpToNext \?/)
+    assert.doesNotMatch(calendar, /\{nextOpenId \?/)
+    assert.match(item, /id=\{isNext \? 'prochain-match'/)
+    assert.match(item, /scroll-mt-24/)
   })
 })

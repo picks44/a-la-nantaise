@@ -4,9 +4,11 @@ import { useSession } from '../context/useSession'
 import {
   fetchMatches,
   fetchMyPredictions,
+  findNextOpenMatch,
   getPredictionForMatch,
   withPredictionStatus,
 } from '../lib/api'
+import { shouldShowJumpToNextMatch } from '../lib/matchOrder'
 import { toUserMessage } from '../lib/errors'
 import type { Match, Prediction } from '../types'
 
@@ -62,13 +64,37 @@ export function CalendarPage() {
     })
   }, [matches, predictions, playerId, now])
 
+  const nextOpenId = useMemo(() => {
+    const next = findNextOpenMatch(matches, now)
+    return next?.id ?? null
+  }, [matches, now])
+
+  const showJumpToNext = useMemo(
+    () =>
+      shouldShowJumpToNextMatch(
+        items.map((item) => item.match.id),
+        nextOpenId,
+      ),
+    [items, nextOpenId],
+  )
+
   return (
     <div className="space-y-4">
-      <header>
-        <h1 className="title-display">Calendrier</h1>
-        <p className="mt-1 text-sm text-muted">
-          Les matchs du FC Nantes à pronostiquer avec le groupe.
-        </p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="title-display">Calendrier</h1>
+          <p className="mt-1 text-sm text-muted">
+            Les matchs du FC Nantes à pronostiquer avec le groupe.
+          </p>
+        </div>
+        {showJumpToNext ? (
+          <a
+            href="#prochain-match"
+            className="btn-ghost min-h-11 text-xs text-green-dark"
+          >
+            Aller au prochain match
+          </a>
+        ) : null}
       </header>
 
       {loading ? (
@@ -83,10 +109,14 @@ export function CalendarPage() {
           </p>
         </div>
       ) : (
-        <ul className="space-y-3">
+        <ul className="space-y-2">
           {items.map(({ match, prediction }) => (
             <li key={match.id}>
-              <MatchListItem match={match} prediction={prediction} />
+              <MatchListItem
+                match={match}
+                prediction={prediction}
+                isNext={match.id === nextOpenId}
+              />
             </li>
           ))}
         </ul>

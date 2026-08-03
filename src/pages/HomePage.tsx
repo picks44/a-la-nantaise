@@ -169,6 +169,7 @@ export function HomePage() {
           players={ranking}
           ranks={ranks}
           activePlayerId={activePlayer?.id ?? ''}
+          title="Classement du groupe"
         />
         <LastMatchBlock match={lastMatch} prediction={lastPrediction} />
       </div>
@@ -183,11 +184,11 @@ export function HomePage() {
     <div className="space-y-4">
       <section
         aria-labelledby="next-match-title"
-        className="overflow-hidden rounded-[var(--radius-md)] border-2 border-ink bg-yellow"
+        className="overflow-hidden rounded-[var(--radius-md)] border border-ink bg-yellow"
       >
-        <div className="flex items-start justify-between gap-3 border-b-2 border-ink/15 px-4 py-3 sm:px-5">
+        <div className="flex items-start justify-between gap-3 border-b border-ink/15 px-4 py-3 sm:px-5">
           <div className="min-w-0">
-            <p className="text-[11px] font-bold tracking-[0.14em] text-ink/70 uppercase">
+            <p className="text-[11px] font-bold tracking-[0.1em] text-ink/70 uppercase">
               Journée {nextMatch.matchday} · Ligue 2
             </p>
             <p className="mt-1 text-sm font-bold text-ink sm:text-base">
@@ -200,75 +201,79 @@ export function HomePage() {
           </div>
           <span
             className={[
-              'shrink-0 border-2 px-2 py-1 text-[10px] font-black tracking-[0.12em] uppercase',
+              'badge shrink-0',
               inputsLocked
                 ? 'border-ink bg-ink text-yellow'
-                : 'border-ink bg-surface text-ink',
+                : 'border-green/40 bg-success-soft text-green-dark',
             ].join(' ')}
           >
             {inputsLocked ? 'Pronos fermés' : 'Pronos ouverts'}
           </span>
         </div>
 
-        <div className="relative px-4 py-5 sm:px-5">
-          <span
-            aria-hidden="true"
-            className="absolute top-0 bottom-0 left-0 w-1.5 bg-ink"
-          />
-
+        <div className="px-4 py-4 sm:px-5">
           <div className="flex flex-col items-center gap-1 text-center">
             <h1 id="next-match-title" className="sr-only">
               {nextMatch.homeTeam} contre {nextMatch.awayTeam}
             </h1>
-            <p className="text-[11px] font-bold tracking-[0.16em] text-green-dark uppercase">
+            <p className="text-[11px] font-bold tracking-[0.12em] text-green-dark uppercase">
               {stadium}
             </p>
           </div>
 
-          <div className="mt-4 flex items-end justify-between gap-2 sm:gap-4">
-            <ScoreInput
-              label={nextMatch.homeTeam}
-              value={draft.home}
-              disabled={inputsLocked || saving}
-              variant="board"
-              onChange={(value) => {
-                setDraft((current) => ({ ...current, home: value }))
-                setSaved(false)
-                setJustSaved(false)
-              }}
-            />
-            <span
-              aria-hidden="true"
-              className="pb-4 text-2xl font-black text-ink/40 sm:pb-5 sm:text-3xl"
-            >
-              –
-            </span>
-            <ScoreInput
-              label={nextMatch.awayTeam}
-              value={draft.away}
-              disabled={inputsLocked || saving}
-              variant="board"
-              onChange={(value) => {
-                setDraft((current) => ({ ...current, away: value }))
-                setSaved(false)
-                setJustSaved(false)
-              }}
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => void handleSave()}
-            disabled={inputsLocked || saving}
-            className="btn-ink mt-5"
+          <form
+            className="mt-3 flex flex-col gap-4"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void handleSave()
+            }}
           >
-            {saving ? 'Validation…' : 'Valider mon prono'}
-          </button>
+            <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2 sm:gap-4">
+              <ScoreInput
+                label={nextMatch.homeTeam}
+                value={draft.home}
+                disabled={inputsLocked || saving}
+                variant="board"
+                onChange={(value) => {
+                  setDraft((current) => ({ ...current, home: value }))
+                  setSaved(false)
+                  setJustSaved(false)
+                }}
+              />
+              <span
+                aria-hidden="true"
+                className="pb-3 text-xl font-black text-ink/40 sm:pb-3.5 sm:text-2xl"
+              >
+                –
+              </span>
+              <ScoreInput
+                label={nextMatch.awayTeam}
+                value={draft.away}
+                disabled={inputsLocked || saving}
+                variant="board"
+                onChange={(value) => {
+                  setDraft((current) => ({ ...current, away: value }))
+                  setSaved(false)
+                  setJustSaved(false)
+                }}
+              />
+            </div>
+
+            <div className="flex justify-center">
+              <button
+                type="submit"
+                disabled={inputsLocked || saving}
+                className="btn-green w-full max-w-none sm:w-auto sm:min-w-[14rem] sm:max-w-sm"
+              >
+                {saving ? 'Validation…' : 'Valider mon prono'}
+              </button>
+            </div>
+          </form>
 
           {saveError ? (
             <p
               role="alert"
-              className="mt-3 border border-danger bg-danger-soft px-3 py-2 text-sm font-semibold text-danger"
+              className="mt-3 border border-danger bg-danger-soft px-3 py-2 text-center text-sm font-semibold text-danger"
             >
               {saveError}
             </p>
@@ -278,7 +283,7 @@ export function HomePage() {
             <p
               role="status"
               aria-live="polite"
-              className="mt-3 text-sm font-semibold text-ink"
+              className="mt-3 text-center text-sm font-semibold text-success"
             >
               <CheckCircle2
                 aria-hidden="true"
@@ -287,9 +292,9 @@ export function HomePage() {
               Pronostic enregistré.
             </p>
           ) : saved && !saveError ? (
-            <p className="mt-3 text-sm font-medium text-ink/75">
+            <p className="mt-3 text-center text-sm font-medium text-green-dark">
               Pronostic actuel :{' '}
-              <span className="font-black tabular-nums text-ink">
+              <span className="font-black tabular-nums">
                 {draft.home} – {draft.away}
               </span>
             </p>
@@ -297,7 +302,7 @@ export function HomePage() {
         </div>
 
         <div className="flex flex-col gap-1 bg-ink px-4 py-3 text-white sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <p className="text-[11px] font-bold tracking-[0.14em] uppercase">
+          <p className="text-[11px] font-bold tracking-[0.1em] uppercase">
             {countdown.locked ? 'Pronostics verrouillés' : 'Verrouillage dans'}
           </p>
           <p className="font-black tracking-wide text-yellow tabular-nums sm:text-lg">
@@ -313,6 +318,7 @@ export function HomePage() {
         players={ranking}
         ranks={ranks}
         activePlayerId={activePlayer?.id ?? ''}
+        title="Classement du groupe"
       />
       <LastMatchBlock match={lastMatch} prediction={lastPrediction} />
     </div>
@@ -333,12 +339,12 @@ function LastMatchBlock({
   return (
     <section
       aria-labelledby="last-match-title"
-      className="overflow-hidden rounded-[var(--radius-md)] border-2 border-ink bg-green-dark text-white"
+      className="overflow-hidden rounded-[var(--radius-md)] border border-ink bg-green-dark text-white"
     >
       <div className="flex items-center justify-between gap-3 border-b border-white/15 px-4 py-3">
         <h2
           id="last-match-title"
-          className="text-sm font-black tracking-[0.1em] uppercase"
+          className="text-sm font-black tracking-[0.06em] uppercase"
         >
           Dernier match
         </h2>
@@ -347,20 +353,20 @@ function LastMatchBlock({
         </p>
       </div>
 
-      <div className="px-4 py-5">
-        <p className="text-center text-[11px] font-bold tracking-[0.14em] text-yellow uppercase">
+      <div className="px-4 py-4">
+        <p className="text-center text-[11px] font-bold tracking-[0.1em] text-yellow uppercase">
           {match.homeTeam}
           <span className="mx-2 text-white/40">vs</span>
           {match.awayTeam}
         </p>
-        <p className="mt-2 text-center font-black tracking-tight text-yellow tabular-nums text-5xl sm:text-6xl">
+        <p className="mt-2 text-center font-black tracking-tight text-yellow tabular-nums text-4xl sm:text-5xl">
           {match.finalScore.home}
-          <span className="mx-2 text-3xl text-white/35">–</span>
+          <span className="mx-2 text-2xl text-white/35">–</span>
           {match.finalScore.away}
         </p>
 
-        <div className="mt-5 border border-white/15 bg-ink/40 px-3 py-3">
-          <p className="text-[11px] font-bold tracking-[0.12em] text-white/55 uppercase">
+        <div className="mt-4 border border-white/15 bg-ink/40 px-3 py-3">
+          <p className="text-[11px] font-bold tracking-[0.1em] text-white/55 uppercase">
             Ton prono
           </p>
           <p className="mt-1 text-lg font-black tabular-nums">
@@ -369,7 +375,7 @@ function LastMatchBlock({
               : 'Aucun'}
           </p>
           {resultLabel ? (
-            <p className="mt-3 inline-block border border-yellow bg-yellow px-2 py-1 text-[11px] font-black tracking-[0.08em] text-ink uppercase">
+            <p className="badge mt-3 border-yellow bg-yellow text-ink">
               {resultLabel}
             </p>
           ) : null}
