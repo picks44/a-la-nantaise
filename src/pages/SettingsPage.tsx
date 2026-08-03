@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { LogOut, Shield, UserRound } from 'lucide-react'
+import { PwaInstallSection } from '../components/PwaInstallSection'
 import { useSession } from '../context/useSession'
 import { toUserMessage } from '../lib/errors'
 
@@ -124,6 +125,8 @@ export function SettingsPage() {
           Quitter le groupe
         </button>
       </section>
+
+      <PwaInstallSection />
 
       <section className="panel p-4">
         <Link

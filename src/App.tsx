@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
+import { PwaOfflineBanner } from './components/PwaOfflineBanner'
+import { PwaUpdateBanner } from './components/PwaUpdateBanner'
 import { SessionProvider } from './context/SessionProvider'
 import { CalendarPage } from './pages/CalendarPage'
 import { HomePage } from './pages/HomePage'
@@ -16,6 +18,8 @@ export default function App() {
   return (
     <SessionProvider>
       <BrowserRouter>
+        <PwaUpdateBanner />
+        <PwaOfflineBanner />
         <Routes>
           <Route
             path="admin"

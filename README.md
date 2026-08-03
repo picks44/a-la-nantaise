@@ -213,7 +213,91 @@ Pour désactiver l'automatisation :
 SELECT cron.unschedule('a-la-nantaise-daily-fixture-sync');
 ```
 
+## Application installable (PWA)
+
+L’application peut être installée sur Android et iPhone comme une app « standalone ».
+
+### Fonctionnement
+
+- Manifeste web + service worker générés par `vite-plugin-pwa` (`registerType: prompt`).
+- Le **shell** (HTML/JS/CSS/icônes/fonts) est précaché pour ouvrir l’UI hors connexion.
+- **Aucune** requête / réponse Supabase n’est mise en cache (`NetworkOnly` sur `*.supabase.co` et chemins `/rest|rpc|auth|functions|storage/v1/`).
+- Pas de Background Sync, pas de file d’attente de pronostics hors ligne.
+- Une bannière propose « Mettre à jour » lorsqu’une nouvelle version est prête ; activation uniquement après confirmation.
+
+### Installation Android (Chrome / navigateurs compatibles)
+
+1. Ouvre le site en HTTPS.
+2. Paramètres → **Installer l’application** (ou le bandeau navigateur).
+3. Confirme. L’icône ALN apparaît sur l’écran d’accueil.
+
+### Installation iPhone / iPad (Safari)
+
+Safari ne permet pas d’installer via `beforeinstallprompt`.
+
+1. Ouvre le site dans Safari.
+2. Touche **Partager**.
+3. Choisis **Sur l’écran d’accueil**.
+4. Confirme.
+
+Les instructions disparaissent automatiquement en mode standalone.
+
+### Mise à jour
+
+1. Un nouveau déploiement publie un nouveau service worker.
+2. Au prochain chargement, la bannière « Une nouvelle version… » apparaît.
+3. Touche **Mettre à jour** → un seul rechargement active la version.
+4. **Plus tard** masque temporairement la bannière (sans forcer l’ancienne version à rester pour toujours).
+
+### Limites hors ligne
+
+- Le shell peut s’afficher, mais **les données et les pronostics nécessitent une connexion**.
+- Si `navigator.onLine === false`, l’enregistrement d’un prono est bloqué immédiatement.
+- Si le navigateur se croit en ligne mais que le réseau échoue, l’erreur RPC existante s’affiche ; aucun succès n’est montré sans confirmation Supabase.
+- Aucun prono n’est mémorisé pour un envoi différé.
+
+### Icônes
+
+Les fichiers dans `public/icons/` (192, 512, maskable, Apple Touch) sont des **icônes temporaires** basées sur le monogramme ALN. Remplace-les par des assets définitifs sans déformer le logo.
+
+### Désactivation / nettoyage du service worker (support)
+
+**Côté utilisateur :**
+
+1. Chrome → Paramètres du site → **Supprimer les données**.
+2. Ou DevTools → Application → Service Workers → **Unregister**, puis Clear storage.
+
+**Côté déploiement (rollback réel si le SW pose problème) :**
+
+1. Republier la dernière version stable **si** l’incident n’est pas lié au service worker.
+2. Si le SW est en cause : publier temporairement un **worker de désinscription** (voir ci-dessous) qui prend le contrôle, purge les caches, puis se désenregistre.
+3. Laisser cette version atteindre les clients (heures / jours selon fréquentation).
+4. Ensuite seulement retirer définitivement `vite-plugin-pwa` et redéployer sans SW.
+5. Documenter pour le support la procédure manuelle Unregister ci-dessus.
+
+Exemple minimal de worker de désinscription (à servir temporairement comme `sw.js`) :
+
+```js
+self.addEventListener('install', (event) => {
+  self.skipWaiting()
+})
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    (async () => {
+      const keys = await caches.keys()
+      await Promise.all(keys.map((key) => caches.delete(key)))
+      await self.registration.unregister()
+      const clientsList = await self.clients.matchAll({ type: 'window' })
+      for (const client of clientsList) client.navigate(client.url)
+    })(),
+  )
+})
+```
+
+Ne pas laisser ce kill switch en production en permanence.
+
 ## Déploiement Vercel
+
 
 L’hébergement cible est **Vercel**. Le fichier `vercel.json` configure le fallback SPA afin que l’actualisation directe de `/admin`, `/calendrier`, `/classement` et `/parametres` renvoie `index.html`.
 
@@ -264,6 +348,7 @@ Après un déploiement Preview ou Production :
 - [ ] Données de démonstration nettoyées (seed retiré) ; participants / pronostics réels autorisés
 - [ ] CI GitHub verte sur `main`
 - [ ] Fallback SPA Vercel actif (`vercel.json`)
+- [ ] PWA : manifeste + SW (headers no-cache sur `sw.js`) ; hors-ligne shell-only
 - [ ] Smoke tests post-déploiement (voir ci-dessus)
 - [ ] Procédure de rollback connue (redeploy précédent côté Vercel)
 
@@ -340,4 +425,6 @@ La surface navigateur se limite au bundle Vite + clé anon Supabase.
 - `supabase/schedule_fixture_sync.example.sql` — planification quotidienne via Cron + Vault
 - `supabase/seed.sql` — joueurs / matchs / pronos de test
 - `tests/fixtures/ligue-2-2026-fc-nantes.json` — flux local de test
+- `public/icons/` — icônes PWA temporaires ALN (à remplacer)
+- `src/lib/pwa.ts` — helpers install / standalone / hors-ligne
 - `.github/workflows/ci.yml` — contrôles automatiques
