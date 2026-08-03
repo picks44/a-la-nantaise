@@ -61,7 +61,7 @@ export function RankingPage() {
           className="panel overflow-hidden"
         >
           <div className="flex items-center gap-3 border-b border-border px-4 py-3">
-            <span aria-hidden="true" className="h-5 w-1.5 bg-yellow" />
+            <span aria-hidden="true" className="h-5 w-1.5 bg-green" />
             <h2
               id="full-ranking-title"
               className="text-sm font-black tracking-[0.06em] uppercase"

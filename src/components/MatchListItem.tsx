@@ -35,10 +35,6 @@ export function MatchListItem({
       className={[
         'overflow-hidden rounded-[var(--radius-md)] border scroll-mt-20',
         shellClass,
-        isPredicted && !isNext ? 'border-l-4 border-l-green' : '',
-        match.status === 'to_predict' && !isNext
-          ? 'border-l-4 border-l-yellow'
-          : '',
       ].join(' ')}
     >
       <div
@@ -62,9 +58,7 @@ export function MatchListItem({
           {formatMatchDateShort(match.kickoffAt)}{' '}
           {formatMatchTime(match.kickoffAt)}
         </p>
-        <span
-          className={['badge', statusClassName(match.status)].join(' ')}
-        >
+        <span className={['badge', statusClassName(match.status)].join(' ')}>
           {isNext && match.status === 'to_predict'
             ? 'Prochain'
             : statusLabel(match.status)}

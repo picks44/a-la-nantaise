@@ -162,6 +162,7 @@ export function HomePage() {
           players={ranking}
           ranks={ranks}
           activePlayerId={activePlayer?.id ?? ''}
+          title="Classement du groupe"
         />
         <LastMatchBlock match={lastMatch} prediction={lastPrediction} />
       </div>
@@ -196,19 +197,14 @@ export function HomePage() {
               'badge shrink-0',
               inputsLocked
                 ? 'border-ink bg-ink text-yellow'
-                : 'border-ink bg-surface text-ink',
+                : 'border-green/40 bg-success-soft text-green-dark',
             ].join(' ')}
           >
             {inputsLocked ? 'Pronos fermés' : 'Pronos ouverts'}
           </span>
         </div>
 
-        <div className="relative px-4 py-4 sm:px-5">
-          <span
-            aria-hidden="true"
-            className="absolute top-0 bottom-0 left-0 w-1 bg-ink"
-          />
-
+        <div className="px-4 py-4 sm:px-5">
           <div className="flex flex-col items-center gap-1 text-center">
             <h1 id="next-match-title" className="sr-only">
               {nextMatch.homeTeam} contre {nextMatch.awayTeam}
@@ -253,7 +249,7 @@ export function HomePage() {
             type="button"
             onClick={() => void handleSave()}
             disabled={inputsLocked || saving}
-            className="btn-ink mt-4"
+            className="btn-green mt-4"
           >
             {saving ? 'Validation…' : 'Valider mon prono'}
           </button>
@@ -306,6 +302,7 @@ export function HomePage() {
         players={ranking}
         ranks={ranks}
         activePlayerId={activePlayer?.id ?? ''}
+        title="Classement du groupe"
       />
       <LastMatchBlock match={lastMatch} prediction={lastPrediction} />
     </div>
