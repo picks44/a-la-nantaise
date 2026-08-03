@@ -73,6 +73,7 @@ Dans le **SQL Editor**, exécute **dans l’ordre** (ne pas appliquer automatiqu
 5. `supabase/migrations/20260803150000_match_list_order.sql`
 6. `supabase/migrations/20260803160000_admin_update_access_code.sql`
 7. `supabase/migrations/20260803170000_web_push.sql` (rappels Web Push ; envois désactivés par défaut)
+8. `supabase/migrations/20260803171000_harden_web_push_before_smoke_tests.sql` (preview dry-run, reclaim, privilèges)
 
 La migration sync ajoute les champs `source`, `last_synced_at`, `manual_override`, l’unicité `(source, external_id)`, et les RPC de commit / levée d’override. **Aucune donnée existante n’est supprimée.**
 
@@ -301,12 +302,32 @@ Ne pas laisser ce kill switch en production en permanence.
 
 Les rappels de pronostic (≈24 h et ≈2 h avant un match) utilisent le Web Push natif.
 
+**État actuel :** envois **désactivés** (`push_sending_enabled = false`). Aucun Cron push actif tant que les smoke tests n’ont pas validé le parcours.
+
 ### Composants
 
 - Migration `supabase/migrations/20260803170000_web_push.sql` (tables + RPC)
+- Migration `supabase/migrations/20260803171000_harden_web_push_before_smoke_tests.sql` (preview dry-run, reclaim lease, 3 tentatives, REVOKE PUBLIC)
 - Edge Function `send-prediction-reminders` (`jsr:@negrel/webpush@0.5.0`, `aes128gcm`)
 - Handlers SW `public/push-events.js` via `workbox.importScripts`
 - Section **Rappels de pronostic** dans Paramètres
+
+### Règles d’envoi
+
+| Paramètre | Valeur |
+|---|---|
+| Fenêtres | ≈24 h et ≈2 h avant kickoff (grâce 60 min) |
+| Lease de claim | **5 minutes** |
+| Tentatives max | **3** claims réels (`attempt_count`) |
+| Reclaim | livraisons `processing` dont le lease a expiré |
+| Dry-run | **strictement non mutatif** (`preview_push_reminder_batch`) ; autorisé même si le flag est `false` ; authentifié par `PUSH_CRON_SECRET` ; sans clés VAPID |
+
+### Compatibilité navigateurs
+
+- **Chrome / Chromium / Firefox** : activation depuis Paramètres.
+- **Safari macOS** : support via `ServiceWorkerRegistration.prototype.pushManager` (pas `window.PushManager`).
+- **iPhone / iPad** : installer d’abord la PWA sur l’écran d’accueil (iOS ≥ 16.4), puis activer les rappels depuis l’icône.
+- Test local complet (service worker) : `npm run build` puis `npm run preview` (le SW n’est pas actif dans `vite` dev).
 
 ### Secrets (noms uniquement — jamais dans le dépôt)
 
@@ -327,14 +348,15 @@ Conserver la paire : une rotation oblige les appareils à se réabonner.
 
 ### Déploiement contrôlé
 
-1. Appliquer la migration (`push_sending_enabled` reste `false`).
+1. Appliquer les migrations `170000` puis `71000` (`push_sending_enabled` reste `false`).
 2. Configurer les secrets VAPID + Cron.
 3. Déployer `supabase functions deploy send-prediction-reminders`.
-4. Déployer le frontend.
+4. Déployer le frontend (avec `VITE_VAPID_PUBLIC_KEY`).
 5. Abonner un appareil propriétaire (Paramètres → Activer les rappels).
-6. Invoke manuelle avec `{ "cron_secret": "…", "dry_run": true }` puis sans `dry_run` après `push_sending_enabled = true` sur un match de test.
-7. Valider Chrome/Android **et** PWA iOS ≥ 16.4.
-8. Ensuite seulement décommenter / exécuter `supabase/schedule_push_reminders.example.sql` (toutes les 15 min).
+6. Invoke dry-run : `{ "cron_secret": "…", "dry_run": true }` (aucune écriture DB, aucune notif).
+7. Smoke forcé uniquement après validation dry-run, avec flag encore maîtrisé.
+8. Valider Chrome/Android **et** PWA iOS ≥ 16.4.
+9. Ensuite seulement `push_sending_enabled = true` et décommenter / exécuter `supabase/schedule_push_reminders.example.sql` (toutes les 15 min).
 
 ### Rollback immédiat
 

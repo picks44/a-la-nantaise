@@ -62,13 +62,21 @@ describe('upsert_prediction ambiguity fix', () => {
     assert.doesNotMatch(sql, /DELETE FROM public\.predictions/i)
   })
 
-  it('frontend still calls upsert_prediction with p_ args', () => {
+  it('current frontend calls session-based upsert_prediction', () => {
+    const pinMigration = readFileSync(
+      join(root, 'supabase/migrations/20260803180000_player_pin_sessions.sql'),
+      'utf8',
+    )
     assert.match(api, /rpc<DbPredictionRow\[]>\('upsert_prediction'/)
-    assert.match(api, /p_access_code: input\.accessCode/)
-    assert.match(api, /p_player_id: input\.playerId/)
+    assert.match(api, /p_session_token: input\.sessionToken/)
     assert.match(api, /p_match_id: input\.matchId/)
     assert.match(api, /p_predicted_home_score: input\.homeScore/)
     assert.match(api, /p_predicted_away_score: input\.awayScore/)
+    assert.doesNotMatch(api, /upsert_prediction[\s\S]{0,200}p_player_id/)
+    assert.match(
+      pinMigration,
+      /DROP FUNCTION IF EXISTS public\.upsert_prediction\(TEXT, UUID, UUID, INTEGER, INTEGER\)/,
+    )
   })
 
   it('SQL regression tests cover create, update, uniqueness and lock', () => {
@@ -77,6 +85,7 @@ describe('upsert_prediction ambiguity fix', () => {
     assert.match(sqlTests, /Unicité joueur \+ match/)
     assert.match(sqlTests, /Refus après le coup d’envoi/)
     assert.match(sqlTests, /MATCH_LOCKED/)
+    assert.match(sqlTests, /login_player/)
     assert.match(sqlTests, /ROLLBACK/)
   })
 })

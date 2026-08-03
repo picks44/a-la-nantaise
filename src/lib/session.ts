@@ -1,18 +1,20 @@
 const ACCESS_CODE_KEY = 'aln_access_code'
-const PLAYER_ID_KEY = 'aln_player_id'
+const SESSION_TOKEN_KEY = 'aln_session_token'
+/** @deprecated Cleared on read; kept only to wipe legacy installs. */
+const LEGACY_PLAYER_ID_KEY = 'aln_player_id'
 
 export interface LocalSession {
-  accessCode: string
-  playerId: string | null
+  accessCode: string | null
+  sessionToken: string | null
 }
 
-export function readLocalSession(): LocalSession | null {
-  const accessCode = localStorage.getItem(ACCESS_CODE_KEY)
-  if (!accessCode) return null
+export function readLocalSession(): LocalSession {
+  // Never treat a bare playerId as identity.
+  localStorage.removeItem(LEGACY_PLAYER_ID_KEY)
 
   return {
-    accessCode,
-    playerId: localStorage.getItem(PLAYER_ID_KEY),
+    accessCode: localStorage.getItem(ACCESS_CODE_KEY),
+    sessionToken: localStorage.getItem(SESSION_TOKEN_KEY),
   }
 }
 
@@ -20,15 +22,20 @@ export function saveAccessCode(accessCode: string): void {
   localStorage.setItem(ACCESS_CODE_KEY, accessCode)
 }
 
-export function savePlayerId(playerId: string): void {
-  localStorage.setItem(PLAYER_ID_KEY, playerId)
+export function saveSessionToken(sessionToken: string): void {
+  localStorage.setItem(SESSION_TOKEN_KEY, sessionToken)
 }
 
-export function clearPlayerId(): void {
-  localStorage.removeItem(PLAYER_ID_KEY)
+export function clearSessionToken(): void {
+  localStorage.removeItem(SESSION_TOKEN_KEY)
+}
+
+export function clearAccessCode(): void {
+  localStorage.removeItem(ACCESS_CODE_KEY)
 }
 
 export function clearLocalSession(): void {
   localStorage.removeItem(ACCESS_CODE_KEY)
-  localStorage.removeItem(PLAYER_ID_KEY)
+  localStorage.removeItem(SESSION_TOKEN_KEY)
+  localStorage.removeItem(LEGACY_PLAYER_ID_KEY)
 }

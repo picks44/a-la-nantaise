@@ -2,9 +2,11 @@ import type {
   DbMatchStatus,
   Match,
   MatchUiStatus,
+  ParticipationStatus,
   Player,
   PlayerOption,
   Prediction,
+  RoundParticipationRow,
 } from '../types'
 import { ApiError, getErrorCode } from './errors'
 import { getSupabase } from './supabase'
@@ -16,6 +18,13 @@ import {
 
 export { findLastFinishedMatch, findNextOpenMatch, sortMatchesForList }
 export { compareMatchesForList } from './matchOrder'
+export {
+  getCompetitionRanks,
+  getDenseRanks,
+  listRoundNumbers,
+  selectDefaultRoundNumber,
+  selectHomeRanking,
+} from './ranking'
 
 export const TRACKED_TEAM = 'FC Nantes'
 
@@ -54,8 +63,22 @@ interface DbPredictionRow {
 interface DbRankingRow {
   id: string
   display_name: string
+  is_active: boolean
   points: number | string
   exact_scores: number | string
+  good_results: number | string
+  scored_predictions: number | string
+  success_rate: number | string | null
+  gap_to_leader: number | string
+}
+
+interface DbParticipationRow {
+  player_id: string
+  display_name: string
+  round_number: number | string
+  status: ParticipationStatus
+  predicted_count: number | string
+  expected_count: number | string
 }
 
 async function rpc<T>(
@@ -65,27 +88,27 @@ async function rpc<T>(
   const { data, error } = await getSupabase().rpc(fn, args)
   if (error) {
     const code = getErrorCode(error) ?? 'RPC_ERROR'
-    if (code === 'INVALID_ACCESS_CODE') {
-      notifyInvalidAccessCode()
+    if (code === 'INVALID_ACCESS_CODE' || code === 'INVALID_SESSION') {
+      notifySessionInvalidation(code)
     }
     throw new ApiError(code, error.message)
   }
   return data as T
 }
 
-type AccessInvalidationHandler = () => void
+type SessionInvalidationHandler = (code: string) => void
 
-let accessInvalidationHandler: AccessInvalidationHandler | null = null
+let sessionInvalidationHandler: SessionInvalidationHandler | null = null
 
-/** Enregistré par SessionProvider : invalide la session joueur uniquement. */
+/** Enregistré par SessionProvider : invalide la session joueur. */
 export function setAccessInvalidationHandler(
-  handler: AccessInvalidationHandler | null,
+  handler: SessionInvalidationHandler | null,
 ): void {
-  accessInvalidationHandler = handler
+  sessionInvalidationHandler = handler
 }
 
-function notifyInvalidAccessCode(): void {
-  accessInvalidationHandler?.()
+function notifySessionInvalidation(code: string): void {
+  sessionInvalidationHandler?.(code)
 }
 
 export async function verifyAccessCode(accessCode: string): Promise<boolean> {
@@ -114,48 +137,122 @@ export async function fetchActivePlayers(
   }))
 }
 
-export async function fetchMatches(accessCode: string): Promise<Match[]> {
-  const rows = await rpc<DbMatchRow[]>('get_matches', {
+interface DbLoginRow {
+  session_token: string
+  player_id: string
+  pseudo: string
+  must_change_pin: boolean
+}
+
+export async function loginPlayer(
+  accessCode: string,
+  playerId: string,
+  pin: string,
+): Promise<{
+  sessionToken: string
+  playerId: string
+  pseudo: string
+  mustChangePin: boolean
+}> {
+  const rows = await rpc<DbLoginRow[]>('login_player', {
     p_access_code: accessCode,
+    p_player_id: playerId,
+    p_pin: pin,
+  })
+  const row = rows?.[0]
+  if (!row?.session_token) {
+    throw new ApiError('RPC_ERROR', 'Connexion sans jeton de session.')
+  }
+  return {
+    sessionToken: row.session_token,
+    playerId: row.player_id,
+    pseudo: row.pseudo,
+    mustChangePin: Boolean(row.must_change_pin),
+  }
+}
+
+interface DbSessionPlayerRow {
+  player_id: string
+  pseudo: string
+  must_change_pin: boolean
+  expires_at: string
+}
+
+export async function fetchSessionPlayer(sessionToken: string): Promise<{
+  playerId: string
+  pseudo: string
+  mustChangePin: boolean
+  expiresAt: string
+} | null> {
+  const rows = await rpc<DbSessionPlayerRow[]>('get_session_player', {
+    p_session_token: sessionToken,
+  })
+  const row = rows?.[0]
+  if (!row) return null
+  return {
+    playerId: row.player_id,
+    pseudo: row.pseudo,
+    mustChangePin: Boolean(row.must_change_pin),
+    expiresAt: row.expires_at,
+  }
+}
+
+export async function logoutPlayer(sessionToken: string): Promise<boolean> {
+  const result = await rpc<boolean>('logout_player', {
+    p_session_token: sessionToken,
+  })
+  return Boolean(result)
+}
+
+export async function changePlayerPin(
+  sessionToken: string,
+  oldPin: string,
+  newPin: string,
+): Promise<boolean> {
+  const result = await rpc<boolean>('change_player_pin', {
+    p_session_token: sessionToken,
+    p_old_pin: oldPin,
+    p_new_pin: newPin,
+  })
+  return Boolean(result)
+}
+
+export async function fetchMatches(sessionToken: string): Promise<Match[]> {
+  const rows = await rpc<DbMatchRow[]>('get_matches', {
+    p_session_token: sessionToken,
   })
 
   return sortMatchesForList((rows ?? []).map((row) => mapMatch(row)))
 }
 
 export async function fetchMyPredictions(
-  accessCode: string,
-  playerId: string,
+  sessionToken: string,
 ): Promise<Prediction[]> {
   const rows = await rpc<DbPredictionRow[]>('get_my_predictions', {
-    p_access_code: accessCode,
-    p_player_id: playerId,
+    p_session_token: sessionToken,
   })
 
   return (rows ?? []).map(mapPrediction)
 }
 
 export async function fetchVisiblePredictions(
-  accessCode: string,
-  playerId: string,
+  sessionToken: string,
 ): Promise<Prediction[]> {
   const rows = await rpc<DbPredictionRow[]>('get_visible_predictions', {
-    p_access_code: accessCode,
-    p_player_id: playerId,
+    p_session_token: sessionToken,
   })
 
   return (rows ?? []).map(mapPrediction)
 }
 
 export async function upsertPrediction(input: {
-  accessCode: string
-  playerId: string
+  sessionToken: string
   matchId: string
   homeScore: number
   awayScore: number
 }): Promise<Prediction> {
   const rows = await rpc<DbPredictionRow[]>('upsert_prediction', {
-    p_access_code: input.accessCode,
-    p_player_id: input.playerId,
+    p_session_token: input.sessionToken,
     p_match_id: input.matchId,
     p_predicted_home_score: input.homeScore,
     p_predicted_away_score: input.awayScore,
@@ -169,16 +266,43 @@ export async function upsertPrediction(input: {
   return mapPrediction(row)
 }
 
-export async function fetchRanking(accessCode: string): Promise<Player[]> {
+export async function fetchRanking(sessionToken: string): Promise<Player[]> {
   const rows = await rpc<DbRankingRow[]>('get_ranking', {
-    p_access_code: accessCode,
+    p_session_token: sessionToken,
   })
 
   return (rows ?? []).map((row) => ({
     id: row.id,
     pseudo: row.display_name,
+    isActive: Boolean(row.is_active),
     points: Number(row.points),
     exactScores: Number(row.exact_scores),
+    goodResults: Number(row.good_results),
+    scoredPredictions: Number(row.scored_predictions),
+    successRate:
+      row.success_rate == null || row.success_rate === ''
+        ? null
+        : Number(row.success_rate),
+    gapToLeader: Number(row.gap_to_leader),
+  }))
+}
+
+export async function fetchRoundParticipation(
+  sessionToken: string,
+  roundNumber: number,
+): Promise<RoundParticipationRow[]> {
+  const rows = await rpc<DbParticipationRow[]>('get_round_participation', {
+    p_session_token: sessionToken,
+    p_round_number: roundNumber,
+  })
+
+  return (rows ?? []).map((row) => ({
+    playerId: row.player_id,
+    pseudo: row.display_name,
+    roundNumber: Number(row.round_number),
+    status: row.status,
+    predictedCount: Number(row.predicted_count),
+    expectedCount: Number(row.expected_count),
   }))
 }
 
@@ -280,29 +404,6 @@ function mapPrediction(row: DbPredictionRow): Prediction {
   }
 }
 
-export function getDenseRanks(rankedPlayers: Player[]): number[] {
-  const ranks: number[] = []
-
-  rankedPlayers.forEach((player, index) => {
-    if (index === 0) {
-      ranks.push(1)
-      return
-    }
-
-    const previous = rankedPlayers[index - 1]
-    if (
-      player.points === previous.points &&
-      player.exactScores === previous.exactScores
-    ) {
-      ranks.push(ranks[index - 1])
-    } else {
-      ranks.push(index + 1)
-    }
-  })
-
-  return ranks
-}
-
 export function getPredictionForMatch(
   predictions: Prediction[],
   matchId: string,
@@ -322,8 +423,7 @@ interface DbPushStatusRow {
 }
 
 export async function registerPushSubscription(input: {
-  accessCode: string
-  playerId: string
+  sessionToken: string
   endpoint: string
   p256dh: string
   auth: string
@@ -333,8 +433,7 @@ export async function registerPushSubscription(input: {
   const rows = await rpc<
     Array<{ id: string; player_id: string; status: string; updated_at: string }>
   >('register_push_subscription', {
-    p_access_code: input.accessCode,
-    p_player_id: input.playerId,
+    p_session_token: input.sessionToken,
     p_endpoint: input.endpoint,
     p_p256dh: input.p256dh,
     p_auth: input.auth,
@@ -355,22 +454,22 @@ export async function registerPushSubscription(input: {
 }
 
 export async function deactivatePushSubscription(
-  accessCode: string,
+  sessionToken: string,
   endpoint: string,
 ): Promise<boolean> {
   const result = await rpc<boolean>('deactivate_push_subscription', {
-    p_access_code: accessCode,
+    p_session_token: sessionToken,
     p_endpoint: endpoint,
   })
   return Boolean(result)
 }
 
 export async function getPushSubscriptionStatus(
-  accessCode: string,
+  sessionToken: string,
   endpoint: string,
 ): Promise<{ active: boolean; status: string; playerId: string } | null> {
   const rows = await rpc<DbPushStatusRow[]>('get_push_subscription_status', {
-    p_access_code: accessCode,
+    p_session_token: sessionToken,
     p_endpoint: endpoint,
   })
   const row = rows?.[0]

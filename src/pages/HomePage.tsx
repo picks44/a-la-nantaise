@@ -6,7 +6,6 @@ import { useSession } from '../context/useSession'
 import {
   findLastFinishedMatch,
   findNextOpenMatch,
-  getDenseRanks,
   getPredictionForMatch,
   fetchMatches,
   fetchMyPredictions,
@@ -14,6 +13,7 @@ import {
   upsertPrediction,
   withPredictionStatus,
 } from '../lib/api'
+import { getCompetitionRanks, selectHomeRanking } from '../lib/ranking'
 import { toUserMessage } from '../lib/errors'
 import { isBrowserOnline, OFFLINE_USER_MESSAGE } from '../lib/pwa'
 import {
@@ -28,7 +28,7 @@ import { pointsResultLabel } from '../lib/status'
 import type { Match, Player, Prediction, Score } from '../types'
 
 export function HomePage() {
-  const { accessCode, playerId, activePlayer } = useSession()
+  const { sessionToken, playerId, activePlayer } = useSession()
 
   const [matches, setMatches] = useState<Match[]>([])
   const [predictions, setPredictions] = useState<Prediction[]>([])
@@ -54,7 +54,7 @@ export function HomePage() {
   }, [justSaved])
 
   useEffect(() => {
-    if (!accessCode || !playerId) return
+    if (!sessionToken || !playerId) return
 
     let cancelled = false
 
@@ -63,9 +63,9 @@ export function HomePage() {
       setError(null)
       try {
         const [matchRows, predictionRows, rankingRows] = await Promise.all([
-          fetchMatches(accessCode!),
-          fetchMyPredictions(accessCode!, playerId!),
-          fetchRanking(accessCode!),
+          fetchMatches(sessionToken!),
+          fetchMyPredictions(sessionToken!),
+          fetchRanking(sessionToken!),
         ])
         if (cancelled) return
         setMatches(matchRows)
@@ -82,7 +82,7 @@ export function HomePage() {
     return () => {
       cancelled = true
     }
-  }, [accessCode, playerId])
+  }, [sessionToken, playerId])
 
   const nextMatch = useMemo(() => {
     const base = findNextOpenMatch(matches, now)
@@ -97,7 +97,10 @@ export function HomePage() {
     return getPredictionForMatch(predictions, lastMatch.id, playerId)
   }, [lastMatch, predictions, playerId])
 
-  const ranks = useMemo(() => getDenseRanks(ranking), [ranking])
+  const homeRanking = useMemo(() => {
+    const ranks = getCompetitionRanks(ranking)
+    return selectHomeRanking(ranking, ranks, activePlayer?.id ?? '')
+  }, [ranking, activePlayer?.id])
   const nextMatchId = nextMatch?.id
 
   useEffect(() => {
@@ -114,7 +117,7 @@ export function HomePage() {
   }, [nextMatchId, playerId, predictions])
 
   async function handleSave() {
-    if (!accessCode || !playerId || !nextMatch) return
+    if (!sessionToken || !playerId || !nextMatch) return
     if (!isBrowserOnline()) {
       setSaveError(OFFLINE_USER_MESSAGE)
       setJustSaved(false)
@@ -124,8 +127,7 @@ export function HomePage() {
     setSaveError(null)
     try {
       const savedPrediction = await upsertPrediction({
-        accessCode,
-        playerId,
+        sessionToken,
         matchId: nextMatch.id,
         homeScore: draft.home,
         awayScore: draft.away,
@@ -166,10 +168,11 @@ export function HomePage() {
           message="Aucun prochain match ouvert aux pronostics pour le moment."
         />
         <RaceLeaders
-          players={ranking}
-          ranks={ranks}
+          players={homeRanking.players}
+          ranks={homeRanking.ranks}
           activePlayerId={activePlayer?.id ?? ''}
           title="Classement du groupe"
+          variant="compact"
         />
         <LastMatchBlock match={lastMatch} prediction={lastPrediction} />
       </div>
@@ -315,10 +318,11 @@ export function HomePage() {
       </section>
 
       <RaceLeaders
-        players={ranking}
-        ranks={ranks}
+        players={homeRanking.players}
+        ranks={homeRanking.ranks}
         activePlayerId={activePlayer?.id ?? ''}
         title="Classement du groupe"
+        variant="compact"
       />
       <LastMatchBlock match={lastMatch} prediction={lastPrediction} />
     </div>

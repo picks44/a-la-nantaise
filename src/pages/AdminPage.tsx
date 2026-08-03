@@ -17,8 +17,10 @@ import {
   adminGetMatches,
   adminGetPlayers,
   adminGetStats,
+  adminResetPlayerPin,
   adminSetMatchResult,
   adminSetPlayerActive,
+  adminUnlockPlayerPin,
   adminUpdateAccessCode,
   adminUpdateMatch,
   adminUpdatePlayerName,
@@ -286,6 +288,12 @@ function PlayersAdmin({ adminCode }: { adminCode: string }) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [pending, setPending] = useState(false)
+  const [revealedPin, setRevealedPin] = useState<{
+    playerId: string
+    pseudo: string
+    pin: string
+    expiresAt: string
+  } | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -327,7 +335,9 @@ function PlayersAdmin({ adminCode }: { adminCode: string }) {
     try {
       await adminCreatePlayer(adminCode, newName)
       setNewName('')
-      setMessage('Participant ajouté.')
+      setMessage(
+        'Participant ajouté. Génère un PIN temporaire pour qu’il puisse se connecter.',
+      )
       await reload()
     } catch (err) {
       setError(toUserMessage(err))
@@ -369,12 +379,49 @@ function PlayersAdmin({ adminCode }: { adminCode: string }) {
     }
   }
 
+  async function handleResetPin(player: AdminPlayer) {
+    setPending(true)
+    setError(null)
+    setMessage(null)
+    try {
+      const result = await adminResetPlayerPin(adminCode, player.id)
+      setRevealedPin({
+        playerId: player.id,
+        pseudo: player.pseudo,
+        pin: result.temporaryPin,
+        expiresAt: result.expiresAt,
+      })
+      setMessage(
+        'PIN temporaire généré. Communique-le une seule fois, puis ferme cet affichage.',
+      )
+    } catch (err) {
+      setError(toUserMessage(err))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  async function handleUnlock(player: AdminPlayer) {
+    setPending(true)
+    setError(null)
+    setMessage(null)
+    try {
+      await adminUnlockPlayerPin(adminCode, player.id)
+      setMessage(`Tentatives débloquées pour ${player.pseudo}.`)
+    } catch (err) {
+      setError(toUserMessage(err))
+    } finally {
+      setPending(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <header>
         <h1 className="title-display text-xl">Participants</h1>
         <p className="mt-1 text-sm text-muted">
-          Aucune suppression : désactiver conserve l’historique.
+          Aucune suppression : désactiver conserve l’historique. Génère un PIN
+          pour chaque joueur.
         </p>
       </header>
 
@@ -387,6 +434,37 @@ function PlayersAdmin({ adminCode }: { adminCode: string }) {
         <p role="status" className="text-sm font-semibold text-green-dark">
           {message}
         </p>
+      ) : null}
+
+      {revealedPin ? (
+        <section
+          role="status"
+          className="border-2 border-ink bg-yellow p-4"
+          aria-labelledby="revealed-pin-title"
+        >
+          <h2
+            id="revealed-pin-title"
+            className="text-sm font-black tracking-[0.08em] uppercase"
+          >
+            PIN temporaire — {revealedPin.pseudo}
+          </h2>
+          <p className="mt-2 font-mono text-2xl font-black tracking-[0.35em]">
+            {revealedPin.pin}
+          </p>
+          <p className="mt-2 text-sm text-ink">
+            Expire le{' '}
+            {new Date(revealedPin.expiresAt).toLocaleString('fr-FR')}. Affiché
+            une seule fois ; le joueur devra en choisir un nouveau à la
+            connexion.
+          </p>
+          <button
+            type="button"
+            className="btn-ink mt-4"
+            onClick={() => setRevealedPin(null)}
+          >
+            J’ai noté le PIN
+          </button>
+        </section>
       ) : null}
 
       <form onSubmit={handleCreate} className="panel flex flex-col gap-3 p-4 sm:flex-row">
@@ -471,6 +549,22 @@ function PlayersAdmin({ adminCode }: { adminCode: string }) {
                   onClick={() => void handleToggle(player)}
                 >
                   {player.isActive ? 'Désactiver' : 'Activer'}
+                </button>
+                <button
+                  type="button"
+                  className="border-2 border-ink px-3 py-2 text-[11px] font-extrabold tracking-wider uppercase"
+                  disabled={pending}
+                  onClick={() => void handleResetPin(player)}
+                >
+                  Réinit. PIN
+                </button>
+                <button
+                  type="button"
+                  className="border-2 border-ink px-3 py-2 text-[11px] font-extrabold tracking-wider uppercase"
+                  disabled={pending}
+                  onClick={() => void handleUnlock(player)}
+                >
+                  Débloquer
                 </button>
               </div>
             </li>

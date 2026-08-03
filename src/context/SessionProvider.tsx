@@ -1,23 +1,25 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
+  changePlayerPin,
   deactivatePushSubscription,
   fetchActivePlayers,
-  registerPushSubscription,
+  fetchSessionPlayer,
+  loginPlayer,
+  logoutPlayer,
   setAccessInvalidationHandler,
   verifyAccessCode,
 } from '../lib/api'
 import { toUserMessage } from '../lib/errors'
 import {
-  getExistingPushSubscription,
-  serializationFromSubscription,
+  bestEffortDeactivateRemotePush,
   unsubscribeLocalPush,
 } from '../lib/push'
 import {
   clearLocalSession,
-  clearPlayerId,
+  clearSessionToken,
   readLocalSession,
   saveAccessCode,
-  savePlayerId,
+  saveSessionToken,
 } from '../lib/session'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { PlayerOption } from '../types'
@@ -26,20 +28,42 @@ import { SessionContext, type SessionPhase } from './session-context'
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [phase, setPhase] = useState<SessionPhase>('loading')
   const [accessCode, setAccessCode] = useState<string | null>(null)
+  const [sessionToken, setSessionToken] = useState<string | null>(null)
   const [playerId, setPlayerId] = useState<string | null>(null)
+  const [pendingPlayerId, setPendingPlayerId] = useState<string | null>(null)
   const [players, setPlayers] = useState<PlayerOption[]>([])
+  const [activePseudo, setActivePseudo] = useState<string | null>(null)
+  const [mustChangePin, setMustChangePin] = useState(false)
   const [bootstrapError, setBootstrapError] = useState<string | null>(null)
 
-  const invalidatePlayerSession = useCallback(() => {
+  const clearAuthState = useCallback(() => {
     clearLocalSession()
     setAccessCode(null)
+    setSessionToken(null)
     setPlayerId(null)
+    setPendingPlayerId(null)
     setPlayers([])
-    setBootstrapError(
-      'Le code d’accès du groupe a changé. Saisis le nouveau code pour continuer.',
-    )
-    setPhase('needs_code')
+    setActivePseudo(null)
+    setMustChangePin(false)
   }, [])
+
+  const invalidatePlayerSession = useCallback(
+    (code: string) => {
+      const previousToken = sessionToken
+      void bestEffortDeactivateRemotePush(
+        previousToken,
+        deactivatePushSubscription,
+      )
+      clearAuthState()
+      setBootstrapError(
+        code === 'INVALID_SESSION'
+          ? 'Ta session a expiré. Reconnecte-toi avec ton PIN.'
+          : 'Le code d’accès du groupe a changé. Saisis le nouveau code pour continuer.',
+      )
+      setPhase('needs_code')
+    },
+    [clearAuthState, sessionToken],
+  )
 
   useEffect(() => {
     setAccessInvalidationHandler(invalidatePlayerSession)
@@ -58,10 +82,68 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setBootstrapError(null)
     const local = readLocalSession()
 
-    if (!local?.accessCode) {
-      setAccessCode(null)
-      setPlayerId(null)
-      setPlayers([])
+    if (local.sessionToken) {
+      try {
+        const sessionPlayer = await fetchSessionPlayer(local.sessionToken)
+        if (!sessionPlayer) {
+          clearSessionToken()
+          if (local.accessCode) {
+            const valid = await verifyAccessCode(local.accessCode)
+            if (valid) {
+              const activePlayers = await fetchActivePlayers(local.accessCode)
+              setAccessCode(local.accessCode)
+              setPlayers(activePlayers)
+              setSessionToken(null)
+              setPlayerId(null)
+              setPhase('needs_player')
+              return
+            }
+          }
+          clearAuthState()
+          setPhase('needs_code')
+          return
+        }
+
+        setSessionToken(local.sessionToken)
+        setPlayerId(sessionPlayer.playerId)
+        setActivePseudo(sessionPlayer.pseudo)
+        setMustChangePin(sessionPlayer.mustChangePin)
+        if (local.accessCode) {
+          setAccessCode(local.accessCode)
+          try {
+            setPlayers(await fetchActivePlayers(local.accessCode))
+          } catch {
+            setPlayers([
+              {
+                id: sessionPlayer.playerId,
+                pseudo: sessionPlayer.pseudo,
+                isActive: true,
+              },
+            ])
+          }
+        } else {
+          setPlayers([
+            {
+              id: sessionPlayer.playerId,
+              pseudo: sessionPlayer.pseudo,
+              isActive: true,
+            },
+          ])
+        }
+        setPhase(
+          sessionPlayer.mustChangePin ? 'needs_pin_change' : 'ready',
+        )
+        return
+      } catch (error) {
+        setBootstrapError(toUserMessage(error))
+        clearAuthState()
+        setPhase('needs_code')
+        return
+      }
+    }
+
+    if (!local.accessCode) {
+      clearAuthState()
       setPhase('needs_code')
       return
     }
@@ -69,10 +151,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     try {
       const valid = await verifyAccessCode(local.accessCode)
       if (!valid) {
-        clearLocalSession()
-        setAccessCode(null)
-        setPlayerId(null)
-        setPlayers([])
+        clearAuthState()
         setPhase('needs_code')
         setBootstrapError(
           'Le code d’accès du groupe a changé. Saisis le nouveau code pour continuer.',
@@ -83,26 +162,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const activePlayers = await fetchActivePlayers(local.accessCode)
       setAccessCode(local.accessCode)
       setPlayers(activePlayers)
-
-      if (local.playerId) {
-        const stillActive = activePlayers.find(
-          (player) => player.id === local.playerId,
-        )
-        if (stillActive) {
-          setPlayerId(stillActive.id)
-          setPhase('ready')
-          return
-        }
-        clearPlayerId()
-      }
-
+      setSessionToken(null)
       setPlayerId(null)
       setPhase('needs_player')
     } catch (error) {
       setBootstrapError(toUserMessage(error))
       setPhase('needs_code')
     }
-  }, [])
+  }, [clearAuthState])
 
   useEffect(() => {
     void bootstrap()
@@ -117,79 +184,93 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
     const activePlayers = await fetchActivePlayers(trimmed)
     saveAccessCode(trimmed)
-    clearPlayerId()
+    clearSessionToken()
     setAccessCode(trimmed)
     setPlayers(activePlayers)
+    setSessionToken(null)
     setPlayerId(null)
+    setPendingPlayerId(null)
+    setActivePseudo(null)
+    setMustChangePin(false)
     setBootstrapError(null)
     setPhase('needs_player')
   }, [])
 
-  const selectPlayer = useCallback(
-    async (nextPlayerId: string) => {
-      if (!accessCode) {
+  const selectPlayerForLogin = useCallback((nextPlayerId: string) => {
+    setPendingPlayerId(nextPlayerId)
+    setBootstrapError(null)
+    setPhase('needs_pin')
+  }, [])
+
+  const loginWithPin = useCallback(
+    async (pin: string) => {
+      if (!accessCode || !pendingPlayerId) {
         throw new Error('INVALID_ACCESS_CODE')
       }
 
-      const player = players.find((item) => item.id === nextPlayerId)
-      if (!player) {
-        const fresh = await fetchActivePlayers(accessCode)
-        setPlayers(fresh)
-        const found = fresh.find((item) => item.id === nextPlayerId)
-        if (!found) throw new Error('INVALID_PLAYER')
-      }
+      const result = await loginPlayer(accessCode, pendingPlayerId, pin)
+      saveSessionToken(result.sessionToken)
+      setSessionToken(result.sessionToken)
+      setPlayerId(result.playerId)
+      setActivePseudo(result.pseudo)
+      setMustChangePin(result.mustChangePin)
+      setPendingPlayerId(null)
+      setBootstrapError(null)
+      setPhase(result.mustChangePin ? 'needs_pin_change' : 'ready')
+    },
+    [accessCode, pendingPlayerId],
+  )
 
-      savePlayerId(nextPlayerId)
-      setPlayerId(nextPlayerId)
+  const changePin = useCallback(
+    async (oldPin: string, newPin: string) => {
+      if (!sessionToken) {
+        throw new Error('INVALID_SESSION')
+      }
+      await changePlayerPin(sessionToken, oldPin, newPin)
+      setMustChangePin(false)
       setPhase('ready')
     },
-    [accessCode, players],
+    [sessionToken],
   )
 
-  const changePlayer = useCallback(
-    async (nextPlayerId: string) => {
-      if (!accessCode) {
-        throw new Error('INVALID_ACCESS_CODE')
-      }
-
-      const subscription = await getExistingPushSubscription()
-      if (subscription) {
-        const serialized = serializationFromSubscription(subscription)
-        await registerPushSubscription({
-          accessCode,
-          playerId: nextPlayerId,
-          endpoint: serialized.endpoint,
-          p256dh: serialized.p256dh,
-          auth: serialized.auth,
-          expirationTime: serialized.expirationTime,
-          userAgent: navigator.userAgent,
-        })
-      }
-
-      await selectPlayer(nextPlayerId)
-    },
-    [accessCode, selectPlayer],
-  )
-
-  const leaveGroup = useCallback(async () => {
-    const code = accessCode
+  const logout = useCallback(async () => {
+    const token = sessionToken
     try {
-      const subscription = await getExistingPushSubscription()
-      if (subscription && code) {
-        await deactivatePushSubscription(code, subscription.endpoint)
+      if (token) {
+        await bestEffortDeactivateRemotePush(token, deactivatePushSubscription)
+        await logoutPlayer(token)
         await unsubscribeLocalPush()
       }
     } catch {
-      // Ne bloque pas la sortie de groupe si le réseau échoue.
+      // Ne bloque pas la déconnexion locale.
     }
 
-    clearLocalSession()
-    setAccessCode(null)
+    clearSessionToken()
+    setSessionToken(null)
     setPlayerId(null)
-    setPlayers([])
+    setPendingPlayerId(null)
+    setActivePseudo(null)
+    setMustChangePin(false)
+    setBootstrapError(null)
+    setPhase(accessCode ? 'needs_player' : 'needs_code')
+  }, [accessCode, sessionToken])
+
+  const leaveGroup = useCallback(async () => {
+    const token = sessionToken
+    try {
+      if (token) {
+        await bestEffortDeactivateRemotePush(token, deactivatePushSubscription)
+        await logoutPlayer(token)
+        await unsubscribeLocalPush()
+      }
+    } catch {
+      // Ne bloque pas la sortie de groupe.
+    }
+
+    clearAuthState()
     setBootstrapError(null)
     setPhase('needs_code')
-  }, [accessCode])
+  }, [clearAuthState, sessionToken])
 
   const refreshPlayers = useCallback(async () => {
     if (!accessCode) return
@@ -197,35 +278,50 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setPlayers(activePlayers)
   }, [accessCode])
 
-  const activePlayer = useMemo(
-    () => players.find((player) => player.id === playerId) ?? null,
-    [players, playerId],
-  )
+  const activePlayer = useMemo(() => {
+    if (!playerId) return null
+    const fromList = players.find((player) => player.id === playerId)
+    if (fromList) return fromList
+    if (activePseudo) {
+      return { id: playerId, pseudo: activePseudo, isActive: true }
+    }
+    return null
+  }, [activePseudo, playerId, players])
 
   const value = useMemo(
     () => ({
       phase,
       accessCode,
+      sessionToken,
       playerId,
       activePlayer,
       players,
+      pendingPlayerId,
+      mustChangePin,
       bootstrapError,
       submitAccessCode,
-      selectPlayer,
-      changePlayer,
+      selectPlayerForLogin,
+      loginWithPin,
+      changePin,
+      logout,
       leaveGroup,
       refreshPlayers,
     }),
     [
       phase,
       accessCode,
+      sessionToken,
       playerId,
       activePlayer,
       players,
+      pendingPlayerId,
+      mustChangePin,
       bootstrapError,
       submitAccessCode,
-      selectPlayer,
-      changePlayer,
+      selectPlayerForLogin,
+      loginWithPin,
+      changePin,
+      logout,
       leaveGroup,
       refreshPlayers,
     ],

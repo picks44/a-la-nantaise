@@ -6,6 +6,8 @@ import {
 
 export type PushUiState =
   | 'unsupported'
+  | 'insecure_context'
+  | 'misconfigured'
   | 'ios_install_required'
   | 'default'
   | 'denied'
@@ -31,20 +33,30 @@ export function getVapidPublicKey(): string | null {
   return key.trim()
 }
 
+/**
+ * Web Push support without relying on `window.PushManager` (absent on Safari).
+ * Requires ServiceWorkerRegistration.prototype.pushManager.
+ */
 export function isWebPushSupported(): boolean {
   if (typeof window === 'undefined') return false
-  return (
-    'serviceWorker' in navigator &&
-    'PushManager' in window &&
-    'Notification' in window
-  )
+  if (!window.isSecureContext) return false
+  if (!('serviceWorker' in navigator)) return false
+  if (!('Notification' in window)) return false
+  if (typeof ServiceWorkerRegistration === 'undefined') return false
+  return 'pushManager' in ServiceWorkerRegistration.prototype
 }
 
 export function resolvePushGateState(): PushUiState {
+  if (typeof window === 'undefined') return 'unsupported'
+
   if (shouldShowIosInstallHelp()) return 'ios_install_required'
   if (isIosLikeDevice() && !isStandaloneDisplay()) return 'ios_install_required'
+
+  if (!window.isSecureContext) return 'insecure_context'
+
   if (!isWebPushSupported()) return 'unsupported'
-  if (!getVapidPublicKey()) return 'unsupported'
+
+  if (!getVapidPublicKey()) return 'misconfigured'
 
   const permission = Notification.permission
   if (permission === 'denied') return 'denied'
@@ -59,6 +71,9 @@ export async function getExistingPushSubscription(): Promise<PushSubscription | 
 }
 
 export async function subscribeToPush(): Promise<PushSubscription> {
+  if (!window.isSecureContext) {
+    throw new Error('PUSH_UNSUPPORTED')
+  }
   if (!isWebPushSupported()) {
     throw new Error('PUSH_UNSUPPORTED')
   }
@@ -79,9 +94,7 @@ export async function subscribeToPush(): Promise<PushSubscription> {
 
   return registration.pushManager.subscribe({
     userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(
-      vapidKey,
-    ) as BufferSource,
+    applicationServerKey: urlBase64ToUint8Array(vapidKey) as BufferSource,
   })
 }
 
@@ -115,4 +128,23 @@ export async function unsubscribeLocalPush(): Promise<boolean> {
   const subscription = await getExistingPushSubscription()
   if (!subscription) return false
   return subscription.unsubscribe()
+}
+
+/**
+ * Best-effort remote deactivation using a session token from an ending session.
+ * Never throws; never logs endpoint, keys, or tokens. Does not unsubscribe locally.
+ */
+export async function bestEffortDeactivateRemotePush(
+  sessionToken: string | null | undefined,
+  deactivate: (token: string, endpoint: string) => Promise<unknown>,
+): Promise<void> {
+  if (!sessionToken) return
+  try {
+    if (!isWebPushSupported()) return
+    const subscription = await getExistingPushSubscription()
+    if (!subscription) return
+    await deactivate(sessionToken, subscription.endpoint)
+  } catch {
+    // Expected when the session is already invalid server-side.
+  }
 }

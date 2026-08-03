@@ -17,7 +17,7 @@ const MATCH_ID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export function CalendarPage() {
-  const { accessCode, playerId } = useSession()
+  const { sessionToken, playerId } = useSession()
   const [searchParams] = useSearchParams()
   const highlightMatchId = useMemo(() => {
     const raw = searchParams.get('match')
@@ -36,7 +36,7 @@ export function CalendarPage() {
   }, [])
 
   useEffect(() => {
-    if (!accessCode || !playerId) return
+    if (!sessionToken || !playerId) return
     let cancelled = false
 
     async function load() {
@@ -44,8 +44,8 @@ export function CalendarPage() {
       setError(null)
       try {
         const [matchRows, predictionRows] = await Promise.all([
-          fetchMatches(accessCode!),
-          fetchMyPredictions(accessCode!, playerId!),
+          fetchMatches(sessionToken!),
+          fetchMyPredictions(sessionToken!),
         ])
         if (cancelled) return
         setMatches(matchRows)
@@ -61,7 +61,7 @@ export function CalendarPage() {
     return () => {
       cancelled = true
     }
-  }, [accessCode, playerId])
+  }, [sessionToken, playerId])
 
   const items = useMemo(() => {
     if (!playerId) return []

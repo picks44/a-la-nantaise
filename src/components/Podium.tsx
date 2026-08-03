@@ -1,4 +1,8 @@
 import { Link } from 'react-router-dom'
+import {
+  formatGapToLeader,
+  formatSuccessRate,
+} from '../lib/rankingDisplay'
 import type { Player } from '../types'
 
 interface GroupRankingProps {
@@ -7,15 +11,138 @@ interface GroupRankingProps {
   activePlayerId: string
   title?: string
   showLink?: boolean
+  /** compact = accueil ; full = page Classement onglet Général */
+  variant?: 'compact' | 'full'
+  emptyMessage?: string
 }
 
-/** Classement compact du groupe — tous les participants, ordre métier inchangé. */
+function RankingRow({
+  player,
+  rank,
+  isActive,
+  isTie,
+  isFirstOccurrenceOfRank,
+  variant,
+}: {
+  player: Player
+  rank: number
+  isActive: boolean
+  isTie: boolean
+  isFirstOccurrenceOfRank: boolean
+  variant: 'compact' | 'full'
+}) {
+  const isLeaderMark = rank === 1 && isFirstOccurrenceOfRank
+
+  return (
+    <li
+      className={[
+        'flex items-start gap-3 bg-surface px-4',
+        variant === 'full' ? 'py-3' : 'py-2.5',
+        isActive ? 'border-l-4 border-l-green bg-success-soft/60' : '',
+      ].join(' ')}
+    >
+      <span
+        className={[
+          'flex w-10 shrink-0 flex-col items-start sm:w-12',
+          isLeaderMark ? 'text-ink' : 'text-green-dark',
+        ].join(' ')}
+        aria-label={`${rank}e place${isTie ? ' ex æquo' : ''}`}
+      >
+        <span
+          className={[
+            'font-black leading-none tabular-nums',
+            variant === 'full'
+              ? 'text-2xl'
+              : 'text-xl sm:text-2xl',
+          ].join(' ')}
+        >
+          {rank}
+        </span>
+        {isLeaderMark ? (
+          <span
+            aria-hidden="true"
+            className="mt-1 h-1 w-5 rounded-sm bg-yellow sm:w-6"
+          />
+        ) : null}
+        {isTie ? (
+          <span className="mt-0.5 text-[9px] font-bold tracking-wider text-ink/55 uppercase">
+            ex æquo
+          </span>
+        ) : null}
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <p className="flex flex-wrap items-center gap-2 font-bold">
+          <span className="truncate text-sm sm:text-base">{player.pseudo}</span>
+          {isActive ? (
+            <span className="badge border-green bg-green text-white">Toi</span>
+          ) : null}
+          {variant === 'full' && !player.isActive ? (
+            <span className="badge border-border bg-surface-muted text-muted">
+              Inactif
+            </span>
+          ) : null}
+        </p>
+
+        {variant === 'compact' ? (
+          <p className="text-xs font-medium text-ink/70">
+            {player.exactScores} score
+            {player.exactScores > 1 ? 's' : ''} exact
+            {player.exactScores > 1 ? 's' : ''}
+          </p>
+        ) : (
+          <div className="mt-1 space-y-0.5 text-xs font-medium text-ink/70">
+            <p className="flex flex-wrap gap-x-3 gap-y-0.5">
+              <span>
+                {player.exactScores} exact
+                {player.exactScores > 1 ? 's' : ''}
+              </span>
+              <span>
+                {player.goodResults} bon
+                {player.goodResults > 1 ? 's' : ''} résultat
+                {player.goodResults > 1 ? 's' : ''}
+              </span>
+              <span>
+                {player.scoredPredictions} noté
+                {player.scoredPredictions > 1 ? 's' : ''}
+              </span>
+            </p>
+            <p className="flex flex-wrap gap-x-3 gap-y-0.5">
+              <span>Réussite {formatSuccessRate(player.successRate)}</span>
+              <span>
+                Écart {formatGapToLeader(player.gapToLeader, player.gapToLeader === 0)}
+              </span>
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="shrink-0 text-right">
+        <p
+          className={[
+            'font-black tabular-nums',
+            variant === 'full' ? 'text-xl' : 'text-base sm:text-lg',
+          ].join(' ')}
+        >
+          {player.points}
+        </p>
+        <p className="text-[10px] font-bold tracking-wider uppercase opacity-70">
+          pts
+        </p>
+      </div>
+    </li>
+  )
+}
+
+/** Classement du groupe — ligne unique partagée (accueil compact / page complète). */
 export function GroupRanking({
   players,
   ranks,
   activePlayerId,
   title = 'Classement du groupe',
   showLink = true,
+  variant = 'compact',
+  emptyMessage = 'Pas encore de joueurs pour afficher le classement.',
 }: GroupRankingProps) {
   if (players.length === 0) {
     return (
@@ -32,9 +159,7 @@ export function GroupRanking({
             {title}
           </h2>
         </div>
-        <p className="px-4 py-4 text-sm text-muted">
-          Pas encore de joueurs pour afficher le classement.
-        </p>
+        <p className="px-4 py-4 text-sm text-muted">{emptyMessage}</p>
       </section>
     )
   }
@@ -63,70 +188,21 @@ export function GroupRanking({
 
       <ol className="divide-y divide-border">
         {players.map((player, index) => {
-          const isActive = player.id === activePlayerId
           const rank = ranks[index]
           const isFirstOccurrenceOfRank =
             ranks.findIndex((value) => value === rank) === index
           const isTie = ranks.filter((value) => value === rank).length > 1
 
           return (
-            <li
+            <RankingRow
               key={player.id}
-              className={[
-                'flex items-center gap-3 bg-surface px-4 py-2.5',
-                isActive ? 'border-l-4 border-l-green bg-success-soft/60' : '',
-              ].join(' ')}
-            >
-              <span
-                className={[
-                  'flex w-10 shrink-0 flex-col items-start',
-                  rank === 1 && isFirstOccurrenceOfRank
-                    ? 'text-ink'
-                    : 'text-green-dark',
-                ].join(' ')}
-                aria-label={`${rank}e place${isTie ? ' ex æquo' : ''}`}
-              >
-                <span className="text-xl font-black leading-none tabular-nums sm:text-2xl">
-                  {rank}
-                </span>
-                {rank === 1 && isFirstOccurrenceOfRank ? (
-                  <span
-                    aria-hidden="true"
-                    className="mt-1 h-1 w-5 rounded-sm bg-yellow"
-                  />
-                ) : null}
-                {isTie ? (
-                  <span className="mt-0.5 text-[9px] font-bold tracking-wider text-ink/55 uppercase">
-                    ex æquo
-                  </span>
-                ) : null}
-              </span>
-
-              <div className="min-w-0 flex-1">
-                <p className="flex flex-wrap items-center gap-2 font-bold">
-                  <span className="truncate">{player.pseudo}</span>
-                  {isActive ? (
-                    <span className="badge border-green bg-green text-white">
-                      Toi
-                    </span>
-                  ) : null}
-                </p>
-                <p className="text-xs font-medium text-ink/70">
-                  {player.exactScores} score
-                  {player.exactScores > 1 ? 's' : ''} exact
-                  {player.exactScores > 1 ? 's' : ''}
-                </p>
-              </div>
-
-              <p className="shrink-0 text-right">
-                <span className="block text-base font-black tabular-nums sm:text-lg">
-                  {player.points}
-                </span>
-                <span className="text-[10px] font-bold tracking-wider uppercase opacity-70">
-                  pts
-                </span>
-              </p>
-            </li>
+              player={player}
+              rank={rank}
+              isActive={player.id === activePlayerId}
+              isTie={isTie}
+              isFirstOccurrenceOfRank={isFirstOccurrenceOfRank}
+              variant={variant}
+            />
           )
         })}
       </ol>
@@ -134,6 +210,6 @@ export function GroupRanking({
   )
 }
 
-/** Alias historique — même composant, classement complet. */
+/** Alias historique — même composant. */
 export const RaceLeaders = GroupRanking
 export const Podium = GroupRanking

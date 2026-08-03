@@ -14,6 +14,9 @@ const KNOWN_CODES = [
   'ACCESS_CODE_NOT_CONFIGURED',
   'INVALID_ADMIN_CODE',
   'ADMIN_CODE_NOT_CONFIGURED',
+  'INVALID_CREDENTIALS',
+  'INVALID_SESSION',
+  'INVALID_PIN_FORMAT',
   'INVALID_PLAYER',
   'INVALID_PLAYER_NAME',
   'DUPLICATE_PLAYER_NAME',
@@ -82,6 +85,12 @@ export function toUserMessage(error: unknown): string {
       return 'Code administrateur incorrect.'
     case 'ADMIN_CODE_NOT_CONFIGURED':
       return 'Le code administrateur n’est pas encore configuré côté Supabase.'
+    case 'INVALID_CREDENTIALS':
+      return 'Connexion impossible, réessaie plus tard.'
+    case 'INVALID_SESSION':
+      return 'Session expirée. Reconnecte-toi avec ton PIN.'
+    case 'INVALID_PIN_FORMAT':
+      return 'Le PIN doit contenir 4 ou 6 chiffres.'
     case 'INVALID_PLAYER':
       return 'Ce joueur est introuvable ou inactif.'
     case 'INVALID_PLAYER_NAME':

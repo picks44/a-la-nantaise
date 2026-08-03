@@ -10,8 +10,8 @@ function read(relativePath) {
   return readFileSync(join(root, relativePath), 'utf8')
 }
 
-/** Mirrors src/lib/api.ts getDenseRanks — keep in sync for ranking assertions. */
-function getDenseRanks(rankedPlayers) {
+/** Mirrors src/lib/api.ts getCompetitionRanks — keep in sync for ranking assertions. */
+function getCompetitionRanks(rankedPlayers) {
   const ranks = []
   rankedPlayers.forEach((player, index) => {
     if (index === 0) {
@@ -58,13 +58,12 @@ describe('visual hierarchy polish', () => {
   it('does not paint every rank-1 row yellow in ranking views', () => {
     const ranking = read('src/pages/RankingPage.tsx')
     const podium = read('src/components/Podium.tsx')
-    assert.match(ranking, /isFirstOccurrenceOfRank/)
+    assert.match(ranking, /GroupRanking/)
     assert.match(podium, /isFirstOccurrenceOfRank/)
     assert.doesNotMatch(ranking, /isLeader \? 'bg-yellow'/)
     assert.doesNotMatch(podium, /isLeader \? 'bg-yellow'/)
     assert.match(ranking, /border-l-green/)
     assert.match(podium, /badge border-green bg-green/)
-    assert.match(ranking, /h-5 w-1\.5 bg-green/)
     assert.match(podium, /h-5 w-1\.5.*bg-green/)
   })
 
@@ -104,14 +103,15 @@ describe('visual hierarchy polish', () => {
     assert.match(home, /type="submit"/)
     assert.match(home, /flex justify-center/)
     assert.match(home, /grid grid-cols-\[1fr_auto_1fr\]/)
-    assert.match(settings, /bg-success-soft/)
     assert.match(settings, /btn-danger/)
+    assert.match(settings, /Se déconnecter/)
+    assert.doesNotMatch(settings, /Changer de joueur/)
     assert.doesNotMatch(settings, /checked \? 'bg-yellow'/)
   })
 })
 
 describe('home group ranking', () => {
-  it('shows the full ranking list on home instead of a top-three slice', () => {
+  it('shows a compact ranking on home instead of the full list', () => {
     const podium = read('src/components/Podium.tsx')
     const home = read('src/pages/HomePage.tsx')
     assert.doesNotMatch(podium, /slice\(0,\s*3\)/)
@@ -121,11 +121,12 @@ describe('home group ranking', () => {
     assert.match(podium, /isFirstOccurrenceOfRank/)
     assert.match(podium, /badge border-green bg-green/)
     assert.match(home, /title="Classement du groupe"/)
-    assert.match(home, /players=\{ranking\}/)
-    assert.match(home, /ranks=\{ranks\}/)
+    assert.match(home, /selectHomeRanking/)
+    assert.match(home, /homeRanking\.players/)
+    assert.match(home, /homeRanking\.ranks/)
   })
 
-  it('keeps dense ranking order for five tied participants', () => {
+  it('keeps competition ranking order for five tied participants', () => {
     const players = [
       { id: '1', pseudo: 'Camille', points: 0, exactScores: 0 },
       { id: '2', pseudo: 'Pogo', points: 0, exactScores: 0 },
@@ -133,7 +134,7 @@ describe('home group ranking', () => {
       { id: '4', pseudo: 'Toinou', points: 0, exactScores: 0 },
       { id: '5', pseudo: 'Vinz', points: 0, exactScores: 0 },
     ]
-    const ranks = getDenseRanks(players)
+    const ranks = getCompetitionRanks(players)
     assert.equal(players.length, 5)
     assert.deepEqual(ranks, [1, 1, 1, 1, 1])
   })
@@ -144,11 +145,11 @@ describe('home group ranking', () => {
       { id: 'b', pseudo: 'Bravo', points: 0, exactScores: 0 },
       { id: 'c', pseudo: 'Charlie', points: 0, exactScores: 0 },
     ]
-    assert.deepEqual(getDenseRanks(players), [1, 1, 1])
+    assert.deepEqual(getCompetitionRanks(players), [1, 1, 1])
     const podium = read('src/components/Podium.tsx')
     assert.match(
       podium,
-      /rank === 1 && isFirstOccurrenceOfRank[\s\S]*?bg-yellow/,
+      /isLeaderMark[\s\S]*?bg-yellow|rank === 1 && isFirstOccurrenceOfRank[\s\S]*?bg-yellow/,
     )
   })
 
@@ -158,6 +159,6 @@ describe('home group ranking', () => {
       { id: 'b', pseudo: 'Bravo', points: 4, exactScores: 1 },
       { id: 'c', pseudo: 'Charlie', points: 1, exactScores: 0 },
     ]
-    assert.deepEqual(getDenseRanks(players), [1, 2, 3])
+    assert.deepEqual(getCompetitionRanks(players), [1, 2, 3])
   })
 })

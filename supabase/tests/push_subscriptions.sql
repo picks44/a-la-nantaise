@@ -1,4 +1,4 @@
--- Tests manuels pour les RPC push (abonnements).
+-- Tests manuels pour les RPC push (abonnements via session).
 -- Exécuter dans une transaction : BEGIN; … ; ROLLBACK;
 
 BEGIN;
@@ -15,29 +15,81 @@ WHERE NOT EXISTS (
   SELECT 1 FROM public.app_settings AS s WHERE s.key = 'access_code_hash'
 );
 
-INSERT INTO public.players (id, display_name, is_active)
+INSERT INTO public.players (
+  id, display_name, is_active, pin_hash, must_change_pin
+)
 VALUES
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01', 'Push Joueur A', TRUE),
-  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa02', 'Push Joueur B', TRUE)
+  (
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01',
+    'Push Joueur A',
+    TRUE,
+    extensions.crypt('1111', extensions.gen_salt('bf')),
+    FALSE
+  ),
+  (
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa02',
+    'Push Joueur B',
+    TRUE,
+    extensions.crypt('2222', extensions.gen_salt('bf')),
+    FALSE
+  )
 ON CONFLICT (id) DO UPDATE
-SET display_name = EXCLUDED.display_name, is_active = TRUE;
+SET
+  display_name = EXCLUDED.display_name,
+  is_active = TRUE,
+  pin_hash = EXCLUDED.pin_hash,
+  must_change_pin = FALSE,
+  pin_failed_attempts = 0,
+  pin_locked_until = NULL,
+  pin_temporary_expires_at = NULL;
 
--- 1) Refus mauvais code
+DELETE FROM public.player_sessions
+WHERE player_id IN (
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01',
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa02'
+);
+
+DO $$
+DECLARE
+  tok_a text;
+  tok_b text;
+BEGIN
+  SELECT l.session_token INTO tok_a
+  FROM public.login_player(
+    'test-code-aln',
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01',
+    '1111'
+  ) AS l;
+
+  SELECT l.session_token INTO tok_b
+  FROM public.login_player(
+    'test-code-aln',
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa02',
+    '2222'
+  ) AS l;
+
+  PERFORM set_config('test.push_token_a', tok_a, true);
+  PERFORM set_config('test.push_token_b', tok_b, true);
+END;
+$$;
+
+-- 1) Refus sans session valide
 DO $$
 BEGIN
   BEGIN
     PERFORM *
     FROM public.register_push_subscription(
-      'wrong-code',
-      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01',
+      repeat('00', 32),
       'https://fcm.googleapis.com/fcm/send/test-endpoint-aaaa',
       'BFakeP256dhKeyMaterialBase64urlxx',
       'fakeAuthKeyBase64'
     );
-    RAISE EXCEPTION 'TEST_FAIL: expected INVALID_ACCESS_CODE';
+    RAISE EXCEPTION 'TEST_FAIL: expected INVALID_SESSION';
   EXCEPTION
-    WHEN SQLSTATE '28000' THEN
-      NULL; -- OK
+    WHEN OTHERS THEN
+      IF SQLERRM NOT LIKE '%INVALID_SESSION%' THEN
+        RAISE;
+      END IF;
   END;
 END;
 $$;
@@ -49,8 +101,7 @@ DECLARE
 BEGIN
   SELECT * INTO rec
   FROM public.register_push_subscription(
-    'test-code-aln',
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01',
+    current_setting('test.push_token_a'),
     'https://fcm.googleapis.com/fcm/send/test-endpoint-aaaa',
     'BFakeP256dhKeyMaterialBase64urlxx',
     'fakeAuthKeyBase64',
@@ -74,7 +125,7 @@ DECLARE
 BEGIN
   SELECT * INTO rec
   FROM public.get_push_subscription_status(
-    'test-code-aln',
+    current_setting('test.push_token_a'),
     'https://fcm.googleapis.com/fcm/send/test-endpoint-aaaa'
   );
 
@@ -91,8 +142,7 @@ DECLARE
 BEGIN
   SELECT * INTO rec
   FROM public.register_push_subscription(
-    'test-code-aln',
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa02',
+    current_setting('test.push_token_b'),
     'https://fcm.googleapis.com/fcm/send/test-endpoint-aaaa',
     'BFakeP256dhKeyMaterialBase64urlxx',
     'fakeAuthKeyBase64'
@@ -117,8 +167,7 @@ BEGIN
   BEGIN
     PERFORM *
     FROM public.register_push_subscription(
-      'test-code-aln',
-      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01',
+      current_setting('test.push_token_a'),
       'http://evil.example/push',
       'BFakeP256dhKeyMaterialBase64urlxx',
       'fakeAuthKeyBase64'
@@ -137,8 +186,7 @@ BEGIN
   BEGIN
     PERFORM *
     FROM public.register_push_subscription(
-      'test-code-aln',
-      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01',
+      current_setting('test.push_token_a'),
       'https://127.0.0.1/push',
       'BFakeP256dhKeyMaterialBase64urlxx',
       'fakeAuthKeyBase64'
@@ -151,14 +199,14 @@ BEGIN
 END;
 $$;
 
--- 7) Désactivation
+-- 7) Désactivation (propriétaire de l’endpoint après réassociation = B)
 DO $$
 DECLARE
   ok BOOLEAN;
   rec RECORD;
 BEGIN
   ok := public.deactivate_push_subscription(
-    'test-code-aln',
+    current_setting('test.push_token_b'),
     'https://fcm.googleapis.com/fcm/send/test-endpoint-aaaa'
   );
   IF ok IS NOT TRUE THEN
@@ -167,7 +215,7 @@ BEGIN
 
   SELECT * INTO rec
   FROM public.get_push_subscription_status(
-    'test-code-aln',
+    current_setting('test.push_token_b'),
     'https://fcm.googleapis.com/fcm/send/test-endpoint-aaaa'
   );
   IF rec.active IS NOT FALSE OR rec.status IS DISTINCT FROM 'disabled' THEN
@@ -176,7 +224,7 @@ BEGIN
 END;
 $$;
 
--- 8) anon ne peut pas SELECT les tables (simulation via role)
+-- 8) anon ne peut pas SELECT les tables
 DO $$
 BEGIN
   BEGIN
@@ -189,11 +237,55 @@ BEGIN
       EXECUTE 'RESET ROLE';
     WHEN OTHERS THEN
       EXECUTE 'RESET ROLE';
-      -- Certains environnements lèvent une autre erreur RLS ; OK si pas de lecture.
       IF SQLERRM LIKE '%TEST_FAIL%' THEN
         RAISE;
       END IF;
   END;
+END;
+$$;
+
+-- 9) PUBLIC n’a plus EXECUTE ; anon conserve l’accès (signature session)
+DO $$
+BEGIN
+  IF has_function_privilege(
+    'PUBLIC',
+    'public.register_push_subscription(text, text, text, text, timestamptz, text)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'TEST_FAIL: PUBLIC must not execute register_push_subscription';
+  END IF;
+
+  IF has_function_privilege(
+    'PUBLIC',
+    'public.deactivate_push_subscription(text, text)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'TEST_FAIL: PUBLIC must not execute deactivate_push_subscription';
+  END IF;
+
+  IF has_function_privilege(
+    'PUBLIC',
+    'public.get_push_subscription_status(text, text)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'TEST_FAIL: PUBLIC must not execute get_push_subscription_status';
+  END IF;
+
+  IF NOT has_function_privilege(
+    'anon',
+    'public.register_push_subscription(text, text, text, text, timestamptz, text)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'TEST_FAIL: anon must execute register_push_subscription';
+  END IF;
+
+  IF NOT has_function_privilege(
+    'anon',
+    'public.deactivate_push_subscription(text, text)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'TEST_FAIL: anon must execute deactivate_push_subscription';
+  END IF;
 END;
 $$;
 

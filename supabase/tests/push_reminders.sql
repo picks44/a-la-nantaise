@@ -148,21 +148,21 @@ BEGIN
 END;
 $$;
 
--- 3) Claim : 2 livraisons, second claim concurrent vide
+-- 3) Claim : 2 livraisons, second claim concurrent vide (lease 5 min)
 DO $$
 DECLARE
   claimed INTEGER;
   claimed2 INTEGER;
 BEGIN
   SELECT count(*)::integer INTO claimed
-  FROM public.claim_push_deliveries(50, 120, now());
+  FROM public.claim_push_deliveries(50, 300, now());
 
   IF claimed <> 2 THEN
     RAISE EXCEPTION 'TEST_FAIL: expected 2 claimed, got %', claimed;
   END IF;
 
   SELECT count(*)::integer INTO claimed2
-  FROM public.claim_push_deliveries(50, 120, now());
+  FROM public.claim_push_deliveries(50, 300, now());
 
   IF claimed2 <> 0 THEN
     RAISE EXCEPTION 'TEST_FAIL: second claim should be empty, got %', claimed2;
@@ -213,7 +213,7 @@ BEGIN
   -- Claim ne doit plus prendre ce match (prono présent)
   IF EXISTS (
     SELECT 1
-    FROM public.claim_push_deliveries(50, 120, now()) AS c
+    FROM public.claim_push_deliveries(50, 300, now()) AS c
     WHERE c.match_id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbb02'
   ) THEN
     RAISE EXCEPTION 'TEST_FAIL: should not claim when prediction exists';
@@ -243,6 +243,128 @@ BEGIN
     WHERE r.player_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaab02'
   ) THEN
     RAISE EXCEPTION 'TEST_FAIL: inactive player should have no reminders';
+  END IF;
+END;
+$$;
+
+-- 7) preview_push_reminder_batch : lecture seule (aucune nouvelle ligne)
+DO $$
+DECLARE
+  before_r INTEGER;
+  before_d INTEGER;
+  prev RECORD;
+  after_r INTEGER;
+  after_d INTEGER;
+BEGIN
+  SELECT count(*)::integer INTO before_r FROM public.push_reminders;
+  SELECT count(*)::integer INTO before_d FROM public.push_deliveries;
+
+  SELECT * INTO prev FROM public.preview_push_reminder_batch(now());
+
+  IF prev.candidates_24h IS NULL THEN
+    RAISE EXCEPTION 'TEST_FAIL: preview returned null';
+  END IF;
+
+  SELECT count(*)::integer INTO after_r FROM public.push_reminders;
+  SELECT count(*)::integer INTO after_d FROM public.push_deliveries;
+
+  IF after_r <> before_r OR after_d <> before_d THEN
+    RAISE EXCEPTION 'TEST_FAIL: preview must not mutate reminders/deliveries';
+  END IF;
+END;
+$$;
+
+-- 8) Reclaim processing après lease expiré ; pas si lease encore valide
+DO $$
+DECLARE
+  del_id UUID;
+  n INTEGER;
+BEGIN
+  SELECT d.id INTO del_id
+  FROM public.push_deliveries AS d
+  WHERE d.status = 'processing'
+  LIMIT 1;
+
+  IF del_id IS NULL THEN
+    RAISE EXCEPTION 'TEST_FAIL: expected a processing delivery from prior claim';
+  END IF;
+
+  -- Lease encore valide → pas de reclaim
+  SELECT count(*)::integer INTO n
+  FROM public.claim_push_deliveries(50, 300, now()) AS c
+  WHERE c.delivery_id = del_id;
+
+  IF n <> 0 THEN
+    RAISE EXCEPTION 'TEST_FAIL: valid lease must not be reclaimed';
+  END IF;
+
+  UPDATE public.push_deliveries
+  SET lease_until = now() - interval '1 second'
+  WHERE id = del_id;
+
+  SELECT count(*)::integer INTO n
+  FROM public.claim_push_deliveries(50, 300, now()) AS c
+  WHERE c.delivery_id = del_id;
+
+  IF n <> 1 THEN
+    RAISE EXCEPTION 'TEST_FAIL: expired processing lease should be reclaimed';
+  END IF;
+END;
+$$;
+
+-- 9) Max 3 tentatives : attempt_count >= 3 non claimable
+DO $$
+DECLARE
+  del_id UUID;
+  n INTEGER;
+BEGIN
+  SELECT d.id INTO del_id
+  FROM public.push_deliveries AS d
+  WHERE d.status = 'processing'
+  LIMIT 1;
+
+  UPDATE public.push_deliveries
+  SET
+    attempt_count = 3,
+    lease_until = now() - interval '1 second',
+    status = 'processing'
+  WHERE id = del_id;
+
+  SELECT count(*)::integer INTO n
+  FROM public.claim_push_deliveries(50, 300, now()) AS c
+  WHERE c.delivery_id = del_id;
+
+  IF n <> 0 THEN
+    RAISE EXCEPTION 'TEST_FAIL: attempt_count >= 3 must not be claimable';
+  END IF;
+END;
+$$;
+
+-- 10) preview / eligibility réservés (pas d’EXECUTE pour anon)
+DO $$
+BEGIN
+  IF has_function_privilege(
+    'anon',
+    'public.preview_push_reminder_batch(timestamptz)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'TEST_FAIL: anon must not execute preview_push_reminder_batch';
+  END IF;
+
+  IF has_function_privilege(
+    'anon',
+    'public.push_reminder_eligibility(timestamptz)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'TEST_FAIL: anon must not execute push_reminder_eligibility';
+  END IF;
+
+  IF has_function_privilege(
+    'PUBLIC',
+    'public.preview_push_reminder_batch(timestamptz)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'TEST_FAIL: PUBLIC must not execute preview_push_reminder_batch';
   END IF;
 END;
 $$;

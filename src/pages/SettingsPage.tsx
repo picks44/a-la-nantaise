@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { LogOut, Shield, UserRound } from 'lucide-react'
 import { PwaInstallSection } from '../components/PwaInstallSection'
@@ -8,23 +8,52 @@ import { toUserMessage } from '../lib/errors'
 
 export function SettingsPage() {
   const {
-    accessCode,
+    sessionToken,
     playerId,
     activePlayer,
-    players,
-    changePlayer,
     leaveGroup,
-    refreshPlayers,
+    logout,
+    changePin,
   } = useSession()
+
+  const oldPinId = useId()
+  const newPinId = useId()
+  const confirmPinId = useId()
+
+  const [oldPin, setOldPin] = useState('')
+  const [newPin, setNewPin] = useState('')
+  const [confirmPin, setConfirmPin] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
 
-  async function handleChangePlayer(playerId: string) {
+  async function handleLogout() {
     setError(null)
     setPending(true)
     try {
-      await refreshPlayers()
-      await changePlayer(playerId)
+      await logout()
+    } catch (err) {
+      setError(toUserMessage(err))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  async function handleChangePin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError(null)
+    setMessage(null)
+    if (newPin !== confirmPin) {
+      setError('Les deux nouveaux PIN ne correspondent pas.')
+      return
+    }
+    setPending(true)
+    try {
+      await changePin(oldPin, newPin)
+      setOldPin('')
+      setNewPin('')
+      setConfirmPin('')
+      setMessage('PIN mis à jour.')
     } catch (err) {
       setError(toUserMessage(err))
     } finally {
@@ -37,13 +66,18 @@ export function SettingsPage() {
       <header>
         <h1 className="title-display">Paramètres</h1>
         <p className="mt-1 text-sm text-muted">
-          Change de pseudo ou quitte le groupe. Aucun compte personnel.
+          Pseudo, PIN, rappels et options de cet appareil.
         </p>
       </header>
 
       {error ? (
         <p role="alert" className="text-sm font-semibold text-danger">
           {error}
+        </p>
+      ) : null}
+      {message ? (
+        <p role="status" className="text-sm font-semibold text-green-dark">
+          {message}
         </p>
       ) : null}
 
@@ -60,80 +94,96 @@ export function SettingsPage() {
         </p>
       </section>
 
-      <section aria-labelledby="player-list-title" className="panel overflow-hidden">
-        <div className="border-b border-border px-4 py-3">
-          <h2
-            id="player-list-title"
-            className="text-sm font-black tracking-[0.08em] uppercase"
-          >
-            Changer de joueur
-          </h2>
-          <p className="mt-1 text-sm text-muted">
-            Mémorisé sur cet appareil uniquement.
-          </p>
-        </div>
-
-        <fieldset className="divide-y divide-border" disabled={pending}>
-          <legend className="sr-only">Liste des joueurs</legend>
-          {players.length === 0 ? (
-            <p className="px-4 py-4 text-sm text-muted">Aucun joueur actif.</p>
-          ) : (
-            players.map((player) => {
-              const checked = player.id === activePlayer?.id
-              return (
-                <label
-                  key={player.id}
-                  className={[
-                    'flex min-h-11 cursor-pointer items-center gap-3 px-4 py-3 transition',
-                    checked
-                      ? 'border-l-4 border-l-green bg-success-soft'
-                      : 'bg-surface hover:bg-canvas',
-                  ].join(' ')}
-                >
-                  <input
-                    type="radio"
-                    name="active-player"
-                    value={player.id}
-                    checked={checked}
-                    onChange={() => void handleChangePlayer(player.id)}
-                    className="size-4 accent-green"
-                  />
-                  <span className="font-bold text-ink">
-                    {player.pseudo}
-                    {checked ? (
-                      <span className="ml-2 text-xs font-semibold text-green-dark">
-                        (actuel)
-                      </span>
-                    ) : null}
-                  </span>
-                </label>
-              )
-            })
-          )}
-        </fieldset>
-      </section>
-
-      <section aria-labelledby="leave-group-title" className="panel p-4">
+      <section aria-labelledby="change-pin-title" className="panel p-4">
         <h2
-          id="leave-group-title"
+          id="change-pin-title"
           className="text-sm font-black tracking-[0.08em] uppercase"
         >
-          Groupe
+          Changer mon PIN
         </h2>
         <p className="mt-1 text-sm text-muted">
-          Efface le code et le pseudo mémorisés sur cet appareil.
+          4 ou 6 chiffres. Les autres appareils seront déconnectés.
         </p>
-        <button type="button" onClick={() => void leaveGroup()} className="btn-danger mt-4">
-          <LogOut aria-hidden="true" className="size-4" />
-          Quitter le groupe
-        </button>
+        <form onSubmit={handleChangePin} className="mt-4 space-y-3">
+          <div>
+            <label
+              htmlFor={oldPinId}
+              className="mb-1 block text-[11px] font-bold tracking-[0.12em] uppercase"
+            >
+              PIN actuel
+            </label>
+            <input
+              id={oldPinId}
+              type="password"
+              inputMode="numeric"
+              autoComplete="current-password"
+              value={oldPin}
+              onChange={(event) =>
+                setOldPin(event.target.value.replace(/\D/g, '').slice(0, 6))
+              }
+              required
+              className="w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas px-3 py-3 font-semibold tracking-[0.3em]"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor={newPinId}
+              className="mb-1 block text-[11px] font-bold tracking-[0.12em] uppercase"
+            >
+              Nouveau PIN
+            </label>
+            <input
+              id={newPinId}
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              value={newPin}
+              onChange={(event) =>
+                setNewPin(event.target.value.replace(/\D/g, '').slice(0, 6))
+              }
+              required
+              className="w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas px-3 py-3 font-semibold tracking-[0.3em]"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor={confirmPinId}
+              className="mb-1 block text-[11px] font-bold tracking-[0.12em] uppercase"
+            >
+              Confirmer
+            </label>
+            <input
+              id={confirmPinId}
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              value={confirmPin}
+              onChange={(event) =>
+                setConfirmPin(event.target.value.replace(/\D/g, '').slice(0, 6))
+              }
+              required
+              className="w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas px-3 py-3 font-semibold tracking-[0.3em]"
+            />
+          </div>
+          <button
+            type="submit"
+            className="btn-ink"
+            disabled={
+              pending ||
+              (newPin.length !== 4 && newPin.length !== 6) ||
+              newPin !== confirmPin
+            }
+          >
+            {pending ? 'Enregistrement…' : 'Mettre à jour le PIN'}
+          </button>
+        </form>
       </section>
 
       <PwaInstallSection />
 
-      {accessCode && playerId && activePlayer ? (
+      {sessionToken && playerId && activePlayer ? (
         <PushNotificationsSection
-          accessCode={accessCode}
+          sessionToken={sessionToken}
           playerId={playerId}
           playerPseudo={activePlayer.pseudo}
         />
@@ -147,6 +197,49 @@ export function SettingsPage() {
           <Shield aria-hidden="true" className="size-3.5" />
           Administration
         </Link>
+      </section>
+
+      <section aria-labelledby="logout-title" className="panel p-4">
+        <h2
+          id="logout-title"
+          className="text-sm font-black tracking-[0.08em] uppercase"
+        >
+          Session
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          Déconnecte ce joueur sur cet appareil. Le code du groupe reste
+          mémorisé.
+        </p>
+        <button
+          type="button"
+          onClick={() => void handleLogout()}
+          className="btn-ghost mt-4"
+          disabled={pending}
+        >
+          <LogOut aria-hidden="true" className="size-4" />
+          Se déconnecter
+        </button>
+      </section>
+
+      <section aria-labelledby="leave-group-title" className="panel p-4">
+        <h2
+          id="leave-group-title"
+          className="text-sm font-black tracking-[0.08em] uppercase"
+        >
+          Groupe
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          Efface le code et la session mémorisés sur cet appareil.
+        </p>
+        <button
+          type="button"
+          onClick={() => void leaveGroup()}
+          className="btn-danger mt-4"
+          disabled={pending}
+        >
+          <LogOut aria-hidden="true" className="size-4" />
+          Quitter le groupe
+        </button>
       </section>
     </div>
   )

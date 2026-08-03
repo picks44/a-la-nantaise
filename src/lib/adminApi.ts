@@ -249,6 +249,37 @@ export async function adminSetPlayerActive(
   return mapAdminPlayer(row)
 }
 
+export async function adminResetPlayerPin(
+  adminCode: string,
+  playerId: string,
+): Promise<{ temporaryPin: string; expiresAt: string }> {
+  const rows = await adminRpc<
+    Array<{ temporary_pin: string; expires_at: string }>
+  >('admin_reset_player_pin', {
+    p_admin_code: adminCode,
+    p_player_id: playerId,
+  })
+  const row = rows?.[0]
+  if (!row?.temporary_pin) {
+    throw new ApiError('RPC_ERROR', 'Réinitialisation du PIN échouée.')
+  }
+  return {
+    temporaryPin: row.temporary_pin,
+    expiresAt: row.expires_at,
+  }
+}
+
+export async function adminUnlockPlayerPin(
+  adminCode: string,
+  playerId: string,
+): Promise<boolean> {
+  const result = await adminRpc<boolean>('admin_unlock_player_pin', {
+    p_admin_code: adminCode,
+    p_player_id: playerId,
+  })
+  return Boolean(result)
+}
+
 export async function adminGetMatches(adminCode: string): Promise<AdminMatch[]> {
   const rows = await adminRpc<DbMatchAdminRow[]>('admin_get_matches', {
     p_admin_code: adminCode,

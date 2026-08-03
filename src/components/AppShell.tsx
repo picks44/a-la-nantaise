@@ -19,6 +19,8 @@ export function AppShell() {
   if (
     phase === 'needs_code' ||
     phase === 'needs_player' ||
+    phase === 'needs_pin' ||
+    phase === 'needs_pin_change' ||
     phase === 'misconfigured'
   ) {
     return <AccessPage />

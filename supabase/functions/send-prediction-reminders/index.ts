@@ -5,6 +5,10 @@ import {
   shortEndpointFingerprint,
 } from '../_shared/webPush.ts'
 
+/** Default claim lease: 5 minutes (aligned with SQL default). */
+const CLAIM_LEASE_SECONDS = 300
+const CLAIM_LIMIT = 50
+
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
@@ -54,10 +58,6 @@ Deno.serve(async (req) => {
     return publicError('PUSH_MISCONFIGURED', 'Secrets Edge manquants.', 500)
   }
 
-  if (!vapidKeysJson || !vapidSubject) {
-    return publicError('PUSH_MISCONFIGURED', 'Secrets VAPID manquants.', 500)
-  }
-
   let body: { cron_secret?: string; dry_run?: boolean }
   try {
     body = (await req.json()) as { cron_secret?: string; dry_run?: boolean }
@@ -75,6 +75,39 @@ Deno.serve(async (req) => {
     auth: { persistSession: false, autoRefreshToken: false },
   })
 
+  // Dry-run: read-only preview. Allowed even when push_sending_enabled=false.
+  // Still requires cron_secret. Does not require VAPID. No prepare/claim/send.
+  if (dryRun) {
+    const { data: preview, error: previewError } = await admin.rpc(
+      'preview_push_reminder_batch',
+    )
+    if (previewError) {
+      console.error('preview_push_reminder_batch failed', previewError.message)
+      return publicError(
+        'PUSH_JOB_FAILED',
+        'Prévisualisation des rappels échouée.',
+        500,
+      )
+    }
+    const row = Array.isArray(preview) ? preview[0] : preview
+    return jsonResponse({
+      ok: true,
+      mode: 'dry_run',
+      prepared: 0,
+      claimed: 0,
+      sent: 0,
+      candidates: row ?? {
+        candidates_24h: 0,
+        candidates_2h: 0,
+        candidate_deliveries: 0,
+      },
+    })
+  }
+
+  if (!vapidKeysJson || !vapidSubject) {
+    return publicError('PUSH_MISCONFIGURED', 'Secrets VAPID manquants.', 500)
+  }
+
   const { data: enabled, error: enabledError } = await admin.rpc(
     'is_push_sending_enabled',
   )
@@ -87,7 +120,7 @@ Deno.serve(async (req) => {
     )
   }
 
-  if (!enabled && !dryRun) {
+  if (!enabled) {
     return jsonResponse({
       ok: true,
       skipped: true,
@@ -111,7 +144,7 @@ Deno.serve(async (req) => {
 
   const { data: claimed, error: claimError } = await admin.rpc(
     'claim_push_deliveries',
-    { p_limit: 50, p_lease_seconds: 120 },
+    { p_limit: CLAIM_LIMIT, p_lease_seconds: CLAIM_LEASE_SECONDS },
   )
   if (claimError) {
     console.error('claim_push_deliveries failed', claimError.message)
@@ -123,15 +156,6 @@ Deno.serve(async (req) => {
   }
 
   const claims = (claimed ?? []) as ReminderClaim[]
-
-  if (dryRun) {
-    return jsonResponse({
-      ok: true,
-      dry_run: true,
-      prepared: prepRow ?? null,
-      claimed: claims.length,
-    })
-  }
 
   let sender
   try {
@@ -224,6 +248,7 @@ Deno.serve(async (req) => {
 
   return jsonResponse({
     ok: true,
+    mode: 'send',
     prepared: prepRow ?? null,
     claimed: claims.length,
     ...summary,

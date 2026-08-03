@@ -14,6 +14,12 @@ export type MatchUiStatus =
   | 'postponed'
   | 'cancelled'
 
+export type ParticipationStatus =
+  | 'complete'
+  | 'partial'
+  | 'missing'
+  | 'not_applicable'
+
 export interface Score {
   home: number
   away: number
@@ -45,6 +51,21 @@ export interface Player {
   pseudo: string
   points: number
   exactScores: number
+  isActive: boolean
+  goodResults: number
+  scoredPredictions: number
+  /** Pourcentage 0–100, ou null si aucun prono noté. */
+  successRate: number | null
+  gapToLeader: number
+}
+
+export interface RoundParticipationRow {
+  playerId: string
+  pseudo: string
+  roundNumber: number
+  status: ParticipationStatus
+  predictedCount: number
+  expectedCount: number
 }
 
 export interface PlayerOption {

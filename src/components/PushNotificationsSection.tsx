@@ -17,13 +17,13 @@ import {
 import { isBrowserOnline } from '../lib/pwa'
 
 interface PushNotificationsSectionProps {
-  accessCode: string
+  sessionToken: string
   playerId: string
   playerPseudo: string
 }
 
 export function PushNotificationsSection({
-  accessCode,
+  sessionToken,
   playerId,
   playerPseudo,
 }: PushNotificationsSectionProps) {
@@ -35,6 +35,8 @@ export function PushNotificationsSection({
     const gate = resolvePushGateState()
     if (
       gate === 'unsupported' ||
+      gate === 'insecure_context' ||
+      gate === 'misconfigured' ||
       gate === 'ios_install_required' ||
       gate === 'denied'
     ) {
@@ -52,7 +54,7 @@ export function PushNotificationsSection({
       }
 
       const status = await getPushSubscriptionStatus(
-        accessCode,
+        sessionToken,
         subscription.endpoint,
       )
       if (status?.active && status.playerId === playerId) {
@@ -64,7 +66,7 @@ export function PushNotificationsSection({
     } catch {
       setUiState(gate === 'granted_inactive' ? 'granted_inactive' : 'default')
     }
-  }, [accessCode, playerId])
+  }, [sessionToken, playerId])
 
   useEffect(() => {
     void refresh()
@@ -83,8 +85,7 @@ export function PushNotificationsSection({
       const subscription = await subscribeToPush()
       const serialized = serializationFromSubscription(subscription)
       await registerPushSubscription({
-        accessCode,
-        playerId,
+        sessionToken,
         endpoint: serialized.endpoint,
         p256dh: serialized.p256dh,
         auth: serialized.auth,
@@ -111,7 +112,7 @@ export function PushNotificationsSection({
     try {
       const subscription = await getExistingPushSubscription()
       if (subscription) {
-        await deactivatePushSubscription(accessCode, subscription.endpoint)
+        await deactivatePushSubscription(sessionToken, subscription.endpoint)
         await unsubscribeLocalPush()
       }
       setUiState(
@@ -144,6 +145,21 @@ export function PushNotificationsSection({
           Sur iPhone ou iPad, installe d’abord l’application sur l’écran
           d’accueil (menu Partager), puis rouvre-la depuis l’icône pour activer
           les rappels.
+        </p>
+      ) : null}
+
+      {uiState === 'insecure_context' ? (
+        <p className="mt-4 text-sm text-muted">
+          Les rappels nécessitent une connexion sécurisée (HTTPS). Ouvre le site
+          en HTTPS ou teste via <code>npm run build</code> puis{' '}
+          <code>npm run preview</code>.
+        </p>
+      ) : null}
+
+      {uiState === 'misconfigured' ? (
+        <p className="mt-4 text-sm text-muted">
+          Les rappels ne sont pas encore configurés sur ce déploiement (clé
+          VAPID publique manquante).
         </p>
       ) : null}
 
