@@ -127,9 +127,9 @@ export function toUserMessage(error: unknown): string {
     case 'ADMIN_CODE_NOT_CONFIGURED':
       return 'Le code administrateur n’est pas encore configuré côté Supabase.'
     case 'INVALID_CREDENTIALS':
-      return 'PIN incorrect. Vérifie le code reçu et réessaie.'
+      return 'PIN incorrect. Réessaie.'
     case 'PIN_LOCKED':
-      return 'Trop de tentatives. Réessaie dans quelques minutes.'
+      return 'Trop de tentatives. Réessaie dans 15 minutes.'
     case 'INVALID_PIN_FORMAT':
       return 'Le PIN doit contenir exactement 4 ou 6 chiffres.'
     case 'PIN_CHANGE_REQUIRED':

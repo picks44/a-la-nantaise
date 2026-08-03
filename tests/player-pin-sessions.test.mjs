@@ -61,6 +61,17 @@ describe('player PIN sessions migration', () => {
     assert.match(sql, /FOR UPDATE/)
   })
 
+  it('maps empty login_player rows to INVALID_CREDENTIALS and raises PIN_LOCKED when locked', () => {
+    const loginFix = read(
+      'supabase/migrations/20260803184000_login_player_commit_failed_attempts.sql',
+    )
+    assert.match(loginFix, /RAISE EXCEPTION 'PIN_LOCKED'/)
+    assert.match(loginFix, /RAISE EXCEPTION 'TEMP_PIN_EXPIRED'/)
+    assert.match(loginFix, /pin_failed_attempts = pl\.pin_failed_attempts \+ 1/)
+    assert.match(api, /throw new ApiError\('INVALID_CREDENTIALS'/)
+    assert.doesNotMatch(read('src/lib/errors.ts'), /code reçu/)
+  })
+
   it('upsert_prediction takes session token only and locks on DB now()', () => {
     assert.match(
       sql,
@@ -117,7 +128,8 @@ describe('player PIN sessions migration', () => {
 
   it('SQL regression suite covers ownership, expiry, lockout and DROP checks', () => {
     assert.match(sqlTests, /ancienne upsert_prediction encore présente/)
-    assert.match(sqlTests, /INVALID_CREDENTIALS/)
+    assert.match(sqlTests, /login invalide aurait dû renvoyer 0 ligne/)
+    assert.match(sqlTests, /PIN_LOCKED/)
     assert.match(sqlTests, /session expirée/)
     assert.match(sqlTests, /autre session aurait dû être révoquée/)
     assert.match(sqlTests, /verrouillage après 5 essais/)
@@ -207,11 +219,11 @@ describe('user-facing error messages', () => {
     const cases = [
       [
         'INVALID_CREDENTIALS',
-        'PIN incorrect. Vérifie le code reçu et réessaie.',
+        'PIN incorrect. Réessaie.',
       ],
       [
         'PIN_LOCKED',
-        'Trop de tentatives. Réessaie dans quelques minutes.',
+        'Trop de tentatives. Réessaie dans 15 minutes.',
       ],
       [
         'INVALID_PIN_FORMAT',

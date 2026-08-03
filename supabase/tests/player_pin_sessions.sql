@@ -134,23 +134,21 @@ BEGIN
 END;
 $$;
 
--- Login PIN invalide
+-- Login PIN invalide (0 ligne renvoyée — compteur committe sans RAISE)
 DO $$
+DECLARE
+  v_count integer;
 BEGIN
-  BEGIN
-    PERFORM *
-    FROM public.login_player(
-      'test-code-aln',
-      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaac01',
-      '0000'
-    );
-    RAISE EXCEPTION 'TEST_FAIL: INVALID_CREDENTIALS attendu';
-  EXCEPTION
-    WHEN OTHERS THEN
-      IF SQLERRM NOT LIKE '%INVALID_CREDENTIALS%' THEN
-        RAISE;
-      END IF;
-  END;
+  SELECT count(*)::integer INTO v_count
+  FROM public.login_player(
+    'test-code-aln',
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaac01',
+    '0000'
+  );
+
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'TEST_FAIL: login invalide aurait dû renvoyer 0 ligne';
+  END IF;
 END;
 $$;
 
@@ -341,6 +339,7 @@ $$;
 DO $$
 DECLARE
   i integer;
+  v_count integer;
 BEGIN
   PERFORM *
   FROM public.admin_reset_player_pin(
@@ -349,19 +348,15 @@ BEGIN
   );
 
   FOR i IN 1..5 LOOP
-    BEGIN
-      PERFORM *
-      FROM public.login_player(
-        'test-code-aln',
-        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaac02',
-        '0000'
-      );
-    EXCEPTION
-      WHEN OTHERS THEN
-        IF SQLERRM NOT LIKE '%INVALID_CREDENTIALS%' THEN
-          RAISE;
-        END IF;
-    END;
+    SELECT count(*)::integer INTO v_count
+    FROM public.login_player(
+      'test-code-aln',
+      'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaac02',
+      '0000'
+    );
+    IF v_count <> 0 THEN
+      RAISE EXCEPTION 'TEST_FAIL: tentative % aurait dû échouer silencieusement', i;
+    END IF;
   END LOOP;
 
   IF NOT EXISTS (
@@ -373,7 +368,7 @@ BEGIN
     RAISE EXCEPTION 'TEST_FAIL: verrouillage après 5 essais';
   END IF;
 
-  -- Même erreur générique pendant le lock
+  -- Pendant le lock : PIN_LOCKED (pas le même silence que mauvais PIN)
   BEGIN
     PERFORM *
     FROM public.login_player(
@@ -381,10 +376,10 @@ BEGIN
       'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaac02',
       '0000'
     );
-    RAISE EXCEPTION 'TEST_FAIL: lock devrait refuser';
+    RAISE EXCEPTION 'TEST_FAIL: lock devrait lever PIN_LOCKED';
   EXCEPTION
     WHEN OTHERS THEN
-      IF SQLERRM NOT LIKE '%INVALID_CREDENTIALS%' THEN
+      IF SQLERRM NOT LIKE '%PIN_LOCKED%' THEN
         RAISE;
       END IF;
   END;
@@ -419,8 +414,8 @@ $$;
 -- MATCH_LOCKED utilise now() DB
 DO $$
 BEGIN
-  IF position_source(
-    'public.upsert_prediction(text,uuid,integer,integer)'
+  IF pg_get_functiondef(
+    'public.upsert_prediction(text,uuid,integer,integer)'::regprocedure
   ) NOT LIKE '%now() >= match_row.kickoff_at%' THEN
     RAISE EXCEPTION 'TEST_FAIL: verrouillage match sans now() DB';
   END IF;

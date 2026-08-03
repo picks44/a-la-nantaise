@@ -161,7 +161,7 @@ export async function loginPlayer(
   })
   const row = rows?.[0]
   if (!row?.session_token) {
-    throw new ApiError('RPC_ERROR', 'Connexion sans jeton de session.')
+    throw new ApiError('INVALID_CREDENTIALS', 'INVALID_CREDENTIALS')
   }
   return {
     sessionToken: row.session_token,
