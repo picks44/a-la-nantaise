@@ -19,10 +19,14 @@ export interface SessionContextValue {
   players: PlayerOption[]
   pendingPlayerId: string | null
   mustChangePin: boolean
+  /** True si le PIN temporaire vient d’être saisi (pas besoin de le redemander). */
+  canCompleteForcedPinChange: boolean
   bootstrapError: string | null
   submitAccessCode: (code: string) => Promise<void>
   selectPlayerForLogin: (playerId: string) => void
   loginWithPin: (pin: string) => Promise<void>
+  /** Première connexion : remplace le PIN temporaire déjà saisi. */
+  completeForcedPinChange: (newPin: string) => Promise<void>
   changePin: (oldPin: string, newPin: string) => Promise<void>
   logout: () => Promise<void>
   leaveGroup: () => void | Promise<void>

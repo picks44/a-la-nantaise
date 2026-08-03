@@ -31,6 +31,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [sessionToken, setSessionToken] = useState<string | null>(null)
   const [playerId, setPlayerId] = useState<string | null>(null)
   const [pendingPlayerId, setPendingPlayerId] = useState<string | null>(null)
+  const [forcedChangeOldPin, setForcedChangeOldPin] = useState<string | null>(
+    null,
+  )
   const [players, setPlayers] = useState<PlayerOption[]>([])
   const [activePseudo, setActivePseudo] = useState<string | null>(null)
   const [mustChangePin, setMustChangePin] = useState(false)
@@ -42,6 +45,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setSessionToken(null)
     setPlayerId(null)
     setPendingPlayerId(null)
+    setForcedChangeOldPin(null)
     setPlayers([])
     setActivePseudo(null)
     setMustChangePin(false)
@@ -56,8 +60,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       )
       clearAuthState()
       setBootstrapError(
-        code === 'INVALID_SESSION'
-          ? 'Ta session a expiré. Reconnecte-toi avec ton PIN.'
+        code === 'INVALID_SESSION' || code === 'SESSION_EXPIRED'
+          ? toUserMessage(new Error(code))
           : 'Le code d’accès du groupe a changé. Saisis le nouveau code pour continuer.',
       )
       setPhase('needs_code')
@@ -175,29 +179,52 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     void bootstrap()
   }, [bootstrap])
 
-  const submitAccessCode = useCallback(async (code: string) => {
-    const trimmed = code.trim()
-    const valid = await verifyAccessCode(trimmed)
-    if (!valid) {
-      throw new Error('INVALID_ACCESS_CODE')
-    }
+  const submitAccessCode = useCallback(
+    async (code: string) => {
+      const trimmed = code.trim()
+      // Snapshot before any await — avoids races with invalidate/logout.
+      const previousToken = sessionToken
 
-    const activePlayers = await fetchActivePlayers(trimmed)
-    saveAccessCode(trimmed)
-    clearSessionToken()
-    setAccessCode(trimmed)
-    setPlayers(activePlayers)
-    setSessionToken(null)
-    setPlayerId(null)
-    setPendingPlayerId(null)
-    setActivePseudo(null)
-    setMustChangePin(false)
-    setBootstrapError(null)
-    setPhase('needs_player')
-  }, [])
+      // Fully validate the new group access before touching the old session.
+      const valid = await verifyAccessCode(trimmed)
+      if (!valid) {
+        throw new Error('INVALID_ACCESS_CODE')
+      }
+      const activePlayers = await fetchActivePlayers(trimmed)
+
+      // Valid switch: best-effort tear-down of the previous player session only.
+      // No local Push unsubscribe — the browser subscription can be re-registered.
+      if (previousToken) {
+        await bestEffortDeactivateRemotePush(
+          previousToken,
+          deactivatePushSubscription,
+        )
+        try {
+          await logoutPlayer(previousToken)
+        } catch {
+          // Expected when the session is already invalid server-side.
+        }
+      }
+
+      saveAccessCode(trimmed)
+      clearSessionToken()
+      setAccessCode(trimmed)
+      setPlayers(activePlayers)
+      setSessionToken(null)
+      setPlayerId(null)
+      setPendingPlayerId(null)
+      setActivePseudo(null)
+      setMustChangePin(false)
+      setForcedChangeOldPin(null)
+      setBootstrapError(null)
+      setPhase('needs_player')
+    },
+    [sessionToken],
+  )
 
   const selectPlayerForLogin = useCallback((nextPlayerId: string) => {
     setPendingPlayerId(nextPlayerId)
+    setForcedChangeOldPin(null)
     setBootstrapError(null)
     setPhase('needs_pin')
   }, [])
@@ -214,6 +241,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setPlayerId(result.playerId)
       setActivePseudo(result.pseudo)
       setMustChangePin(result.mustChangePin)
+      setForcedChangeOldPin(result.mustChangePin ? pin : null)
       setPendingPlayerId(null)
       setBootstrapError(null)
       setPhase(result.mustChangePin ? 'needs_pin_change' : 'ready')
@@ -227,10 +255,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         throw new Error('INVALID_SESSION')
       }
       await changePlayerPin(sessionToken, oldPin, newPin)
+      setForcedChangeOldPin(null)
       setMustChangePin(false)
       setPhase('ready')
     },
     [sessionToken],
+  )
+
+  const completeForcedPinChange = useCallback(
+    async (newPin: string) => {
+      if (!sessionToken) {
+        throw new Error('INVALID_SESSION')
+      }
+      if (!forcedChangeOldPin) {
+        throw new Error('PIN_CHANGE_REQUIRED')
+      }
+      await changePlayerPin(sessionToken, forcedChangeOldPin, newPin)
+      setForcedChangeOldPin(null)
+      setMustChangePin(false)
+      setPhase('ready')
+    },
+    [forcedChangeOldPin, sessionToken],
   )
 
   const logout = useCallback(async () => {
@@ -249,6 +294,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setSessionToken(null)
     setPlayerId(null)
     setPendingPlayerId(null)
+    setForcedChangeOldPin(null)
     setActivePseudo(null)
     setMustChangePin(false)
     setBootstrapError(null)
@@ -298,10 +344,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       players,
       pendingPlayerId,
       mustChangePin,
+      canCompleteForcedPinChange: Boolean(forcedChangeOldPin),
       bootstrapError,
       submitAccessCode,
       selectPlayerForLogin,
       loginWithPin,
+      completeForcedPinChange,
       changePin,
       logout,
       leaveGroup,
@@ -316,10 +364,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       players,
       pendingPlayerId,
       mustChangePin,
+      forcedChangeOldPin,
       bootstrapError,
       submitAccessCode,
       selectPlayerForLogin,
       loginWithPin,
+      completeForcedPinChange,
       changePin,
       logout,
       leaveGroup,

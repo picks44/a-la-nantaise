@@ -79,6 +79,47 @@ describe('push frontend helpers', () => {
     assert.match(session, /leaveGroup/)
     assert.doesNotMatch(session, /\bchangePlayer\b/)
   })
+
+  it('keeps old session intact when the new access code is invalid', () => {
+    const session = read('src/context/SessionProvider.tsx')
+    const fnStart = session.indexOf('const submitAccessCode = useCallback')
+    const fnEnd = session.indexOf('const selectPlayerForLogin')
+    assert.ok(fnStart > 0 && fnEnd > fnStart)
+    const body = session.slice(fnStart, fnEnd)
+
+    assert.match(body, /verifyAccessCode\(trimmed\)/)
+    assert.match(body, /INVALID_ACCESS_CODE/)
+    // Invalid path must throw before any tear-down of the previous session.
+    const throwIdx = body.indexOf("throw new Error('INVALID_ACCESS_CODE')")
+    const deactivateIdx = body.indexOf('bestEffortDeactivateRemotePush')
+    const logoutIdx = body.indexOf('logoutPlayer(previousToken)')
+    assert.ok(throwIdx > 0)
+    assert.ok(deactivateIdx > throwIdx)
+    assert.ok(logoutIdx > deactivateIdx)
+    assert.doesNotMatch(body, /unsubscribeLocalPush/)
+  })
+
+  it('deactivates push and logs out the old session only after a valid group switch', () => {
+    const session = read('src/context/SessionProvider.tsx')
+    const fnStart = session.indexOf('const submitAccessCode = useCallback')
+    const fnEnd = session.indexOf('const selectPlayerForLogin')
+    const body = session.slice(fnStart, fnEnd)
+
+    const verifyIdx = body.indexOf('verifyAccessCode(trimmed)')
+    const playersIdx = body.indexOf('fetchActivePlayers(trimmed)')
+    const deactivateIdx = body.indexOf('bestEffortDeactivateRemotePush')
+    const logoutIdx = body.indexOf('logoutPlayer(previousToken)')
+    const saveIdx = body.indexOf('saveAccessCode(trimmed)')
+
+    assert.ok(verifyIdx > 0)
+    assert.ok(playersIdx > verifyIdx)
+    assert.ok(deactivateIdx > playersIdx)
+    assert.ok(logoutIdx > deactivateIdx)
+    assert.ok(saveIdx > logoutIdx)
+    assert.match(body, /const previousToken = sessionToken/)
+    assert.match(body, /if \(previousToken\)/)
+    assert.doesNotMatch(body, /unsubscribeLocalPush/)
+  })
 })
 
 describe('push edge function', () => {
@@ -171,6 +212,9 @@ describe('push migration security', () => {
     assert.match(harden, /DEFAULT 300/)
     assert.match(harden, /status = 'processing'/)
     assert.match(harden, /lease_until < p_now/)
+    assert.match(harden, /NOT EXISTS/)
+    assert.match(harden, /new_reminders/)
+    assert.match(harden, /delivery_sources/)
     assert.match(
       harden,
       /REVOKE ALL ON FUNCTION public\.register_push_subscription/,
@@ -181,8 +225,38 @@ describe('push migration security', () => {
       /GRANT EXECUTE ON FUNCTION public\.preview_push_reminder_batch/,
     )
     assert.match(harden, /TO service_role/)
+    assert.match(harden, /NOT compatible with the current PIN frontend/)
     assert.doesNotMatch(harden, /push_sending_enabled.*true/)
     assert.doesNotMatch(harden, /cron\.schedule/)
+  })
+
+  it('keeps 170000→71000→180000 privilege chain with final session signatures', () => {
+    const harden = read(
+      'supabase/migrations/20260803171000_harden_web_push_before_smoke_tests.sql',
+    )
+    const pin = read(
+      'supabase/migrations/20260803180000_player_pin_sessions.sql',
+    )
+
+    // 71000 hardens the access-code-era signature from 170000
+    assert.match(
+      harden,
+      /register_push_subscription\(\s*TEXT, UUID, TEXT, TEXT, TEXT, TIMESTAMPTZ, TEXT\s*\)/,
+    )
+
+    // 180000 drops legacy + grants session-token signature
+    assert.match(
+      pin,
+      /DROP FUNCTION IF EXISTS public\.register_push_subscription\(TEXT, UUID, TEXT, TEXT, TEXT, TIMESTAMPTZ, TEXT\)/,
+    )
+    assert.match(
+      pin,
+      /REVOKE ALL ON FUNCTION public\.register_push_subscription\(TEXT, TEXT, TEXT, TEXT, TIMESTAMPTZ, TEXT\) FROM PUBLIC/,
+    )
+    assert.match(
+      pin,
+      /GRANT EXECUTE ON FUNCTION public\.register_push_subscription\(TEXT, TEXT, TEXT, TEXT, TIMESTAMPTZ, TEXT\)/,
+    )
   })
 })
 
@@ -191,6 +265,8 @@ describe('push SQL regression scripts', () => {
     const reminders = read('supabase/tests/push_reminders.sql')
     assert.match(reminders, /preview_push_reminder_batch/)
     assert.match(reminders, /preview must not mutate/)
+    assert.match(reminders, /preview must exclude existing reminders/)
+    assert.match(reminders, /preview should count 2 missing deliveries/)
     assert.match(reminders, /expired processing lease should be reclaimed/)
     assert.match(reminders, /valid lease must not be reclaimed/)
     assert.match(reminders, /attempt_count >= 3 must not be claimable/)
@@ -199,5 +275,7 @@ describe('push SQL regression scripts', () => {
     const subscriptions = read('supabase/tests/push_subscriptions.sql')
     assert.match(subscriptions, /PUBLIC must not execute register_push_subscription/)
     assert.match(subscriptions, /anon must execute register_push_subscription/)
+    assert.match(subscriptions, /legacy access-code register_push_subscription must be dropped/)
+    assert.match(subscriptions, /authenticated must execute register_push_subscription/)
   })
 })

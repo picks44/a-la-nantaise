@@ -3,7 +3,14 @@
 -- - Claim reclaim for expired processing leases
 -- - Lease default 5 minutes ; max 3 attempts
 -- - REVOKE EXECUTE … FROM PUBLIC on frontend subscription RPCs
+--   (signatures from 170000: access_code + player_id)
 -- Does NOT enable push_sending_enabled or create Cron.
+--
+-- Apply order: 170000 → 171000 (this file) → 180000 (player PIN sessions).
+-- This migration alone is NOT compatible with the current PIN frontend, which
+-- calls session-token Push RPCs introduced in 180000. Keep the 170000-era
+-- REVOKE/GRANT block below: it hardens the live signatures until 180000
+-- drops/recreates them with session-token signatures and its own privileges.
 
 -- ---------------------------------------------------------------------------
 -- Eligibility helper (STABLE, no writes) — shared by prepare + preview
@@ -137,6 +144,7 @@ $$;
 
 -- ---------------------------------------------------------------------------
 -- preview_push_reminder_batch — read-only dry_run (no writes)
+-- Counters = net rows prepare would INSERT (same uniqueness as ON CONFLICT).
 -- ---------------------------------------------------------------------------
 
 CREATE OR REPLACE FUNCTION public.preview_push_reminder_batch(
@@ -153,23 +161,53 @@ SET search_path = public
 AS $$
 BEGIN
   RETURN QUERY
+  WITH new_reminders AS (
+    SELECT e.match_id, e.player_id, e.reminder_type, e.kickoff_snapshot, e.due_at
+    FROM public.push_reminder_eligibility(p_now) AS e
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM public.push_reminders AS r
+      WHERE r.match_id = e.match_id
+        AND r.player_id = e.player_id
+        AND r.reminder_type = e.reminder_type
+    )
+  ),
+  -- Same delivery source as prepare: existing due reminders ∪ net-new reminders.
+  delivery_sources AS (
+    SELECT r.id AS reminder_id, r.player_id
+    FROM public.push_reminders AS r
+    WHERE r.due_at <= p_now
+      AND r.kickoff_snapshot > p_now
+    UNION ALL
+    SELECT NULL::uuid AS reminder_id, n.player_id
+    FROM new_reminders AS n
+    WHERE n.due_at <= p_now
+      AND n.kickoff_snapshot > p_now
+  )
   SELECT
     (
       SELECT count(*)::integer
-      FROM public.push_reminder_eligibility(p_now) AS e
-      WHERE e.reminder_type = '24h'
+      FROM new_reminders AS n
+      WHERE n.reminder_type = '24h'
     ) AS candidates_24h,
     (
       SELECT count(*)::integer
-      FROM public.push_reminder_eligibility(p_now) AS e
-      WHERE e.reminder_type = '2h'
+      FROM new_reminders AS n
+      WHERE n.reminder_type = '2h'
     ) AS candidates_2h,
     (
       SELECT count(*)::integer
-      FROM public.push_reminder_eligibility(p_now) AS e
+      FROM delivery_sources AS src
       INNER JOIN public.push_subscriptions AS s
-        ON s.player_id = e.player_id
+        ON s.player_id = src.player_id
        AND s.status = 'active'
+      WHERE src.reminder_id IS NULL
+         OR NOT EXISTS (
+           SELECT 1
+           FROM public.push_deliveries AS d
+           WHERE d.reminder_id = src.reminder_id
+             AND d.subscription_id = s.id
+         )
     ) AS candidate_deliveries;
 END;
 $$;

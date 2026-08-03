@@ -148,6 +148,63 @@ BEGIN
 END;
 $$;
 
+-- 2b) preview : créations nettes (exclure existants) puis restauration des livraisons
+DO $$
+DECLARE
+  before_r INTEGER;
+  before_d INTEGER;
+  prev RECORD;
+  after_r INTEGER;
+  after_d INTEGER;
+  prep RECORD;
+BEGIN
+  SELECT count(*)::integer INTO before_r FROM public.push_reminders;
+  SELECT count(*)::integer INTO before_d FROM public.push_deliveries;
+
+  SELECT * INTO prev FROM public.preview_push_reminder_batch(now());
+
+  IF prev.candidates_24h <> 0 OR prev.candidates_2h <> 0 THEN
+    RAISE EXCEPTION 'TEST_FAIL: preview must exclude existing reminders (got 24h=%, 2h=%)',
+      prev.candidates_24h, prev.candidates_2h;
+  END IF;
+
+  IF prev.candidate_deliveries <> 0 THEN
+    RAISE EXCEPTION 'TEST_FAIL: preview must exclude existing deliveries (got %)',
+      prev.candidate_deliveries;
+  END IF;
+
+  SELECT count(*)::integer INTO after_r FROM public.push_reminders;
+  SELECT count(*)::integer INTO after_d FROM public.push_deliveries;
+  IF after_r <> before_r OR after_d <> before_d THEN
+    RAISE EXCEPTION 'TEST_FAIL: preview must not mutate reminders/deliveries';
+  END IF;
+
+  DELETE FROM public.push_deliveries;
+
+  SELECT * INTO prev FROM public.preview_push_reminder_batch(now());
+
+  IF prev.candidates_24h <> 0 OR prev.candidates_2h <> 0 THEN
+    RAISE EXCEPTION 'TEST_FAIL: existing reminders still must be excluded from candidates';
+  END IF;
+
+  IF prev.candidate_deliveries <> 2 THEN
+    RAISE EXCEPTION 'TEST_FAIL: preview should count 2 missing deliveries, got %',
+      prev.candidate_deliveries;
+  END IF;
+
+  SELECT count(*)::integer INTO after_d FROM public.push_deliveries;
+  IF after_d <> 0 THEN
+    RAISE EXCEPTION 'TEST_FAIL: preview must not recreate deliveries';
+  END IF;
+
+  SELECT * INTO prep FROM public.prepare_push_reminder_batch(now());
+  IF prep.deliveries_created <> 2 THEN
+    RAISE EXCEPTION 'TEST_FAIL: expected prepare to recreate 2 deliveries, got %',
+      prep.deliveries_created;
+  END IF;
+END;
+$$;
+
 -- 3) Claim : 2 livraisons, second claim concurrent vide (lease 5 min)
 DO $$
 DECLARE
@@ -247,7 +304,7 @@ BEGIN
 END;
 $$;
 
--- 7) preview_push_reminder_batch : lecture seule (aucune nouvelle ligne)
+-- 7) preview_push_reminder_batch : lecture seule (nets déjà couverts en 2b)
 DO $$
 DECLARE
   before_r INTEGER;
@@ -263,6 +320,11 @@ BEGIN
 
   IF prev.candidates_24h IS NULL THEN
     RAISE EXCEPTION 'TEST_FAIL: preview returned null';
+  END IF;
+
+  IF prev.candidates_24h <> 0 OR prev.candidates_2h <> 0 OR prev.candidate_deliveries <> 0 THEN
+    RAISE EXCEPTION 'TEST_FAIL: preview nets should stay 0 after prepare (24h=%, 2h=%, del=%)',
+      prev.candidates_24h, prev.candidates_2h, prev.candidate_deliveries;
   END IF;
 
   SELECT count(*)::integer INTO after_r FROM public.push_reminders;

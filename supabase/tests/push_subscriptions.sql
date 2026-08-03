@@ -244,9 +244,16 @@ BEGIN
 END;
 $$;
 
--- 9) PUBLIC n’a plus EXECUTE ; anon conserve l’accès (signature session)
+-- 9) PUBLIC n’a plus EXECUTE ; anon conserve l’accès (signatures finales post-180000)
 DO $$
 BEGIN
+  -- Legacy access-code signature from 170000 must be gone after 180000
+  IF to_regprocedure(
+    'public.register_push_subscription(text, uuid, text, text, text, timestamptz, text)'
+  ) IS NOT NULL THEN
+    RAISE EXCEPTION 'TEST_FAIL: legacy access-code register_push_subscription must be dropped';
+  END IF;
+
   IF has_function_privilege(
     'PUBLIC',
     'public.register_push_subscription(text, text, text, text, timestamptz, text)',
@@ -285,6 +292,14 @@ BEGIN
     'EXECUTE'
   ) THEN
     RAISE EXCEPTION 'TEST_FAIL: anon must execute deactivate_push_subscription';
+  END IF;
+
+  IF NOT has_function_privilege(
+    'authenticated',
+    'public.register_push_subscription(text, text, text, text, timestamptz, text)',
+    'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION 'TEST_FAIL: authenticated must execute register_push_subscription';
   END IF;
 END;
 $$;

@@ -307,10 +307,14 @@ Les rappels de pronostic (≈24 h et ≈2 h avant un match) utilisent le Web Pus
 ### Composants
 
 - Migration `supabase/migrations/20260803170000_web_push.sql` (tables + RPC)
-- Migration `supabase/migrations/20260803171000_harden_web_push_before_smoke_tests.sql` (preview dry-run, reclaim lease, 3 tentatives, REVOKE PUBLIC)
+- Migration `supabase/migrations/20260803171000_harden_web_push_before_smoke_tests.sql` (preview dry-run, reclaim lease, 3 tentatives, REVOKE PUBLIC sur signatures **170000**)
+- Migration `supabase/migrations/20260803180000_player_pin_sessions.sql` (RPC Push basées sur `session_token` ; REVOKE/GRANT finaux)
 - Edge Function `send-prediction-reminders` (`jsr:@negrel/webpush@0.5.0`, `aes128gcm`)
 - Handlers SW `public/push-events.js` via `workbox.importScripts`
 - Section **Rappels de pronostic** dans Paramètres
+
+**Ordre des migrations Push / session :** `170000` → `71000` → `180000`.  
+La migration `71000` seule **n’est pas compatible** avec le frontend PIN actuel (appels `p_session_token`). Elle durcit volontairement les signatures access-code de `170000` ; `180000` les remplace ensuite. Ne pas smoke-tester le frontend PIN contre une base arrêtée à `71000`.
 
 ### Règles d’envoi
 
@@ -348,7 +352,7 @@ Conserver la paire : une rotation oblige les appareils à se réabonner.
 
 ### Déploiement contrôlé
 
-1. Appliquer les migrations `170000` puis `71000` (`push_sending_enabled` reste `false`).
+1. Appliquer les migrations dans l’ordre `170000` → `71000` → `180000` (`push_sending_enabled` reste `false`). Ne pas déployer le frontend PIN avant `180000`.
 2. Configurer les secrets VAPID + Cron.
 3. Déployer `supabase functions deploy send-prediction-reminders`.
 4. Déployer le frontend (avec `VITE_VAPID_PUBLIC_KEY`).
