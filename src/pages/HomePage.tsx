@@ -214,50 +214,59 @@ export function HomePage() {
             </p>
           </div>
 
-          <div className="mt-3 flex items-end justify-center gap-3 sm:gap-5">
-            <ScoreInput
-              label={nextMatch.homeTeam}
-              value={draft.home}
-              disabled={inputsLocked || saving}
-              variant="board"
-              onChange={(value) => {
-                setDraft((current) => ({ ...current, home: value }))
-                setSaved(false)
-                setJustSaved(false)
-              }}
-            />
-            <span
-              aria-hidden="true"
-              className="pb-3 text-xl font-black text-ink/40 sm:pb-3.5 sm:text-2xl"
-            >
-              –
-            </span>
-            <ScoreInput
-              label={nextMatch.awayTeam}
-              value={draft.away}
-              disabled={inputsLocked || saving}
-              variant="board"
-              onChange={(value) => {
-                setDraft((current) => ({ ...current, away: value }))
-                setSaved(false)
-                setJustSaved(false)
-              }}
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => void handleSave()}
-            disabled={inputsLocked || saving}
-            className="btn-green mt-4"
+          <form
+            className="mt-3 flex flex-col gap-4"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void handleSave()
+            }}
           >
-            {saving ? 'Validation…' : 'Valider mon prono'}
-          </button>
+            <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2 sm:gap-4">
+              <ScoreInput
+                label={nextMatch.homeTeam}
+                value={draft.home}
+                disabled={inputsLocked || saving}
+                variant="board"
+                onChange={(value) => {
+                  setDraft((current) => ({ ...current, home: value }))
+                  setSaved(false)
+                  setJustSaved(false)
+                }}
+              />
+              <span
+                aria-hidden="true"
+                className="pb-3 text-xl font-black text-ink/40 sm:pb-3.5 sm:text-2xl"
+              >
+                –
+              </span>
+              <ScoreInput
+                label={nextMatch.awayTeam}
+                value={draft.away}
+                disabled={inputsLocked || saving}
+                variant="board"
+                onChange={(value) => {
+                  setDraft((current) => ({ ...current, away: value }))
+                  setSaved(false)
+                  setJustSaved(false)
+                }}
+              />
+            </div>
+
+            <div className="flex justify-center">
+              <button
+                type="submit"
+                disabled={inputsLocked || saving}
+                className="btn-green w-full max-w-none sm:w-auto sm:min-w-[14rem] sm:max-w-sm"
+              >
+                {saving ? 'Validation…' : 'Valider mon prono'}
+              </button>
+            </div>
+          </form>
 
           {saveError ? (
             <p
               role="alert"
-              className="mt-3 border border-danger bg-danger-soft px-3 py-2 text-sm font-semibold text-danger"
+              className="mt-3 border border-danger bg-danger-soft px-3 py-2 text-center text-sm font-semibold text-danger"
             >
               {saveError}
             </p>
@@ -267,7 +276,7 @@ export function HomePage() {
             <p
               role="status"
               aria-live="polite"
-              className="mt-3 text-sm font-semibold text-success"
+              className="mt-3 text-center text-sm font-semibold text-success"
             >
               <CheckCircle2
                 aria-hidden="true"
@@ -276,7 +285,7 @@ export function HomePage() {
               Pronostic enregistré.
             </p>
           ) : saved && !saveError ? (
-            <p className="mt-3 text-sm font-medium text-green-dark">
+            <p className="mt-3 text-center text-sm font-medium text-green-dark">
               Pronostic actuel :{' '}
               <span className="font-black tabular-nums">
                 {draft.home} – {draft.away}

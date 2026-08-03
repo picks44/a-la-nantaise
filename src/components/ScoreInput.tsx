@@ -58,7 +58,7 @@ export function ScoreInput({
         className={[
           'text-center font-black tabular-nums transition disabled:cursor-not-allowed disabled:opacity-50',
           isBoard
-            ? 'w-full max-w-[5.5rem] rounded-[var(--radius-sm)] border border-ink bg-ink py-2.5 text-3xl text-yellow sm:max-w-[6.5rem] sm:py-3 sm:text-4xl'
+            ? 'mx-auto w-full max-w-[5.5rem] rounded-[var(--radius-sm)] border border-ink bg-ink py-2.5 text-3xl text-yellow sm:max-w-[6.5rem] sm:py-3 sm:text-4xl'
             : 'w-full max-w-[5.5rem] rounded-[var(--radius-sm)] border border-border bg-surface text-3xl text-ink',
         ].join(' ')}
       />
