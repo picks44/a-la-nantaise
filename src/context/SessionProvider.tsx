@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { fetchActivePlayers, verifyAccessCode } from '../lib/api'
+import {
+  fetchActivePlayers,
+  setAccessInvalidationHandler,
+  verifyAccessCode,
+} from '../lib/api'
 import { toUserMessage } from '../lib/errors'
 import {
   clearLocalSession,
@@ -21,6 +25,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [playerId, setPlayerId] = useState<string | null>(null)
   const [players, setPlayers] = useState<PlayerOption[]>([])
   const [bootstrapError, setBootstrapError] = useState<string | null>(null)
+
+  const invalidatePlayerSession = useCallback(() => {
+    clearLocalSession()
+    setAccessCode(null)
+    setPlayerId(null)
+    setPlayers([])
+    setBootstrapError(
+      'Le code d’accès du groupe a changé. Saisis le nouveau code pour continuer.',
+    )
+    setPhase('needs_code')
+  }, [])
+
+  useEffect(() => {
+    setAccessInvalidationHandler(invalidatePlayerSession)
+    return () => setAccessInvalidationHandler(null)
+  }, [invalidatePlayerSession])
 
   const bootstrap = useCallback(async () => {
     if (!isSupabaseConfigured()) {
@@ -50,7 +70,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setPlayerId(null)
         setPlayers([])
         setPhase('needs_code')
-        setBootstrapError('La session locale n’est plus valide. Saisis le code à nouveau.')
+        setBootstrapError(
+          'Le code d’accès du groupe a changé. Saisis le nouveau code pour continuer.',
+        )
         return
       }
 

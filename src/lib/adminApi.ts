@@ -438,4 +438,18 @@ export async function adminGetStats(adminCode: string): Promise<AdminStats> {
   }
 }
 
+export const ACCESS_CODE_MIN_LENGTH = 4
+export const ACCESS_CODE_MAX_LENGTH = 64
+
+export async function adminUpdateAccessCode(
+  adminCode: string,
+  newAccessCode: string,
+): Promise<boolean> {
+  const result = await adminRpc<boolean>('admin_update_access_code', {
+    p_admin_code: adminCode,
+    p_new_access_code: newAccessCode,
+  })
+  return Boolean(result)
+}
+
 export { TRACKED_TEAM }

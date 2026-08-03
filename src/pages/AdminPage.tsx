@@ -19,8 +19,11 @@ import {
   adminGetStats,
   adminSetMatchResult,
   adminSetPlayerActive,
+  adminUpdateAccessCode,
   adminUpdateMatch,
   adminUpdatePlayerName,
+  ACCESS_CODE_MAX_LENGTH,
+  ACCESS_CODE_MIN_LENGTH,
   matchHasSourceDrift,
   matchSyncBadge,
   syncFcNantesMatches,
@@ -1001,8 +1004,15 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
 }
 
 function SettingsAdmin({ adminCode }: { adminCode: string }) {
+  const newCodeId = useId()
+  const confirmCodeId = useId()
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
+  const [newAccessCode, setNewAccessCode] = useState('')
+  const [confirmAccessCode, setConfirmAccessCode] = useState('')
+  const [pending, setPending] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -1020,6 +1030,50 @@ function SettingsAdmin({ adminCode }: { adminCode: string }) {
     }
   }, [adminCode])
 
+  function requestAccessCodeChange(event: FormEvent) {
+    event.preventDefault()
+    setError(null)
+    setMessage(null)
+
+    const next = newAccessCode.trim()
+    const confirm = confirmAccessCode.trim()
+
+    if (next.length < ACCESS_CODE_MIN_LENGTH || next.length > ACCESS_CODE_MAX_LENGTH) {
+      setError(
+        `Le code d’accès doit contenir entre ${ACCESS_CODE_MIN_LENGTH} et ${ACCESS_CODE_MAX_LENGTH} caractères.`,
+      )
+      return
+    }
+
+    if (next !== confirm) {
+      setError('Les deux saisies du nouveau code doivent être identiques.')
+      return
+    }
+
+    setConfirmOpen(true)
+  }
+
+  async function persistAccessCodeChange() {
+    if (pending) return
+    setPending(true)
+    setError(null)
+    setMessage(null)
+    try {
+      await adminUpdateAccessCode(adminCode, newAccessCode.trim())
+      setNewAccessCode('')
+      setConfirmAccessCode('')
+      setConfirmOpen(false)
+      setMessage(
+        'Code d’accès mis à jour. Les participants devront saisir le nouveau code lors de leur prochaine action.',
+      )
+    } catch (err) {
+      setError(toUserMessage(err))
+      setConfirmOpen(false)
+    } finally {
+      setPending(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <header>
@@ -1032,6 +1086,11 @@ function SettingsAdmin({ adminCode }: { adminCode: string }) {
       {error ? (
         <p role="alert" className="text-sm font-semibold text-danger">
           {error}
+        </p>
+      ) : null}
+      {message ? (
+        <p role="status" aria-live="polite" className="text-sm font-semibold text-green-dark">
+          {message}
         </p>
       ) : null}
 
@@ -1064,6 +1123,51 @@ function SettingsAdmin({ adminCode }: { adminCode: string }) {
         />
       </section>
 
+      <section className="panel space-y-3 p-4">
+        <h2 className="text-sm font-black tracking-[0.08em] uppercase">
+          Code d’accès du groupe
+        </h2>
+        <p className="text-sm text-muted">
+          Le code actuel n’est jamais affiché (seul un hash est stocké). Après
+          modification, l’ancien code cessera immédiatement de fonctionner.
+        </p>
+        <form onSubmit={requestAccessCodeChange} className="space-y-3">
+          <Field label="Nouveau code d’accès">
+            <input
+              id={newCodeId}
+              type="password"
+              autoComplete="new-password"
+              minLength={ACCESS_CODE_MIN_LENGTH}
+              maxLength={ACCESS_CODE_MAX_LENGTH}
+              value={newAccessCode}
+              onChange={(event) => setNewAccessCode(event.target.value)}
+              required
+              className="field-input"
+            />
+          </Field>
+          <Field label="Confirmer le nouveau code">
+            <input
+              id={confirmCodeId}
+              type="password"
+              autoComplete="new-password"
+              minLength={ACCESS_CODE_MIN_LENGTH}
+              maxLength={ACCESS_CODE_MAX_LENGTH}
+              value={confirmAccessCode}
+              onChange={(event) => setConfirmAccessCode(event.target.value)}
+              required
+              className="field-input"
+            />
+          </Field>
+          <button
+            type="submit"
+            className="btn-ink sm:w-auto"
+            disabled={pending || !newAccessCode || !confirmAccessCode}
+          >
+            Modifier le code
+          </button>
+        </form>
+      </section>
+
       <section className="panel space-y-3 p-4 text-sm text-muted">
         <p>
           <strong className="text-ink">Code commun</strong> : permet aux
@@ -1073,9 +1177,26 @@ function SettingsAdmin({ adminCode }: { adminCode: string }) {
         <p>
           <strong className="text-ink">Code administrateur</strong> : distinct,
           réservé à cet écran. Hashé en base (`admin_code_hash`). Jamais affiché
-          ici.
+          ici — inchangé par le formulaire ci-dessus.
         </p>
       </section>
+
+      {confirmOpen ? (
+        <ConfirmModal
+          title="Modifier le code d’accès"
+          confirmLabel="Confirmer"
+          pending={pending}
+          onCancel={() => {
+            if (!pending) setConfirmOpen(false)
+          }}
+          onConfirm={() => void persistAccessCodeChange()}
+        >
+          <p>
+            L’ancien code cessera immédiatement de fonctionner. Les participants
+            déjà connectés devront saisir le nouveau code pour continuer.
+          </p>
+        </ConfirmModal>
+      ) : null}
     </div>
   )
 }
