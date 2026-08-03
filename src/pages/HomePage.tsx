@@ -15,6 +15,7 @@ import {
   withPredictionStatus,
 } from '../lib/api'
 import { toUserMessage } from '../lib/errors'
+import { isBrowserOnline, OFFLINE_USER_MESSAGE } from '../lib/pwa'
 import {
   formatCountdown,
   formatKickoff,
@@ -114,6 +115,11 @@ export function HomePage() {
 
   async function handleSave() {
     if (!accessCode || !playerId || !nextMatch) return
+    if (!isBrowserOnline()) {
+      setSaveError(OFFLINE_USER_MESSAGE)
+      setJustSaved(false)
+      return
+    }
     setSaving(true)
     setSaveError(null)
     try {
@@ -138,6 +144,7 @@ export function HomePage() {
       setJustSaved(true)
     } catch (err) {
       setSaveError(toUserMessage(err))
+      setJustSaved(false)
     } finally {
       setSaving(false)
     }
