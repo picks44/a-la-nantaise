@@ -65,9 +65,27 @@ async function rpc<T>(
   const { data, error } = await getSupabase().rpc(fn, args)
   if (error) {
     const code = getErrorCode(error) ?? 'RPC_ERROR'
+    if (code === 'INVALID_ACCESS_CODE') {
+      notifyInvalidAccessCode()
+    }
     throw new ApiError(code, error.message)
   }
   return data as T
+}
+
+type AccessInvalidationHandler = () => void
+
+let accessInvalidationHandler: AccessInvalidationHandler | null = null
+
+/** Enregistré par SessionProvider : invalide la session joueur uniquement. */
+export function setAccessInvalidationHandler(
+  handler: AccessInvalidationHandler | null,
+): void {
+  accessInvalidationHandler = handler
+}
+
+function notifyInvalidAccessCode(): void {
+  accessInvalidationHandler?.()
 }
 
 export async function verifyAccessCode(accessCode: string): Promise<boolean> {

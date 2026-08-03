@@ -10,6 +10,7 @@ export class ApiError extends Error {
 
 const KNOWN_CODES = [
   'INVALID_ACCESS_CODE',
+  'INVALID_ACCESS_CODE_LENGTH',
   'ACCESS_CODE_NOT_CONFIGURED',
   'INVALID_ADMIN_CODE',
   'ADMIN_CODE_NOT_CONFIGURED',
@@ -66,6 +67,8 @@ export function toUserMessage(error: unknown): string {
   switch (code) {
     case 'INVALID_ACCESS_CODE':
       return 'Code d’accès incorrect.'
+    case 'INVALID_ACCESS_CODE_LENGTH':
+      return 'Le code d’accès doit contenir entre 4 et 64 caractères.'
     case 'ACCESS_CODE_NOT_CONFIGURED':
       return 'Le code commun n’est pas encore configuré côté Supabase.'
     case 'INVALID_ADMIN_CODE':

@@ -71,11 +71,13 @@ Dans le **SQL Editor**, exécute **dans l’ordre** (ne pas appliquer automatiqu
 3. `supabase/migrations/20260803130000_admin_rpcs.sql`
 4. `supabase/migrations/20260803140000_fixture_download_sync.sql`
 5. `supabase/migrations/20260803150000_match_list_order.sql`
+6. `supabase/migrations/20260803160000_admin_update_access_code.sql`
 
 La migration sync ajoute les champs `source`, `last_synced_at`, `manual_override`, l’unicité `(source, external_id)`, et les RPC de commit / levée d’override. **Aucune donnée existante n’est supprimée.**
 
-### 3. Charger les données de test (optionnel, environnement de démo uniquement)
+La migration `admin_update_access_code` permet de remplacer le hash du code commun depuis `/admin` → Réglages (le code admin n’est pas modifié).
 
+### 3. Charger les données de test (optionnel, environnement de démo uniquement)
 Exécute ensuite :
 
 `supabase/seed.sql`
@@ -109,6 +111,23 @@ WHERE key = 'admin_code_hash';
 ```
 
 Voir `supabase/set_admin_code.example.sql`. L’écran `/admin` est accessible via Paramètres → Administration.
+
+### Modifier le code d’accès commun (administration)
+
+Depuis `/admin` → **Réglages** → **Code d’accès du groupe** :
+
+1. Saisir deux fois le nouveau code (4–64 caractères).
+2. Confirmer : l’ancien code cesse **immédiatement** de fonctionner.
+3. Les participants qui avaient l’ancien code en session locale sont renvoyés à l’écran d’accès à leur prochaine action RPC (ou au prochain chargement).
+4. Le code administrateur reste inchangé.
+
+Le code actuel n’est jamais affiché (seul `access_code_hash` est stocké).
+
+**Ordre de déploiement** pour cette fonctionnalité :
+
+1. Appliquer `20260803160000_admin_update_access_code.sql` dans le SQL Editor
+2. Déployer le frontend
+3. Tester : ancien code refusé, nouveau code accepté, admin toujours valide
 
 ### 6. Déployer l’Edge Function
 
