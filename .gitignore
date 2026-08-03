@@ -20,6 +20,7 @@ dist-ssr
 # Previews / caches locaux
 .tmp-shots
 supabase/.temp/
+pnpm-lock.yaml
 
 # Editor directories and files
 .vscode/*
