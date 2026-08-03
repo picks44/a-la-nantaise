@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { SessionProvider } from './context/SessionProvider'
+import { AdminPage } from './pages/AdminPage'
 import { CalendarPage } from './pages/CalendarPage'
 import { HomePage } from './pages/HomePage'
 import { RankingPage } from './pages/RankingPage'
@@ -11,6 +12,7 @@ export default function App() {
     <SessionProvider>
       <BrowserRouter>
         <Routes>
+          <Route path="admin" element={<AdminPage />} />
           <Route element={<AppShell />}>
             <Route index element={<HomePage />} />
             <Route path="calendrier" element={<CalendarPage />} />

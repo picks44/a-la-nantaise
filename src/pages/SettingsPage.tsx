@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { LogOut, UserRound } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { LogOut, Shield, UserRound } from 'lucide-react'
 import { useSession } from '../context/useSession'
 import { toUserMessage } from '../lib/errors'
 
@@ -117,6 +118,16 @@ export function SettingsPage() {
           <LogOut aria-hidden="true" className="size-4" />
           Quitter le groupe
         </button>
+      </section>
+
+      <section className="panel p-4">
+        <Link
+          to="/admin"
+          className="inline-flex items-center gap-2 text-xs font-bold tracking-[0.12em] text-muted uppercase underline-offset-2 hover:text-ink hover:underline"
+        >
+          <Shield aria-hidden="true" className="size-3.5" />
+          Administration
+        </Link>
       </section>
     </div>
   )

@@ -36,8 +36,8 @@ export function formatMatchDateShort(isoDate: string): string {
   }).format(new Date(isoDate))
 }
 
-export function venueSecondaryLabel(venue: 'home' | 'away'): string | null {
-  return venue === 'home' ? 'La Beaujoire' : null
+export function venueSecondaryLabel(venue: 'home' | 'away'): string {
+  return venue === 'home' ? 'La Beaujoire' : 'À l’extérieur'
 }
 
 export const SCORE_MIN = 0
@@ -68,10 +68,25 @@ export function getCountdown(kickoffAt: string, now = new Date()): CountdownPart
 }
 
 export function formatCountdown(parts: CountdownParts): string {
-  if (parts.locked) return '00:00:00'
-  return [
-    String(parts.hours).padStart(2, '0'),
-    String(parts.minutes).padStart(2, '0'),
-    String(parts.seconds).padStart(2, '0'),
-  ].join(':')
+  if (parts.locked) return 'Verrouillé'
+
+  const totalSeconds = Math.floor(parts.totalMs / 1000)
+  const days = Math.floor(totalSeconds / 86400)
+  const hoursInDay = Math.floor((totalSeconds % 86400) / 3600)
+  const totalHours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  const fortyEightHoursMs = 48 * 60 * 60 * 1000
+  const oneHourMs = 60 * 60 * 1000
+
+  if (parts.totalMs >= fortyEightHoursMs) {
+    return `${days} j ${hoursInDay} h`
+  }
+
+  if (parts.totalMs >= oneHourMs) {
+    return `${totalHours} h ${minutes} min`
+  }
+
+  return `${minutes} min ${seconds} s`
 }

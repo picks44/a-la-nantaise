@@ -61,6 +61,20 @@ WHERE key = 'access_code_hash';
 
 Un modèle est aussi fourni dans `supabase/set_access_code.example.sql`.
 
+### 5. Définir le hash du code administrateur
+
+Après la migration admin (`20260803130000_admin_rpcs.sql`) :
+
+```sql
+UPDATE public.app_settings
+SET
+  value = extensions.crypt('TON_CODE_ADMIN', extensions.gen_salt('bf')),
+  updated_at = now()
+WHERE key = 'admin_code_hash';
+```
+
+Voir `supabase/set_admin_code.example.sql`. L’écran `/admin` est accessible via Paramètres → Administration.
+
 ### 5. Vérifier
 
 ```sql
@@ -74,6 +88,21 @@ SELECT public.verify_access_code('TON_CODE_ICI'); -- doit renvoyer true
 - Score exact : **3** pts · Bon résultat : **1** pt · Sinon : **0**
 - Les pronostics des autres ne sont visibles qu’à partir du coup d’envoi
 - Dates stockées en UTC, affichées en `Europe/Paris`
+
+## Tests
+
+```bash
+npm test
+```
+
+Couvre la migration corrective d’`upsert_prediction` (contrainte nommée, colonnes qualifiées, pas de suppression de données).
+
+Pour valider en base (transaction annulée) :
+
+```sql
+-- Dans le SQL Editor Supabase : coller supabase/tests/upsert_prediction.sql
+-- Le script se termine par ROLLBACK.
+```
 
 ## Structure utile
 

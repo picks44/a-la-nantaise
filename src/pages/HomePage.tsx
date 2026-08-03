@@ -213,15 +213,9 @@ export function HomePage() {
             <h1 id="next-match-title" className="sr-only">
               {nextMatch.homeTeam} contre {nextMatch.awayTeam}
             </h1>
-            {stadium ? (
-              <p className="text-[11px] font-bold tracking-[0.16em] text-green-dark uppercase">
-                {stadium}
-              </p>
-            ) : (
-              <p className="text-[11px] font-bold tracking-[0.16em] text-ink/55 uppercase">
-                Extérieur
-              </p>
-            )}
+            <p className="text-[11px] font-bold tracking-[0.16em] text-green-dark uppercase">
+              {stadium}
+            </p>
           </div>
 
           <div className="mt-4 flex items-end justify-between gap-2 sm:gap-4">
@@ -276,10 +270,14 @@ export function HomePage() {
           {justSaved ? (
             <p
               role="status"
-              className="mt-3 inline-flex items-center gap-2 border border-ink bg-surface px-3 py-2 text-sm font-semibold text-ink"
+              aria-live="polite"
+              className="mt-3 text-sm font-semibold text-ink"
             >
-              <CheckCircle2 aria-hidden="true" className="size-4 shrink-0" />
-              Pronostic enregistré. Modifiable jusqu’au coup d’envoi.
+              <CheckCircle2
+                aria-hidden="true"
+                className="mr-1.5 inline size-4 align-text-bottom"
+              />
+              Pronostic enregistré.
             </p>
           ) : saved && !saveError ? (
             <p className="mt-3 text-sm font-medium text-ink/75">

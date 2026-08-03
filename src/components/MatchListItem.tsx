@@ -60,16 +60,14 @@ export function MatchListItem({ match, prediction }: MatchListItemProps) {
       </div>
 
       <div className="px-4 py-4">
-        {stadium ? (
-          <p
-            className={[
-              'mb-2 text-center text-[10px] font-bold tracking-[0.16em] uppercase',
-              isFinished ? 'text-yellow' : 'text-green-dark',
-            ].join(' ')}
-          >
-            {stadium}
-          </p>
-        ) : null}
+        <p
+          className={[
+            'mb-2 text-center text-[10px] font-bold tracking-[0.16em] uppercase',
+            isFinished ? 'text-yellow' : 'text-green-dark',
+          ].join(' ')}
+        >
+          {stadium}
+        </p>
 
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
           <p
