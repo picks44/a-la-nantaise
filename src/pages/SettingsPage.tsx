@@ -196,13 +196,19 @@ export function SettingsPage() {
         />
       ) : null}
 
-      <section className="panel p-4">
-        <Link
-          to="/admin"
-          className="inline-flex items-center gap-2 text-xs font-bold tracking-[0.12em] text-muted uppercase underline-offset-2 hover:text-ink hover:underline"
+      <section aria-labelledby="admin-access-title" className="panel p-4">
+        <h2
+          id="admin-access-title"
+          className="text-sm font-black tracking-[0.08em] uppercase"
         >
-          <Shield aria-hidden="true" className="size-3.5" />
-          Administration
+          Organisation
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          Matchs, joueurs et code d’accès — réservé aux organisateurs.
+        </p>
+        <Link to="/admin" className="btn-secondary mt-4 gap-2">
+          <Shield aria-hidden="true" className="size-4" />
+          Ouvrir l’administration
         </Link>
       </section>
 
@@ -220,7 +226,7 @@ export function SettingsPage() {
         <button
           type="button"
           onClick={() => void handleLogout()}
-          className="btn-ghost mt-4"
+          className="btn-secondary mt-4 gap-2"
           disabled={pending}
         >
           <LogOut aria-hidden="true" className="size-4" />
