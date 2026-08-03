@@ -8,6 +8,7 @@ import {
   getPredictionForMatch,
   withPredictionStatus,
 } from '../lib/api'
+import { shouldShowJumpToNextMatch } from '../lib/matchOrder'
 import { toUserMessage } from '../lib/errors'
 import type { Match, Prediction } from '../types'
 
@@ -68,6 +69,15 @@ export function CalendarPage() {
     return next?.id ?? null
   }, [matches, now])
 
+  const showJumpToNext = useMemo(
+    () =>
+      shouldShowJumpToNextMatch(
+        items.map((item) => item.match.id),
+        nextOpenId,
+      ),
+    [items, nextOpenId],
+  )
+
   return (
     <div className="space-y-4">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -77,7 +87,7 @@ export function CalendarPage() {
             Les matchs du FC Nantes à pronostiquer avec le groupe.
           </p>
         </div>
-        {nextOpenId ? (
+        {showJumpToNext ? (
           <a
             href="#prochain-match"
             className="btn-ghost min-h-11 text-xs text-green-dark"

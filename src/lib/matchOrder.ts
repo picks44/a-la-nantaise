@@ -45,3 +45,16 @@ export function findLastFinishedMatch(matches: Match[]): Match | null {
 
   return finished[0] ?? null
 }
+
+/**
+ * Affiche « Aller au prochain match » seulement si ce match n’est pas
+ * déjà le premier de la liste ordonnée (ex. des terminés le précèdent).
+ */
+export function shouldShowJumpToNextMatch(
+  orderedMatchIds: readonly string[],
+  nextOpenId: string | null,
+): boolean {
+  if (!nextOpenId) return false
+  const index = orderedMatchIds.indexOf(nextOpenId)
+  return index > 0
+}

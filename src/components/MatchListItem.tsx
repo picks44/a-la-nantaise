@@ -33,7 +33,7 @@ export function MatchListItem({
     <article
       id={isNext ? 'prochain-match' : undefined}
       className={[
-        'overflow-hidden rounded-[var(--radius-md)] border scroll-mt-20',
+        'overflow-hidden rounded-[var(--radius-md)] border scroll-mt-24',
         shellClass,
       ].join(' ')}
     >
