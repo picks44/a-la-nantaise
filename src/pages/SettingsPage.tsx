@@ -186,8 +186,6 @@ export function SettingsPage() {
         </form>
       </section>
 
-      <PwaInstallSection />
-
       {sessionToken && playerId && activePlayer ? (
         <PushNotificationsSection
           sessionToken={sessionToken}
@@ -254,6 +252,8 @@ export function SettingsPage() {
           Quitter le groupe
         </button>
       </section>
+
+      <PwaInstallSection />
     </div>
   )
 }
