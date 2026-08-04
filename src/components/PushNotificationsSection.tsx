@@ -38,6 +38,7 @@ export function PushNotificationsSection({
       gate === 'insecure_context' ||
       gate === 'misconfigured' ||
       gate === 'ios_install_required' ||
+      gate === 'service_worker_unavailable' ||
       gate === 'denied'
     ) {
       setUiState(gate)
@@ -169,6 +170,15 @@ export function PushNotificationsSection({
         </p>
       ) : null}
 
+      {uiState === 'service_worker_unavailable' ? (
+        <p className="mt-4 text-sm text-muted">
+          Les notifications push ne sont pas disponibles avec{' '}
+          <code>npm run dev</code> (service worker désactivé). Arrête Vite,
+          lance <code>npm run build</code> puis <code>npm run preview</code>, et
+          ouvre l’URL indiquée (souvent <code>http://localhost:4173</code>).
+        </p>
+      ) : null}
+
       {uiState === 'denied' ? (
         <p className="mt-4 text-sm text-ink">
           Les notifications sont bloquées pour ce site. Réactive-les dans les
@@ -183,7 +193,7 @@ export function PushNotificationsSection({
           </p>
           <button
             type="button"
-            className="btn-ghost"
+            className="btn-secondary"
             disabled={busy}
             onClick={() => void handleDisable()}
           >

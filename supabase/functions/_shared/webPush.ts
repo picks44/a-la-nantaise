@@ -25,9 +25,19 @@ const ALLOWED_HOSTS = new Set([
   'web.push.apple.com',
 ])
 
+/** Topic court et stable pour le smoke test ciblé. */
+export const SMOKE_TEST_TOPIC = 'push-smoke-test'
+
 export type PushSendResult =
   | { ok: true; status: number }
   | { ok: false; status: number | null; expired: boolean; retryable: boolean }
+
+export interface PushSubscriptionMaterial {
+  endpoint: string
+  p256dh: string
+  auth: string
+  content_encoding: string
+}
 
 function isPrivateOrLocalHostname(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/\.$/, '')
@@ -87,6 +97,11 @@ export function assertAllowedPushEndpoint(endpoint: string): void {
 }
 
 export interface WebPushSender {
+  sendPayload(
+    subscription: PushSubscriptionMaterial,
+    payload: unknown,
+    options?: { topic?: string },
+  ): Promise<PushSendResult>
   sendReminder(claim: ReminderClaim): Promise<PushSendResult>
 }
 
@@ -104,44 +119,61 @@ export async function createWebPushSender(env: {
     vapidKeys,
   })
 
+  async function sendPayload(
+    subscription: PushSubscriptionMaterial,
+    payload: unknown,
+    options?: { topic?: string },
+  ): Promise<PushSendResult> {
+    try {
+      assertAllowedPushEndpoint(subscription.endpoint)
+    } catch {
+      return { ok: false, status: null, expired: false, retryable: false }
+    }
+
+    if (subscription.content_encoding !== 'aes128gcm') {
+      return { ok: false, status: null, expired: false, retryable: false }
+    }
+
+    const subscriber = appServer.subscribe({
+      endpoint: subscription.endpoint,
+      keys: {
+        p256dh: subscription.p256dh,
+        auth: subscription.auth,
+      },
+    })
+
+    try {
+      await subscriber.pushTextMessage(JSON.stringify(payload), {
+        ttl: 60 * 60 * 12,
+        urgency: webpush.Urgency.Normal,
+        ...(options?.topic ? { topic: options.topic } : {}),
+      })
+      return { ok: true, status: 201 }
+    } catch (error) {
+      if (error instanceof webpush.PushMessageError) {
+        const status = error.response.status
+        const expired = status === 404 || status === 410
+        const retryable = status === 429 || status >= 500
+        return { ok: false, status, expired, retryable }
+      }
+      // Timeout / réseau ambigu : pas de retry automatique
+      return { ok: false, status: null, expired: false, retryable: false }
+    }
+  }
+
   return {
+    sendPayload,
     async sendReminder(claim: ReminderClaim): Promise<PushSendResult> {
-      try {
-        assertAllowedPushEndpoint(claim.endpoint)
-      } catch {
-        return { ok: false, status: null, expired: false, retryable: false }
-      }
-
-      if (claim.content_encoding !== 'aes128gcm') {
-        return { ok: false, status: null, expired: false, retryable: false }
-      }
-
-      const payload = buildNotificationPayload(claim)
-      const subscriber = appServer.subscribe({
-        endpoint: claim.endpoint,
-        keys: {
+      return sendPayload(
+        {
+          endpoint: claim.endpoint,
           p256dh: claim.p256dh,
           auth: claim.auth,
+          content_encoding: claim.content_encoding,
         },
-      })
-
-      try {
-        await subscriber.pushTextMessage(JSON.stringify(payload), {
-          ttl: 60 * 60 * 12,
-          urgency: webpush.Urgency.Normal,
-          topic: webPushTopic(claim),
-        })
-        return { ok: true, status: 201 }
-      } catch (error) {
-        if (error instanceof webpush.PushMessageError) {
-          const status = error.response.status
-          const expired = status === 404 || status === 410
-          const retryable = status === 429 || status >= 500
-          return { ok: false, status, expired, retryable }
-        }
-        // Timeout / réseau ambigu : pas de retry automatique
-        return { ok: false, status: null, expired: false, retryable: false }
-      }
+        buildNotificationPayload(claim),
+        { topic: webPushTopic(claim) },
+      )
     },
   }
 }

@@ -3,12 +3,14 @@ import {
   isStandaloneDisplay,
   shouldShowIosInstallHelp,
 } from './pwa'
+import { isVapidPublicKeyConfigured } from './vapid'
 
 export type PushUiState =
   | 'unsupported'
   | 'insecure_context'
   | 'misconfigured'
   | 'ios_install_required'
+  | 'service_worker_unavailable'
   | 'default'
   | 'denied'
   | 'granted_inactive'
@@ -28,9 +30,8 @@ export function urlBase64ToUint8Array(base64String: string): Uint8Array {
 }
 
 export function getVapidPublicKey(): string | null {
-  const key = import.meta.env.VITE_VAPID_PUBLIC_KEY
-  if (typeof key !== 'string' || key.trim().length < 20) return null
-  return key.trim()
+  if (!isVapidPublicKeyConfigured()) return null
+  return (import.meta.env.VITE_VAPID_PUBLIC_KEY as string).trim()
 }
 
 /**
@@ -46,6 +47,25 @@ export function isWebPushSupported(): boolean {
   return 'pushManager' in ServiceWorkerRegistration.prototype
 }
 
+/**
+ * Vite PWA keeps `devOptions.enabled: false`, so `npm run dev` never registers
+ * a service worker. Awaiting `navigator.serviceWorker.ready` then never settles.
+ */
+export function isViteDevWithoutServiceWorker(): boolean {
+  return import.meta.env.DEV === true
+}
+
+/**
+ * Resolves a SW registration without hanging when none is registered.
+ * `navigator.serviceWorker.ready` only settles after a worker is registered.
+ */
+export async function getReadyPushRegistration(): Promise<ServiceWorkerRegistration | null> {
+  if (!isWebPushSupported()) return null
+  const existing = await navigator.serviceWorker.getRegistration()
+  if (!existing) return null
+  return navigator.serviceWorker.ready
+}
+
 export function resolvePushGateState(): PushUiState {
   if (typeof window === 'undefined') return 'unsupported'
 
@@ -56,6 +76,9 @@ export function resolvePushGateState(): PushUiState {
 
   if (!isWebPushSupported()) return 'unsupported'
 
+  // Immediate gate for Vite dev (no SW) — avoid endless ready wait / pending UI.
+  if (isViteDevWithoutServiceWorker()) return 'service_worker_unavailable'
+
   if (!getVapidPublicKey()) return 'misconfigured'
 
   const permission = Notification.permission
@@ -65,8 +88,8 @@ export function resolvePushGateState(): PushUiState {
 }
 
 export async function getExistingPushSubscription(): Promise<PushSubscription | null> {
-  if (!isWebPushSupported()) return null
-  const registration = await navigator.serviceWorker.ready
+  const registration = await getReadyPushRegistration()
+  if (!registration) return null
   return registration.pushManager.getSubscription()
 }
 
@@ -75,6 +98,9 @@ export async function subscribeToPush(): Promise<PushSubscription> {
     throw new Error('PUSH_UNSUPPORTED')
   }
   if (!isWebPushSupported()) {
+    throw new Error('PUSH_UNSUPPORTED')
+  }
+  if (isViteDevWithoutServiceWorker()) {
     throw new Error('PUSH_UNSUPPORTED')
   }
 
@@ -88,7 +114,10 @@ export async function subscribeToPush(): Promise<PushSubscription> {
     throw new Error('PUSH_PERMISSION_DENIED')
   }
 
-  const registration = await navigator.serviceWorker.ready
+  const registration = await getReadyPushRegistration()
+  if (!registration) {
+    throw new Error('PUSH_UNSUPPORTED')
+  }
   const existing = await registration.pushManager.getSubscription()
   if (existing) return existing
 

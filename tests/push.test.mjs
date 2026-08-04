@@ -37,6 +37,21 @@ describe('push frontend helpers', () => {
     assert.match(source, /insecure_context/)
   })
 
+  it('does not hang on serviceWorker.ready when no worker is registered', () => {
+    const push = read('src/lib/push.ts')
+    const section = read('src/components/PushNotificationsSection.tsx')
+    assert.match(push, /getReadyPushRegistration/)
+    assert.match(push, /serviceWorker\.getRegistration\(\)/)
+    assert.match(push, /isViteDevWithoutServiceWorker/)
+    assert.match(push, /import\.meta\.env\.DEV/)
+    assert.match(push, /service_worker_unavailable/)
+    assert.match(section, /service_worker_unavailable/)
+    assert.match(section, /npm run preview/)
+    assert.match(section, /localhost:4173/)
+    // Direct ready awaits must go through the registration guard.
+    assert.match(push, /if \(!existing\) return null/)
+  })
+
   it('keeps Settings opt-in behind an explicit button', () => {
     const section = read('src/components/PushNotificationsSection.tsx')
     assert.match(section, /Activer les rappels/)
@@ -131,8 +146,21 @@ describe('push edge function', () => {
     assert.match(webPush, /aes128gcm/)
     assert.match(webPush, /assertAllowedPushEndpoint/)
     assert.match(webPush, /push\.apple\.com/)
+    assert.match(webPush, /sendPayload/)
+    assert.match(webPush, /SMOKE_TEST_TOPIC\s*=\s*'push-smoke-test'/)
     assert.doesNotMatch(webPush, /@pushforge/)
     assert.doesNotMatch(webPush, /aesgcm[^1]/)
+  })
+
+  it('keeps sendReminder on top of sendPayload without duplicating push logic', () => {
+    const webPush = read('supabase/functions/_shared/webPush.ts')
+    assert.match(webPush, /async function sendPayload\(/)
+    assert.match(webPush, /async sendReminder\(claim: ReminderClaim\)/)
+    assert.match(webPush, /return sendPayload\(/)
+    assert.match(webPush, /ttl:\s*60 \* 60 \* 12/)
+    assert.match(webPush, /Urgency\.Normal/)
+    assert.match(webPush, /status === 404 \|\| status === 410/)
+    assert.match(webPush, /status === 429 \|\| status >= 500/)
   })
 
   it('keeps dry_run read-only, authenticated, and allowed when sending is off', () => {
@@ -149,15 +177,81 @@ describe('push edge function', () => {
     assert.match(index, /sent:\s*0/)
     // dry_run path must not call prepare/claim
     const dryBlockStart = index.indexOf('if (dryRun)')
-    const dryBlockEnd = index.indexOf('if (!vapidKeysJson')
-    assert.ok(dryBlockStart > 0 && dryBlockEnd > dryBlockStart)
+    assert.ok(dryBlockStart > 0)
+    const dryBlockEnd = index.indexOf('if (!vapidKeysJson', dryBlockStart)
+    assert.ok(dryBlockEnd > dryBlockStart)
     const dryBlock = index.slice(dryBlockStart, dryBlockEnd)
     assert.match(dryBlock, /preview_push_reminder_batch/)
     assert.doesNotMatch(dryBlock, /prepare_push_reminder_batch/)
     assert.doesNotMatch(dryBlock, /claim_push_deliveries/)
     assert.doesNotMatch(dryBlock, /createWebPushSender/)
+    assert.doesNotMatch(dryBlock, /smoke_test/)
     // Cron auth runs before dry_run branch
     assert.ok(index.indexOf('UNAUTHORIZED') < dryBlockStart)
+  })
+
+  it('supports targeted smoke_test without enabling sending or touching batches', () => {
+    const index = read(
+      'supabase/functions/send-prediction-reminders/index.ts',
+    )
+    const webPush = read('supabase/functions/_shared/webPush.ts')
+
+    assert.match(index, /smoke_test/)
+    assert.match(index, /INVALID_SUBSCRIPTION_ID/)
+    assert.match(index, /SUBSCRIPTION_NOT_FOUND/)
+    assert.match(index, /UNSUPPORTED_ENCODING/)
+    assert.match(index, /mode:\s*'smoke_test'/)
+    assert.match(index, /SMOKE_TEST_TOPIC/)
+    assert.match(index, /Test des rappels réussi/)
+    assert.match(index, /type:\s*'smoke_test'/)
+    assert.match(index, /url:\s*'\/parametres'/)
+    assert.match(index, /status:\s*'expired'/)
+    assert.match(index, /result\.retryable \? 'retryable' : 'failed'/)
+    assert.match(index, /status:\s*'failed'/)
+    assert.match(index, /status:\s*synthetic/)
+    assert.match(index, /invalidated_at/)
+    assert.match(index, /shortEndpointFingerprint/)
+    assert.match(index, /assertAllowedPushEndpoint/)
+    assert.match(index, /timingSafeEqual/)
+    assert.match(webPush, /sendPayload/)
+
+    // Auth before smoke; smoke before push_sending_enabled / prepare / claim.
+    const unauthorizedIdx = index.indexOf('UNAUTHORIZED')
+    const smokeIdx = index.indexOf('body.smoke_test')
+    const enabledIdx = index.indexOf('is_push_sending_enabled')
+    const prepareIdx = index.indexOf('prepare_push_reminder_batch')
+    const claimIdx = index.indexOf("claim_push_deliveries")
+    assert.ok(unauthorizedIdx > 0)
+    assert.ok(smokeIdx > unauthorizedIdx)
+    assert.ok(enabledIdx > smokeIdx)
+    assert.ok(prepareIdx > enabledIdx)
+    assert.ok(claimIdx > prepareIdx)
+
+    const smokeFnStart = index.indexOf('async function handleSmokeTest')
+    const smokeFnEnd = index.indexOf('Deno.serve')
+    assert.ok(smokeFnStart > 0 && smokeFnEnd > smokeFnStart)
+    const smokeFn = index.slice(smokeFnStart, smokeFnEnd)
+
+    assert.match(smokeFn, /\.from\('push_subscriptions'\)/)
+    assert.match(smokeFn, /\.eq\('id', subscriptionId\)/)
+    assert.match(smokeFn, /status !== 'active'/)
+    assert.match(smokeFn, /content_encoding !== 'aes128gcm'/)
+    assert.match(smokeFn, /sendPayload/)
+    assert.match(smokeFn, /status:\s*'expired'/)
+    assert.match(smokeFn, /invalidated_at/)
+    assert.doesNotMatch(smokeFn, /prepare_push_reminder_batch/)
+    assert.doesNotMatch(smokeFn, /claim_push_deliveries/)
+    assert.doesNotMatch(smokeFn, /player_has_prediction/)
+    assert.doesNotMatch(smokeFn, /complete_push_delivery/)
+    assert.doesNotMatch(smokeFn, /push_reminders/)
+    assert.doesNotMatch(smokeFn, /push_deliveries/)
+    // Never accept raw endpoint/keys from the request — only subscription_id.
+    assert.doesNotMatch(smokeFn, /body\.endpoint/)
+    assert.doesNotMatch(smokeFn, /body\.p256dh/)
+    assert.doesNotMatch(smokeFn, /body\.auth/)
+    assert.doesNotMatch(smokeFn, /smoke_test\.endpoint/)
+    assert.doesNotMatch(smokeFn, /console\.(?:log|error)\([^)]*sub\.endpoint/)
+    assert.doesNotMatch(smokeFn, /console\.(?:log|error)\([^)]*,\s*endpoint\b/)
   })
 
   it('ships an inactive cron example', () => {

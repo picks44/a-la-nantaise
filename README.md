@@ -358,7 +358,21 @@ Conserver la paire : une rotation oblige les appareils à se réabonner.
 4. Déployer le frontend (avec `VITE_VAPID_PUBLIC_KEY`).
 5. Abonner un appareil propriétaire (Paramètres → Activer les rappels).
 6. Invoke dry-run : `{ "cron_secret": "…", "dry_run": true }` (aucune écriture DB, aucune notif).
-7. Smoke forcé uniquement après validation dry-run, avec flag encore maîtrisé.
+7. Smoke forcé uniquement après validation dry-run, avec `push_sending_enabled` encore à `false` :
+
+```bash
+curl -sS -X POST \
+  "$SUPABASE_URL/functions/v1/send-prediction-reminders" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "cron_secret": "'"$PUSH_CRON_SECRET"'",
+    "smoke_test": {
+      "subscription_id": "'"$SUBSCRIPTION_UUID"'"
+    }
+  }'
+```
+
+Le mode `smoke_test` envoie une notification unique à l’abonnement `active` + `aes128gcm` désigné (chargé via `service_role`). Il n’accepte jamais d’endpoint ni de clés dans la requête, n’appelle ni `prepare_push_reminder_batch` ni `claim_push_deliveries`, et ne crée aucune ligne `push_reminders` / `push_deliveries`. Succès attendu : `{ "ok": true, "mode": "smoke_test", "sent": 1, ... }`.
 8. Valider Chrome/Android **et** PWA iOS ≥ 16.4.
 9. Ensuite seulement `push_sending_enabled = true` et décommenter / exécuter `supabase/schedule_push_reminders.example.sql` (toutes les 15 min).
 
