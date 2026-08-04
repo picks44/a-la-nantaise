@@ -118,11 +118,11 @@
   }
 
   .btn-ink {
-    @apply inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-sm)] border border-ink bg-ink px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-yellow uppercase transition hover:bg-green-dark disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[12rem];
+    @apply inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-ink bg-ink px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-yellow uppercase transition hover:bg-green-dark disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[12rem];
   }
 
   .btn-green {
-    @apply inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-sm)] border border-green-dark bg-green-dark px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-white uppercase transition hover:bg-green active:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[12rem];
+    @apply inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-green-dark bg-green-dark px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-white uppercase transition hover:bg-green active:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[12rem];
   }
 
   .btn-green:focus-visible {
@@ -131,11 +131,11 @@
   }
 
   .btn-secondary {
-    @apply inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-sm)] border border-ink bg-surface px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-ink uppercase transition hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto;
+    @apply inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-ink bg-surface px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-ink uppercase transition hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto;
   }
 
   .btn-ghost {
-    @apply inline-flex min-h-11 items-center justify-center rounded-[var(--radius-sm)] border border-transparent px-3 py-2 text-sm font-bold tracking-[0.06em] text-ink uppercase transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-transparent px-3 py-2 text-sm font-bold tracking-[0.06em] text-ink uppercase transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-danger {
@@ -144,7 +144,7 @@
 
   /* Alias conservé pour les appels existants. */
   .btn-yellow {
-    @apply inline-flex min-h-11 w-full items-center justify-center rounded-[var(--radius-sm)] border border-ink bg-yellow px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-ink uppercase transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto;
+    @apply inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-ink bg-yellow px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-ink uppercase transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto;
   }
 
   .field-input {

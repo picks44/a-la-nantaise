@@ -187,7 +187,7 @@ export function PushNotificationsSection({
             disabled={busy}
             onClick={() => void handleDisable()}
           >
-            <BellOff aria-hidden="true" className="size-4" />
+            <BellOff aria-hidden="true" className="size-4 shrink-0" />
             Désactiver les rappels
           </button>
         </div>
@@ -203,9 +203,12 @@ export function PushNotificationsSection({
           onClick={() => void handleEnable()}
         >
           {busy || uiState === 'pending' ? (
-            <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+            <LoaderCircle
+              aria-hidden="true"
+              className="size-4 shrink-0 animate-spin"
+            />
           ) : (
-            <Bell aria-hidden="true" className="size-4" />
+            <Bell aria-hidden="true" className="size-4 shrink-0" />
           )}
           {uiState === 'granted_inactive'
             ? 'Réactiver les rappels'
