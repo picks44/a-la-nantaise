@@ -1,4 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
+import {
+  CalendarCheck,
+  Crown,
+  Eye,
+  Flame,
+  Lock,
+  Medal,
+  Shield,
+  Sparkles,
+  Target,
+  Trophy,
+  type LucideIcon,
+} from 'lucide-react'
 import { GroupRanking } from '../components/Podium'
 import { useSession } from '../context/useSession'
 import {
@@ -26,6 +39,7 @@ import type {
   Player,
   RoundParticipationRow,
   Season,
+  TrophyAward,
   TrophyOverview,
 } from '../types'
 
@@ -105,7 +119,7 @@ export function RankingPage() {
       } catch (err) {
         if (!cancelled) {
           setTrophyError(
-            getFriendlyStatsMessage(err, 'Impossible de charger les trophees.'),
+            getFriendlyStatsMessage(err, 'Impossible de charger les trophées.'),
           )
         }
       } finally {
@@ -216,7 +230,7 @@ export function RankingPage() {
           id="tab-trophies"
           controls="panel-trophies"
         >
-          Trophees & series
+          Trophées & séries
         </TabButton>
       </div>
 
@@ -337,7 +351,7 @@ export function RankingPage() {
                   setTrophyError(
                     getFriendlyStatsMessage(
                       err,
-                      'Impossible de confirmer les trophees pour le moment.',
+                      'Impossible de confirmer les trophées pour le moment.',
                     ),
                   )
                 })
@@ -487,7 +501,7 @@ function TrophyPanel({
   onDismissCelebration: () => void
 }) {
   if (loading) {
-    return <StatusCard message="Chargement des trophees…" />
+    return <StatusCard message="Chargement des trophées…" />
   }
 
   if (error) {
@@ -502,30 +516,43 @@ function TrophyPanel({
 
   const stats = overview.stats
   const pending = overview.pendingCelebrations
+  const isColdStart =
+    stats.trophiesCount === 0 &&
+    stats.totalExactScores === 0 &&
+    stats.currentPredictionStreak === 0 &&
+    stats.bestPredictionStreak === 0
 
   return (
-    <div className="space-y-3">
-      {season ? (
-        <section className="panel p-4">
-          <p className="text-[11px] font-bold tracking-[0.08em] text-muted uppercase">
-            Saison active
-          </p>
-          <p className="mt-1 font-black text-ink">{season.name}</p>
-        </section>
-      ) : null}
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-black text-ink">Trophées & séries</h2>
+        {season ? (
+          <span className="badge border-ink bg-yellow text-ink">
+            {season.name}
+          </span>
+        ) : null}
+      </div>
 
       {pending.length > 0 ? (
-        <section className="panel border-yellow bg-yellow/20 p-4" aria-live="polite">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-black tracking-[0.08em] uppercase text-ink">
-                Nouveau trophée
-              </p>
-              <p className="mt-1 text-sm text-ink/80">
-                {pending.length > 1
-                  ? `${pending.length} nouveaux trophees ont ete debloques.`
-                  : `${pending[0]?.name ?? 'Un trophee'} a ete debloque.`}
-              </p>
+        <section
+          className="overflow-hidden rounded-[var(--radius-md)] border border-ink bg-yellow"
+          aria-live="polite"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3 p-4">
+            <div className="flex items-start gap-3">
+              <span className="flex size-11 items-center justify-center rounded-[var(--radius-sm)] border border-ink bg-ink text-yellow">
+                <Trophy className="size-5" aria-hidden />
+              </span>
+              <div>
+                <p className="text-sm font-black tracking-[0.08em] uppercase text-ink">
+                  Nouveau trophée
+                </p>
+                <p className="mt-1 text-sm text-ink/80">
+                  {pending.length > 1
+                    ? `${pending.length} nouveaux trophées ont été débloqués.`
+                    : `${pending[0]?.name ?? 'Un trophée'} a été débloqué.`}
+                </p>
+              </div>
             </div>
             <button
               type="button"
@@ -536,87 +563,246 @@ function TrophyPanel({
               {acknowledging ? 'Validation…' : 'Fermer'}
             </button>
           </div>
-          <ul className="mt-3 space-y-2">
+          <ul className="divide-y divide-ink/15 border-t border-ink/20">
             {pending.map((item) => (
-              <li
-                key={item.id}
-                className="rounded-[var(--radius-sm)] border border-yellow/60 bg-white/40 px-3 py-2 text-sm"
-              >
-                <p className="font-bold text-ink">{item.name}</p>
-                <p className="mt-1 text-ink/75">{item.description}</p>
+              <li key={item.id} className="flex items-start gap-3 px-4 py-3">
+                <TrophyIcon name={item.icon} unlocked />
+                <div>
+                  <p className="font-bold text-ink">{item.name}</p>
+                  <p className="mt-0.5 text-sm text-ink/75">{item.description}</p>
+                </div>
               </li>
             ))}
           </ul>
         </section>
       ) : null}
 
-      <section className="grid gap-2 sm:grid-cols-2">
-        <StatsCard label="Serie actuelle de participation" value={String(stats.currentPredictionStreak)} />
-        <StatsCard label="Record de participation" value={String(stats.bestPredictionStreak)} />
-        <StatsCard label="Serie actuelle de bonnes issues" value={String(stats.currentGoodResultStreak)} />
-        <StatsCard label="Record de bonnes issues" value={String(stats.bestGoodResultStreak)} />
-        <StatsCard label="Serie actuelle de scores exacts" value={String(stats.currentExactStreak)} />
-        <StatsCard label="Record de scores exacts" value={String(stats.bestExactStreak)} />
-        <StatsCard label="Scores exacts au total" value={String(stats.totalExactScores)} />
-        <StatsCard label="Trophees obtenus" value={String(stats.trophiesCount)} />
+      <section className="overflow-hidden rounded-[var(--radius-md)] border border-ink bg-ink text-yellow">
+        <div className="grid gap-0 sm:grid-cols-3">
+          <HeroStat
+            icon={Flame}
+            label="Série actuelle"
+            value={String(stats.currentPredictionStreak)}
+            hint="participations d’affilée"
+          />
+          <HeroStat
+            icon={Crown}
+            label="Record"
+            value={String(stats.bestPredictionStreak)}
+            hint="meilleure série"
+            bordered
+          />
+          <HeroStat
+            icon={Trophy}
+            label="Trophées obtenus"
+            value={String(stats.trophiesCount)}
+            hint={
+              stats.totalExactScores > 0
+                ? `${stats.totalExactScores} score${stats.totalExactScores > 1 ? 's' : ''} exact${stats.totalExactScores > 1 ? 's' : ''}`
+                : 'cette saison'
+            }
+            bordered
+          />
+        </div>
       </section>
 
-      <section className="panel overflow-hidden">
-        <div className="border-b border-border px-4 py-3">
-          <h2 className="font-black text-ink">Mes trophees</h2>
-        </div>
-        {overview.earnedTrophies.length === 0 ? (
-          <div className="p-4 text-sm text-muted">
-            Tes premiers trophees apparaitront ici des que la saison decollera.
-          </div>
-        ) : (
-          <ul className="divide-y divide-border">
+      {isColdStart ? (
+        <section className="panel border-dashed p-6 text-center">
+          <span className="mx-auto flex size-14 items-center justify-center rounded-full border border-ink bg-yellow text-ink">
+            <Sparkles className="size-6" aria-hidden />
+          </span>
+          <p className="mt-4 font-black text-ink">La chasse commence ici</p>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
+            Pronostique ton prochain match pour débloquer « Première
+            participation » et lancer tes séries.
+          </p>
+        </section>
+      ) : null}
+
+      {overview.earnedTrophies.length > 0 ? (
+        <section className="space-y-2">
+          <h3 className="label-caps">Débloqués</h3>
+          <ul className="space-y-2">
             {overview.earnedTrophies.map((item) => (
-              <li key={item.id} className="px-4 py-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-bold text-ink">{item.name}</p>
-                  <span className="text-xs text-muted">
-                    {new Date(item.awardedAt).toLocaleDateString('fr-FR')}
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-muted">{item.description}</p>
+              <li key={item.id}>
+                <EarnedTrophyCard trophy={item} />
               </li>
             ))}
           </ul>
-        )}
-      </section>
+        </section>
+      ) : null}
 
-      <section className="panel overflow-hidden">
-        <div className="border-b border-border px-4 py-3">
-          <h2 className="font-black text-ink">Encore verrouilles</h2>
-        </div>
-        {overview.lockedTrophies.length === 0 ? (
-          <div className="p-4 text-sm text-muted">
-            Tous les trophees disponibles sont deja debloques sur cette saison.
-          </div>
-        ) : (
-          <ul className="divide-y divide-border">
+      {overview.lockedTrophies.length > 0 ? (
+        <section className="space-y-2">
+          <h3 className="label-caps">
+            {overview.earnedTrophies.length > 0 ? 'Encore à débloquer' : 'Objectifs'}
+          </h3>
+          <ul className="space-y-2">
             {overview.lockedTrophies.map((item) => (
-              <li key={item.trophyKey} className="px-4 py-3">
-                <p className="font-bold text-ink">{item.name}</p>
-                <p className="mt-1 text-sm text-muted">{item.description}</p>
+              <li key={item.trophyKey}>
+                <LockedTrophyCard trophy={item} />
               </li>
             ))}
           </ul>
-        )}
-      </section>
+        </section>
+      ) : null}
     </div>
   )
 }
 
-function StatsCard({ label, value }: { label: string; value: string }) {
+function HeroStat({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  bordered = false,
+}: {
+  icon: LucideIcon
+  label: string
+  value: string
+  hint: string
+  bordered?: boolean
+}) {
   return (
-    <div className="panel p-4">
-      <p className="text-[11px] font-bold tracking-[0.08em] text-muted uppercase">
-        {label}
-      </p>
-      <p className="mt-2 text-2xl font-black text-ink tabular-nums">{value}</p>
+    <div
+      className={[
+        'px-4 py-4',
+        bordered ? 'border-t border-yellow/25 sm:border-t-0 sm:border-l' : '',
+      ].join(' ')}
+    >
+      <div className="flex items-center gap-2 text-yellow/80">
+        <Icon className="size-4" aria-hidden />
+        <p className="text-[11px] font-bold tracking-[0.08em] uppercase">
+          {label}
+        </p>
+      </div>
+      <p className="mt-2 text-3xl font-black tabular-nums text-yellow">{value}</p>
+      <p className="mt-1 text-xs text-yellow/70">{hint}</p>
     </div>
+  )
+}
+
+function EarnedTrophyCard({ trophy }: { trophy: TrophyAward }) {
+  return (
+    <article className="panel overflow-hidden border-green-dark/40 bg-green-dark/5">
+      <div className="flex items-start gap-3 p-4">
+        <TrophyIcon name={trophy.icon} unlocked />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-black text-ink">{trophy.name}</p>
+            <span className="badge border-green-dark bg-green-dark text-white">
+              Débloqué
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-muted">{trophy.description}</p>
+          <p className="mt-2 text-xs font-semibold text-ink/70">
+            {new Date(trophy.awardedAt).toLocaleDateString('fr-FR')}
+            {trophy.sourceRoundNumber != null
+              ? ` · Journée ${trophy.sourceRoundNumber}`
+              : ''}
+            {trophy.sourceMatchLabel ? ` · ${trophy.sourceMatchLabel}` : ''}
+          </p>
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function LockedTrophyCard({
+  trophy,
+}: {
+  trophy: TrophyOverview['lockedTrophies'][number]
+}) {
+  const hasProgress =
+    trophy.progressCurrent != null &&
+    trophy.progressTarget != null &&
+    trophy.progressTarget > 0
+  const ratio = hasProgress
+    ? Math.min(1, trophy.progressCurrent! / trophy.progressTarget!)
+    : 0
+  const nearComplete = hasProgress && ratio >= 0.5
+
+  return (
+    <article
+      className={[
+        'panel overflow-hidden',
+        nearComplete ? 'border-yellow bg-yellow/10' : 'opacity-90',
+      ].join(' ')}
+    >
+      <div className="flex items-start gap-3 p-4">
+        <TrophyIcon name={trophy.icon} unlocked={false} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-bold text-ink">{trophy.name}</p>
+            <span className="inline-flex items-center gap-1 text-[10px] font-black tracking-[0.08em] uppercase text-muted">
+              <Lock className="size-3" aria-hidden />
+              Verrouillé
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-muted">{trophy.description}</p>
+          {hasProgress ? (
+            <div className="mt-3">
+              <div className="mb-1 flex items-center justify-between text-xs font-bold text-ink">
+                <span>Progression</span>
+                <span className="tabular-nums">
+                  {trophy.progressCurrent}/{trophy.progressTarget}
+                </span>
+              </div>
+              <div
+                className="h-2 overflow-hidden rounded-full border border-ink/20 bg-canvas"
+                role="progressbar"
+                aria-valuenow={trophy.progressCurrent!}
+                aria-valuemin={0}
+                aria-valuemax={trophy.progressTarget!}
+              >
+                <div
+                  className="h-full bg-yellow transition-[width]"
+                  style={{ width: `${Math.round(ratio * 100)}%` }}
+                />
+              </div>
+            </div>
+          ) : (
+            <p className="mt-2 text-xs font-semibold text-muted">
+              Se débloque en match — à surveiller
+            </p>
+          )}
+        </div>
+      </div>
+    </article>
+  )
+}
+
+const TROPHY_ICONS: Record<string, LucideIcon> = {
+  sparkles: Sparkles,
+  target: Target,
+  medal: Medal,
+  eye: Eye,
+  'calendar-check': CalendarCheck,
+  crown: Crown,
+  trophy: Trophy,
+  shield: Shield,
+}
+
+function TrophyIcon({
+  name,
+  unlocked,
+}: {
+  name: string
+  unlocked: boolean
+}) {
+  const Icon = TROPHY_ICONS[name] ?? Trophy
+  return (
+    <span
+      className={[
+        'flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border',
+        unlocked
+          ? 'border-ink bg-yellow text-ink'
+          : 'border-border bg-surface-muted text-muted',
+      ].join(' ')}
+      aria-hidden
+    >
+      <Icon className="size-5" />
+    </span>
   )
 }
 

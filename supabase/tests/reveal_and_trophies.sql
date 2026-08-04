@@ -389,6 +389,14 @@ BEGIN
   IF jsonb_array_length(v_payload->'pendingCelebrations') = 0 THEN
     RAISE EXCEPTION 'TEST FAIL: pending celebrations expected';
   END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(v_payload->'earnedTrophies') AS trophy
+    WHERE trophy.value->>'trophyKey' = 'first_participation'
+      AND trophy.value->>'sourceMatchLabel' IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'TEST FAIL: earned trophy should expose sourceMatchLabel';
+  END IF;
 
   PERFORM public.acknowledge_trophy_celebrations(v_token, v_season_id);
   v_payload := public.get_player_trophy_overview(v_token, v_season_id);

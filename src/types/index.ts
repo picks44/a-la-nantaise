@@ -159,6 +159,7 @@ export interface TrophyAward {
   awardedAt: string
   sourceMatchId: string | null
   sourceRoundNumber: number | null
+  sourceMatchLabel: string | null
   presentedAt: string | null
 }
 
@@ -168,6 +169,8 @@ export interface LockedTrophy {
   description: string
   icon: string
   repeatable: boolean
+  progressCurrent: number | null
+  progressTarget: number | null
 }
 
 export interface PendingTrophyCelebration {

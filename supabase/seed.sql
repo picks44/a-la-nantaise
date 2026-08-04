@@ -2,16 +2,16 @@
 -- À exécuter APRÈS la migration, dans le SQL Editor Supabase.
 -- Ne contient PAS le code commun (à définir séparément, voir README).
 
--- Joueurs
-INSERT INTO public.players (id, display_name, is_active) VALUES
-  ('11111111-1111-1111-1111-111111111101', 'Vincent', TRUE),
-  ('11111111-1111-1111-1111-111111111102', 'Léa', TRUE),
-  ('11111111-1111-1111-1111-111111111103', 'Max', TRUE),
-  ('11111111-1111-1111-1111-111111111104', 'Sophie', TRUE),
-  ('11111111-1111-1111-1111-111111111105', 'Thomas', TRUE),
-  ('11111111-1111-1111-1111-111111111106', 'Camille', TRUE),
-  ('11111111-1111-1111-1111-111111111107', 'Julien', TRUE),
-  ('11111111-1111-1111-1111-111111111108', 'Nina', TRUE)
+-- Joueurs (créés avant la J1 pour que les séries de participation soient cohérentes)
+INSERT INTO public.players (id, display_name, is_active, created_at) VALUES
+  ('11111111-1111-1111-1111-111111111101', 'Vincent', TRUE, '2026-07-01T10:00:00Z'),
+  ('11111111-1111-1111-1111-111111111102', 'Léa', TRUE, '2026-07-01T10:00:00Z'),
+  ('11111111-1111-1111-1111-111111111103', 'Max', TRUE, '2026-07-01T10:00:00Z'),
+  ('11111111-1111-1111-1111-111111111104', 'Sophie', TRUE, '2026-07-01T10:00:00Z'),
+  ('11111111-1111-1111-1111-111111111105', 'Thomas', TRUE, '2026-07-01T10:00:00Z'),
+  ('11111111-1111-1111-1111-111111111106', 'Camille', TRUE, '2026-07-01T10:00:00Z'),
+  ('11111111-1111-1111-1111-111111111107', 'Julien', TRUE, '2026-07-01T10:00:00Z'),
+  ('11111111-1111-1111-1111-111111111108', 'Nina', TRUE, '2026-07-01T10:00:00Z')
 ON CONFLICT (id) DO NOTHING;
 
 -- Matchs (kickoff_at stockés en UTC)
@@ -180,3 +180,22 @@ INSERT INTO public.predictions (
     1, 2, 3
   )
 ON CONFLICT (player_id, match_id) DO NOTHING;
+
+-- Les points sont pré-renseignés dans le seed : recalculer trophées / séries
+-- pour que l’onglet Classement reste cohérent avec le podium.
+DO $$
+DECLARE
+  v_season_id UUID;
+BEGIN
+  SELECT s.id
+  INTO v_season_id
+  FROM public.seasons AS s
+  WHERE s.is_active = TRUE
+  ORDER BY s.starts_at DESC
+  LIMIT 1;
+
+  IF v_season_id IS NOT NULL THEN
+    PERFORM public.recalculate_season_achievements(v_season_id);
+  END IF;
+END;
+$$;

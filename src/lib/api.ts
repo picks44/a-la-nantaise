@@ -495,6 +495,10 @@ export async function fetchTrophyOverview(input: {
               row.sourceRoundNumber == null
                 ? null
                 : Number(row.sourceRoundNumber),
+            sourceMatchLabel:
+              row.sourceMatchLabel == null
+                ? null
+                : String(row.sourceMatchLabel),
             presentedAt:
               row.presentedAt == null ? null : String(row.presentedAt),
           }
@@ -509,6 +513,12 @@ export async function fetchTrophyOverview(input: {
             description: String(row.description ?? ''),
             icon: String(row.icon ?? ''),
             repeatable: Boolean(row.repeatable),
+            progressCurrent:
+              row.progressCurrent == null
+                ? null
+                : Number(row.progressCurrent),
+            progressTarget:
+              row.progressTarget == null ? null : Number(row.progressTarget),
           }
         })
       : [],
