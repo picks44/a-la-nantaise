@@ -1,0 +1,173 @@
+{
+  "teams": [
+    {
+      "team": {
+        "id": 83,
+        "name": "Nantes",
+        "code": "NAN",
+        "country": "France"
+      }
+    }
+  ],
+  "leagues": [
+    {
+      "league": { "id": 62, "name": "Ligue 2", "type": "League" },
+      "country": { "name": "France" },
+      "seasons": [
+        {
+          "year": 2025,
+          "coverage": {
+            "fixtures": {
+              "events": true,
+              "lineups": true,
+              "statistics_fixtures": true,
+              "statistics_players": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "league": { "id": 66, "name": "Coupe de France", "type": "Cup" },
+      "country": { "name": "France" },
+      "seasons": [
+        {
+          "year": 2025,
+          "coverage": {
+            "fixtures": {
+              "events": true,
+              "lineups": true,
+              "statistics_fixtures": false,
+              "statistics_players": false
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "fixtures": [
+    {
+      "fixture": {
+        "id": 1200001,
+        "date": "2026-08-15T18:00:00+00:00",
+        "status": { "short": "NS", "elapsed": null, "extra": null },
+        "venue": { "name": "La Beaujoire" }
+      },
+      "league": {
+        "id": 62,
+        "season": 2025,
+        "round": "Regular Season - 1"
+      },
+      "teams": {
+        "home": { "id": 83, "name": "Nantes" },
+        "away": { "id": 95, "name": "Valenciennes" }
+      },
+      "goals": { "home": null, "away": null },
+      "score": {
+        "halftime": { "home": null, "away": null },
+        "fulltime": { "home": null, "away": null }
+      }
+    },
+    {
+      "fixture": {
+        "id": 1200002,
+        "date": "2026-08-10T15:00:00+00:00",
+        "status": { "short": "2H", "elapsed": 67, "extra": null },
+        "venue": { "name": "Stade du Hainaut" }
+      },
+      "league": {
+        "id": 62,
+        "season": 2025,
+        "round": "Regular Season - 2"
+      },
+      "teams": {
+        "home": { "id": 106, "name": "Stade Lavallois" },
+        "away": { "id": 83, "name": "Nantes" }
+      },
+      "goals": { "home": 1, "away": 2 },
+      "score": {
+        "halftime": { "home": 0, "away": 1 },
+        "fulltime": { "home": null, "away": null }
+      },
+      "events": [
+        {
+          "time": { "elapsed": 22, "extra": null },
+          "team": { "id": 83 },
+          "player": { "name": "Joueur A" },
+          "assist": { "name": null },
+          "type": "Goal",
+          "detail": "Normal Goal"
+        },
+        {
+          "time": { "elapsed": 55, "extra": null },
+          "team": { "id": 106 },
+          "player": { "name": "Joueur B" },
+          "assist": { "name": null },
+          "type": "Card",
+          "detail": "Yellow Card"
+        },
+        {
+          "time": { "elapsed": 60, "extra": null },
+          "team": { "id": 83 },
+          "player": { "name": "Joueur C" },
+          "assist": { "name": "Joueur D" },
+          "type": "subst",
+          "detail": "Substitution 1"
+        }
+      ],
+      "lineups": [
+        {
+          "team": { "id": 106, "name": "Stade Lavallois" },
+          "formation": "4-3-3",
+          "coach": { "name": "Coach L" },
+          "startXI": [
+            { "player": { "id": 1, "name": "Gardien L", "number": 1, "pos": "G", "grid": "1:1" } }
+          ],
+          "substitutes": [
+            { "player": { "id": 2, "name": "Remplaçant L", "number": 12, "pos": "M", "grid": null } }
+          ]
+        },
+        {
+          "team": { "id": 83, "name": "Nantes" },
+          "formation": "4-2-3-1",
+          "coach": { "name": "Coach N" },
+          "startXI": [
+            { "player": { "id": 10, "name": "Gardien N", "number": 1, "pos": "G", "grid": "1:1" } }
+          ],
+          "substitutes": []
+        }
+      ],
+      "statistics": [
+        {
+          "team": { "id": 83, "name": "Nantes" },
+          "statistics": [{ "type": "Shots on Goal", "value": 5 }]
+        }
+      ]
+    },
+    {
+      "fixture": {
+        "id": 1200003,
+        "date": "2026-08-01T19:00:00+00:00",
+        "status": { "short": "FT", "elapsed": 90, "extra": 4 },
+        "venue": { "name": "La Beaujoire" }
+      },
+      "league": {
+        "id": 62,
+        "season": 2025,
+        "round": "Regular Season - 3"
+      },
+      "teams": {
+        "home": { "id": 83, "name": "Nantes" },
+        "away": { "id": 130, "name": "Amiens SC" }
+      },
+      "goals": { "home": 2, "away": 0 },
+      "score": {
+        "halftime": { "home": 1, "away": 0 },
+        "fulltime": { "home": 2, "away": 0 }
+      },
+      "events": [],
+      "lineups": [],
+      "statistics": []
+    }
+  ]
+}
