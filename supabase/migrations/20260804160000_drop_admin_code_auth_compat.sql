@@ -1,14 +1,16 @@
--- À exécuter APRÈS le déploiement de :
---   1) migrations jusqu’à 20260804150000 (déjà appliquées)
---   2) Edge Function sync-fc-nantes (auth via login_admin / admin_session_token)
---   3) front admin (plus de p_admin_code en clair)
+-- Release B (20260804160000) : retrait définitif de la compatibilité temporaire
+-- “admin code brut” dans assert_admin_session.
 --
--- Retire le fallback « code admin » dans assert_admin_session.
--- Ne laisse plus qu’un seul système d’auth admin : sessions opaques.
+-- Objectif :
+-- - empêcher toute authentification admin RPC via un code admin brut ;
+-- - conserver le parcours cron : admin_code -> login_admin -> admin_session_token
+--   -> RPC admin liées à la session.
 --
--- Ne pas inclure dans un db reset tant que la fenêtre de bascule n’est pas
--- terminée en staging/prod. Appliquer manuellement :
---   psql ... -f supabase/maintenance/drop_admin_code_auth_compat.sql
+-- Important :
+-- - ne pas modifier l’historique des migrations existantes ;
+-- - ne pas supprimer login_admin et les helpers nécessaires.
+
+DROP FUNCTION IF EXISTS public.assert_admin_session(TEXT);
 
 CREATE OR REPLACE FUNCTION public.assert_admin_session(p_admin_session_token TEXT)
 RETURNS VOID
@@ -43,3 +45,4 @@ REVOKE ALL ON FUNCTION public.assert_admin_session(TEXT) FROM anon, authenticate
 
 COMMENT ON FUNCTION public.assert_admin_session(TEXT) IS
   'Auth admin stricte : jeton de session opaque uniquement.';
+

@@ -255,7 +255,53 @@ BEGIN
 END;
 $$;
 
--- 8) Expiration 12h : session expirée refusée
+-- 8) Release B : refus du code admin brut pour toutes les RPC admin liés
+-- à assert_admin_session (compat temporaire retirée).
+-- Sous l’ancien fallback (Release A), assert_admin_session('admin-test-code')
+-- aurait réussi via assert_admin_code. Ici, on doit obtenir INVALID_ADMIN_SESSION.
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.assert_admin_session('admin-test-code');
+    RAISE EXCEPTION 'TEST_FAIL: assert_admin_session doit refuser le code admin brut';
+  EXCEPTION
+    WHEN OTHERS THEN
+      IF SQLERRM NOT LIKE '%INVALID_ADMIN_SESSION%'
+         AND SQLERRM NOT LIKE '%INVALID_SESSION%' THEN
+        RAISE;
+      END IF;
+  END;
+END;
+$$;
+
+DO $$
+DECLARE
+  v_ok boolean;
+BEGIN
+  SELECT public.verify_admin_code('admin-test-code') INTO v_ok;
+
+  IF v_ok IS NOT FALSE THEN
+    RAISE EXCEPTION 'TEST_FAIL: verify_admin_code doit renvoyer false pour un code admin brut';
+  END IF;
+END;
+$$;
+
+DO $$
+BEGIN
+  BEGIN
+    PERFORM * FROM public.admin_get_stats('admin-test-code');
+    RAISE EXCEPTION 'TEST_FAIL: admin_get_stats ne doit pas accepter un code admin brut';
+  EXCEPTION
+    WHEN OTHERS THEN
+      IF SQLERRM NOT LIKE '%INVALID_ADMIN_SESSION%'
+         AND SQLERRM NOT LIKE '%INVALID_SESSION%' THEN
+        RAISE;
+      END IF;
+  END;
+END;
+$$;
+
+-- 9) Expiration 12h : session expirée refusée
 DO $$
 DECLARE
   v_token text;

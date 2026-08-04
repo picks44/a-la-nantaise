@@ -67,9 +67,9 @@ WHERE proname = 'nom_de_la_fonction';
 2. **Edge Function `sync-fc-nantes`** — auth via `login_admin` (cron/`admin_code`)
    ou `admin_session_token` (manuel) ; RPC uniquement en signatures session.
 3. **Front** (Vercel) — UI admin session opaque, plus de code en clair stocké.
-4. **Retrait compat** — exécuter
-   `supabase/maintenance/drop_admin_code_auth_compat.sql` pour ne laisser
-   que les sessions opaques (ne pas laisser deux auth exposées durablement).
+4. **Retrait compat** — appliquer la migration
+   `20260804160000_drop_admin_code_auth_compat` (ne laisser que les sessions
+   opaques, sans exécuter de script de maintenance manuel).
 
 Pendant l’étape 1→2, l’ancienne Edge continue de fonctionner. Ne pas déployer
 le front avant les migrations (sinon PIN / horaires / admin session cassés).

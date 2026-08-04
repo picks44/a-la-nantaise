@@ -27,6 +27,27 @@ WHERE NOT EXISTS (
   SELECT 1 FROM public.app_settings AS s WHERE s.key = 'admin_code_hash'
 );
 
+-- Release B : assert_admin_session n’accepte plus le code admin brut.
+-- On obtient donc un jeton de session opaque pour les RPC admin.
+DO $$
+DECLARE
+  v_admin_token text;
+BEGIN
+  UPDATE public.admin_auth_state
+  SET failed_attempts = 0, locked_until = NULL
+  WHERE id = TRUE;
+
+  SELECT l.session_token INTO v_admin_token
+  FROM public.login_admin('test-admin-aln') AS l;
+
+  IF v_admin_token IS NULL THEN
+    RAISE EXCEPTION 'TEST_FAIL: login_admin avec le code admin de test a échoué';
+  END IF;
+
+  PERFORM set_config('test.admin_token', v_admin_token, true);
+END;
+$$;
+
 INSERT INTO public.players (id, display_name, is_active)
 VALUES
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaac01', 'Pin Joueur A', TRUE),
@@ -112,7 +133,7 @@ DECLARE
 BEGIN
   SELECT * INTO rec
   FROM public.admin_reset_player_pin(
-    'test-admin-aln',
+    current_setting('test.admin_token'),
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaac01'
   );
 
@@ -354,7 +375,7 @@ DECLARE
 BEGIN
   PERFORM *
   FROM public.admin_reset_player_pin(
-    'test-admin-aln',
+    current_setting('test.admin_token'),
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaac02'
   );
 
@@ -396,7 +417,7 @@ BEGIN
   END;
 
   PERFORM public.admin_unlock_player_pin(
-    'test-admin-aln',
+    current_setting('test.admin_token'),
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaac02'
   );
 
