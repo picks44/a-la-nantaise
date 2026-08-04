@@ -2,7 +2,9 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const rootDir = join(dirname(fileURLToPath(import.meta.url)), '..')
+const defaultRootDir = join(dirname(fileURLToPath(import.meta.url)), '..')
+const INVALID_URL_LABEL = 'URL invalide'
+const INVALID_HOSTNAME = 'invalide'
 
 function parseDotenvFile(path) {
   if (!existsSync(path)) return {}
@@ -22,6 +24,40 @@ function parseDotenvFile(path) {
   return values
 }
 
+function getEnvFileSequence(mode) {
+  switch (mode) {
+    case 'default':
+      return ['.env']
+    case 'local':
+      return ['.env.local']
+    case 'effective':
+      return ['.env', '.env.local', '.env.development', '.env.development.local']
+    default:
+      throw new Error(`Mode invalide: ${mode}`)
+  }
+}
+
+function getSourceLabel(mode) {
+  switch (mode) {
+    case 'default':
+      return '.env'
+    case 'local':
+      return '.env.local'
+    case 'effective':
+      return '.env puis .env.local puis .env.development puis .env.development.local'
+    default:
+      throw new Error(`Mode invalide: ${mode}`)
+  }
+}
+
+function loadEnvFiles(rootDir, mode) {
+  const values = {}
+  for (const fileName of getEnvFileSequence(mode)) {
+    Object.assign(values, parseDotenvFile(join(rootDir, fileName)))
+  }
+  return values
+}
+
 function toSafeTarget(urlValue) {
   if (!urlValue) {
     return {
@@ -36,9 +72,9 @@ function toSafeTarget(urlValue) {
     parsed = new URL(urlValue)
   } catch {
     return {
-      label: 'URL invalide',
-      origin: urlValue,
-      hostname: 'invalide',
+      label: INVALID_URL_LABEL,
+      origin: INVALID_URL_LABEL,
+      hostname: INVALID_HOSTNAME,
     }
   }
 
@@ -54,43 +90,21 @@ function toSafeTarget(urlValue) {
   }
 }
 
-export function diagnoseFrontendTarget(mode) {
-  const envPath = join(rootDir, '.env')
-  const envLocalPath = join(rootDir, '.env.local')
-  const envDefault = parseDotenvFile(envPath)
-  const envLocal = parseDotenvFile(envLocalPath)
-
-  let sourceLabel
-  let values
-
-  switch (mode) {
-    case 'default':
-      sourceLabel = '.env'
-      values = envDefault
-      break
-    case 'local':
-      sourceLabel = '.env.local'
-      values = envLocal
-      break
-    case 'effective':
-      sourceLabel = '.env puis .env.local (prioritaire)'
-      values = { ...envDefault, ...envLocal }
-      break
-    default:
-      throw new Error(`Mode invalide: ${mode}`)
-  }
+export function diagnoseFrontendTarget(mode, options = {}) {
+  const rootDir = options.rootDir ?? defaultRootDir
+  const values = loadEnvFiles(rootDir, mode)
 
   return {
     mode,
-    sourceLabel,
-    url: values.VITE_SUPABASE_URL ?? '',
+    sourceLabel: getSourceLabel(mode),
     ...toSafeTarget(values.VITE_SUPABASE_URL ?? ''),
   }
 }
 
 function main() {
   const mode = process.argv[2] ?? 'effective'
-  const diagnostic = diagnoseFrontendTarget(mode)
+  const rootDir = process.argv[3] ?? defaultRootDir
+  const diagnostic = diagnoseFrontendTarget(mode, { rootDir })
 
   console.log(`Frontend ${mode}: ${diagnostic.label}`)
   console.log(`Source: ${diagnostic.sourceLabel}`)

@@ -39,14 +39,12 @@ cp .env.example .env
 | CI GitHub | workflow automatique | pas de serveur persistant | aucun projet réel | aucun | `.github/workflows/ci.yml` injecte des placeholders | ne valide pas une vraie instance Supabase |
 | Vercel Preview / Production | build Vercel | domaine Vercel | dépend des variables Vercel | aucun | `vercel.json` + variables Vercel | le repo ne contient pas le project ref Supabase distant |
 
-### Ce qui est constaté actuellement
+### Comportement du dépôt
 
 - `npm run dev` lance **uniquement Vite**.
-- `.env` pointe vers un Supabase **distant**.
-- `.env.local`, prioritaire pour Vite en local, pointe vers `http://127.0.0.1:54321`.
-- Donc, dans l’état actuel du dépôt local, **le frontend localhost utilise Supabase local**.
-- La stack Supabase locale est exécutée par la **CLI Supabase via Docker**.
-- Il n’existe **aucun** `Dockerfile` ni fichier Compose dédié à l’application.
+- si `.env.local` existe, Vite le charge avant `.env` en développement ;
+- la stack Supabase locale est exécutée par la **CLI Supabase via Docker** ;
+- il n’existe **aucun** `Dockerfile` ni fichier Compose dédié à l’application.
 
 ## Diagnostic rapide de la cible frontend
 
@@ -117,14 +115,35 @@ Ne jamais configurer dans Vercel :
 
 ## Démarrage local avec Supabase local
 
-1. Vérifier que `.env.local` pointe vers `http://127.0.0.1:54321`.
-2. Lancer la stack locale :
+1. Lancer la stack locale :
 
 ```bash
 supabase start
 ```
 
-3. Lancer le frontend :
+2. Récupérer l’URL locale et la clé anon publique sans les copier depuis ce README :
+
+```bash
+supabase status
+```
+
+À relever dans la sortie :
+
+- l’API locale, typiquement `http://127.0.0.1:54321` ;
+- la clé `ANON_KEY` locale générée par Supabase CLI.
+
+3. Créer `.env.local` à partir de ces informations :
+
+```bash
+cat > .env.local <<'EOF'
+VITE_SUPABASE_URL=http://127.0.0.1:54321
+VITE_SUPABASE_ANON_KEY=COLLE_ICI_LA_CLE_ANON_LOCALE
+EOF
+```
+
+Ne jamais y mettre de `service_role`.
+
+4. Lancer le frontend :
 
 ```bash
 npm run dev
@@ -138,12 +157,12 @@ Services locaux attendus :
 
 ## Démarrage local avec un Supabase distant
 
-Ce mode existe réellement via `.env`, mais il n’est **pas** le mode par défaut constaté localement tant que `.env.local` existe.
+Ce mode existe si `.env` contient une cible distante et qu’aucun fichier prioritaire ne l’écrase.
 
 Procédure :
 
 1. diagnostiquer la cible actuelle avec `npm run env:frontend:effective` ;
-2. neutraliser temporairement `.env.local` si tu veux utiliser la cible de `.env` ;
+2. s’assurer qu’aucun `.env.local` ou `.env.development.local` ne pointe ailleurs ;
 3. relancer `npm run dev`.
 
 Le repo ne permet pas d’identifier seul si la cible distante correspond à la preview, au staging ou à la production : cette information dépend des variables réellement configurées hors dépôt.
