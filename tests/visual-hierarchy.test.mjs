@@ -67,12 +67,28 @@ describe('visual hierarchy polish', () => {
     assert.match(podium, /h-5 w-1\.5.*bg-green/)
   })
 
-  it('uses green for desktop active nav and sticky header', () => {
+  it('uses green for desktop active nav and sticky header with crest mark', () => {
     const layout = read('src/components/Layout.tsx')
     assert.match(layout, /sticky top-0/)
     assert.match(layout, /after:bg-green/)
     assert.match(layout, /text-green-dark/)
     assert.match(layout, /min-h-11/)
+    assert.match(layout, /BrandMark/)
+    assert.match(layout, /bg-yellow/)
+  })
+
+  it('centralizes brand crest colors sampled from the logo', () => {
+    const css = read('src/index.css')
+    assert.match(css, /--color-yellow:\s*#feca03/)
+    assert.match(css, /--color-green:\s*#055d46/)
+    assert.match(css, /--color-green-dark:\s*#033528/)
+    assert.match(css, /--color-on-green/)
+    assert.match(css, /--color-on-yellow/)
+    assert.match(css, /--color-info/)
+    const html = read('index.html')
+    assert.match(html, /theme-color" content="#055D46"/)
+    assert.match(html, /favicon\.ico/)
+    assert.match(html, /favicon-32\.png/)
   })
 
   it('compacts board score inputs and keeps font-size mobile-safe', () => {

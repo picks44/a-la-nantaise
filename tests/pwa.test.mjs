@@ -64,13 +64,18 @@ describe('pwa helpers', () => {
     assert.doesNotMatch(push, /supabase|service_role|VAPID_PRIVATE|aln_access_code/)
   })
 
-  it('ships real icon dimensions and temporary ALN branding files', () => {
+  it('ships real icon dimensions and ALN crest branding files', () => {
     const icons = [
       ['public/icons/icon-192.png', 192],
       ['public/icons/icon-512.png', 512],
       ['public/icons/icon-192-maskable.png', 192],
       ['public/icons/icon-512-maskable.png', 512],
       ['public/icons/apple-touch-icon.png', 180],
+      ['public/icons/favicon-16.png', 16],
+      ['public/icons/favicon-32.png', 32],
+      ['public/icons/favicon-48.png', 48],
+      ['public/brand/aln-logo-512.png', 512],
+      ['public/brand/aln-logo.png', 1254],
     ]
     for (const [relative, expected] of icons) {
       const path = join(root, relative)
@@ -86,6 +91,8 @@ describe('pwa helpers', () => {
       assert.equal(width, expected, `${relative} width`)
       assert.equal(height, expected, `${relative} height`)
     }
+    assert.equal(existsSync(join(root, 'public/favicon.svg')), true)
+    assert.equal(existsSync(join(root, 'public/favicon.ico')), true)
   })
 
   it('keeps SPA fallback and adds no-cache headers for the service worker', () => {
@@ -138,7 +145,8 @@ describe('pwa dist artifacts', () => {
     assert.equal(manifest.scope, '/')
     assert.equal(manifest.display, 'standalone')
     assert.equal(manifest.lang, 'fr')
-    assert.equal(manifest.theme_color, '#ffdd00')
+    assert.equal(manifest.theme_color, '#055D46')
+    assert.equal(manifest.background_color, '#055D46')
     assert.ok(Array.isArray(manifest.icons))
     assert.ok(manifest.icons.length >= 4)
 

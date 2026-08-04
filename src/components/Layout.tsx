@@ -1,5 +1,6 @@
 import { Link, NavLink } from 'react-router-dom'
 import { CalendarDays, Home, Settings, Trophy } from 'lucide-react'
+import { BrandMark } from './BrandMark'
 import { useSession } from '../context/useSession'
 
 const navItems = [
@@ -31,12 +32,13 @@ export function Header() {
     <header className="sticky top-0 z-40 border-b border-ink bg-yellow">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="hidden size-9 shrink-0 items-center justify-center border border-ink bg-ink text-[11px] font-black tracking-tight text-yellow sm:inline-flex"
+          <Link
+            to="/"
+            className="hidden shrink-0 rounded-[var(--radius-sm)] p-0.5 sm:block"
+            aria-label="À la Nantaise — accueil"
           >
-            ALN
-          </span>
+            <BrandMark size="sm" className="rounded-[var(--radius-sm)]" />
+          </Link>
           <div className="min-w-0">
             <Link
               to="/"

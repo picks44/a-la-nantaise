@@ -13,22 +13,33 @@
 @import "@fontsource/poppins/latin-ext-900.css";
 
 @theme {
-  /* brand-yellow */ --color-yellow: #ffdd00;
-  /* brand-green */ --color-green: #008a4b;
-  /* brand-green-dark */ --color-green-dark: #063f2e;
+  /*
+   * Brand palette sampled from the heraldic crest
+   * (public/brand/aln-logo.png): green #055D46, yellow #FECA03.
+   */
+  /* brand-yellow */ --color-yellow: #feca03;
+  /* brand-yellow soft accent surface */ --color-yellow-soft: #fff4c2;
+  /* brand-green */ --color-green: #055d46;
+  /* brand-green-dark — hover/active & text on yellow */ --color-green-dark: #033528;
+  /* brand-green soft surface */ --color-green-soft: #e6f0ec;
   --color-ink: #191919;
   --color-canvas: #f4f4f0;
   --color-surface: #ffffff;
   --color-surface-muted: #ecece6;
   --color-muted: #5c5c56;
   --color-border: #d0d0c8;
-  --color-success: #008a4b;
-  --color-success-soft: #e6f4ec;
+  --color-on-green: #ffffff;
+  --color-on-yellow: #191919;
+  --color-disabled: #9a9a92;
+  --color-success: #055d46;
+  --color-success-soft: #e6f0ec;
   --color-warning: #9a6700;
   --color-warning-soft: #faf0d7;
   --color-danger: #b42318;
   --color-danger-soft: #f8e8e6;
-  --color-focus: #008a4b;
+  --color-info: #0b5cab;
+  --color-info-soft: #e7f0fa;
+  --color-focus: #055d46;
 
   --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
 
@@ -118,11 +129,16 @@
   }
 
   .btn-ink {
-    @apply inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-ink bg-ink px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-yellow uppercase transition hover:bg-green-dark disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[12rem];
+    @apply inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-green-dark bg-green-dark px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-yellow uppercase transition hover:bg-green active:brightness-95 disabled:cursor-not-allowed disabled:border-disabled disabled:bg-disabled disabled:text-on-green disabled:opacity-100 sm:w-auto sm:min-w-[12rem];
+  }
+
+  .btn-ink:focus-visible {
+    outline-color: var(--color-yellow);
+    outline-offset: 3px;
   }
 
   .btn-green {
-    @apply inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-green-dark bg-green-dark px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-white uppercase transition hover:bg-green active:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:min-w-[12rem];
+    @apply inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-green-dark bg-green px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-on-green uppercase transition hover:bg-green-dark active:brightness-95 disabled:cursor-not-allowed disabled:border-disabled disabled:bg-disabled disabled:text-on-green disabled:opacity-100 sm:w-auto sm:min-w-[12rem];
   }
 
   .btn-green:focus-visible {
@@ -142,9 +158,9 @@
     @apply inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-danger bg-danger-soft px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-danger uppercase transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto;
   }
 
-  /* Alias conservé pour les appels existants. */
+  /* Accent jaune — texte encre pour contraste AA (jamais jaune sur blanc). */
   .btn-yellow {
-    @apply inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-ink bg-yellow px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-ink uppercase transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto;
+    @apply inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-ink bg-yellow px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-on-yellow uppercase transition hover:brightness-95 active:brightness-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto;
   }
 
   .field-input {

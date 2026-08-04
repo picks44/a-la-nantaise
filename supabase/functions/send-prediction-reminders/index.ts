@@ -17,8 +17,8 @@ const UUID_RE =
 const SMOKE_TEST_PAYLOAD = {
   title: 'À la Nantaise',
   body: 'Test des rappels réussi. Les notifications sont bien activées.',
-  icon: '/pwa-192x192.png',
-  badge: '/pwa-192x192.png',
+  icon: '/icons/icon-192.png',
+  badge: '/icons/icon-192.png',
   tag: 'push-smoke-test',
   data: {
     url: '/parametres',

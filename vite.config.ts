@@ -21,6 +21,12 @@ export default defineConfig({
       injectRegister: false,
       includeAssets: [
         'favicon.svg',
+        'favicon.ico',
+        'brand/aln-logo.png',
+        'brand/aln-logo-512.png',
+        'icons/favicon-16.png',
+        'icons/favicon-32.png',
+        'icons/favicon-48.png',
         'icons/apple-touch-icon.png',
         'icons/icon-192.png',
         'icons/icon-512.png',
@@ -39,8 +45,8 @@ export default defineConfig({
         scope: '/',
         display: 'standalone',
         orientation: 'any',
-        background_color: '#f4f4f0',
-        theme_color: '#ffdd00',
+        background_color: '#055D46',
+        theme_color: '#055D46',
         categories: ['sports', 'entertainment'],
         icons: [
           {

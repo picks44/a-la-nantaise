@@ -8,6 +8,7 @@ import {
 } from 'react'
 import { Link } from 'react-router-dom'
 import { KeyRound, LogOut } from 'lucide-react'
+import { BrandMark } from '../components/BrandMark'
 import { ConfirmModal } from '../components/ConfirmModal'
 import {
   adminClearMatchOverride,
@@ -227,13 +228,16 @@ function AdminShell({
     <div className="flex min-h-dvh flex-col bg-canvas">
       <header className="border-b-2 border-ink bg-yellow px-4 py-3">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-          <div>
-            <p className="text-lg font-black tracking-tight uppercase">
-              Administration
-            </p>
-            <p className="text-[10px] font-bold tracking-[0.16em] text-green-dark uppercase">
-              À la Nantaise · Pronos 26/27
-            </p>
+          <div className="flex min-w-0 items-center gap-3">
+            <BrandMark size="sm" className="rounded-[var(--radius-sm)]" />
+            <div className="min-w-0">
+              <p className="text-lg font-black tracking-tight uppercase">
+                Administration
+              </p>
+              <p className="text-[10px] font-bold tracking-[0.16em] text-green-dark uppercase">
+                À la Nantaise · Pronos 26/27
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Link

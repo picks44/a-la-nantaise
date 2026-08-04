@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router-dom'
+import { BrandMark } from './BrandMark'
 import { BottomNav, Header } from './Layout'
 import { useSession } from '../context/useSession'
 import { AccessPage } from '../pages/AccessPage'
@@ -8,7 +9,8 @@ export function AppShell() {
 
   if (phase === 'loading') {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-canvas px-4">
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-canvas px-4">
+        <BrandMark size="lg" decorative={false} className="rounded-[var(--radius-md)]" />
         <p className="text-sm font-black tracking-[0.14em] text-ink uppercase">
           Chargement…
         </p>

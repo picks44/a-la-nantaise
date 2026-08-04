@@ -1,12 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <rect width="32" height="32" fill="#FFDD00"/>
-  <text
-    x="16"
-    y="21"
-    text-anchor="middle"
-    font-family="Arial Black, Arial, sans-serif"
-    font-size="11"
-    font-weight="900"
-    fill="#191919"
-  >ALN</text>
+  <rect width="32" height="32" fill="#055D46"/>
+  <path d="M4.5 3.5h23v6.2L16 28.5 4.5 9.7V3.5z" fill="#FECA03"/>
+  <path d="M7.2 5.6h17.6v4.6L16 24.2 7.2 10.2V5.6z" fill="#055D46"/>
+  <text x="16" y="16.2" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="7.5" font-weight="900" fill="#FECA03">ALN</text>
 </svg>

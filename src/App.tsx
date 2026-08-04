@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
+import { BrandMark } from './components/BrandMark'
 import { PwaOfflineBanner } from './components/PwaOfflineBanner'
 import { PwaUpdateBanner } from './components/PwaUpdateBanner'
 import { SessionProvider } from './context/SessionProvider'
@@ -26,7 +27,12 @@ export default function App() {
             element={
               <Suspense
                 fallback={
-                  <div className="flex min-h-dvh items-center justify-center bg-canvas px-4">
+                  <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-canvas px-4">
+                    <BrandMark
+                      size="lg"
+                      decorative={false}
+                      className="rounded-[var(--radius-md)]"
+                    />
                     <p className="text-sm font-black tracking-[0.14em] text-ink uppercase">
                       Chargement…
                     </p>

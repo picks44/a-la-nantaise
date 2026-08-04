@@ -1,5 +1,6 @@
 import { useId, useState, type FormEvent, type ReactNode } from 'react'
 import { KeyRound, LockKeyhole, UserRound } from 'lucide-react'
+import { BrandMark } from '../components/BrandMark'
 import { useSession } from '../context/useSession'
 import { logDevError, toUserMessage } from '../lib/errors'
 import { isValidPinFormat, sanitizePinInput } from '../lib/pin'
@@ -369,12 +370,7 @@ function AccessShell({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col bg-canvas">
       <header className="border-b-2 border-ink bg-yellow px-4 py-4">
         <div className="mx-auto flex max-w-lg items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="inline-flex size-10 items-center justify-center bg-ink text-[11px] font-black tracking-tight text-yellow"
-          >
-            ALN
-          </span>
+          <BrandMark size="md" className="rounded-[var(--radius-sm)]" />
           <div>
             <p className="text-xl font-black tracking-tight text-ink uppercase">
               À la Nantaise

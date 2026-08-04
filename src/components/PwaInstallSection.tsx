@@ -1,4 +1,5 @@
 import { Download, Share } from 'lucide-react'
+import { BrandMark } from './BrandMark'
 import { usePwaInstall } from '../hooks/usePwaInstall'
 
 export function PwaInstallSection() {
@@ -16,15 +17,21 @@ export function PwaInstallSection() {
 
   return (
     <section aria-labelledby="pwa-install-title" className="panel p-4">
-      <h2
-        id="pwa-install-title"
-        className="text-sm font-black tracking-[0.08em] uppercase"
-      >
-        Application
-      </h2>
-      <p className="mt-1 text-sm text-muted">
-        Installe À la Nantaise sur ton écran d’accueil pour un accès plus rapide.
-      </p>
+      <div className="flex items-start gap-3">
+        <BrandMark size="md" className="rounded-[var(--radius-sm)]" />
+        <div className="min-w-0">
+          <h2
+            id="pwa-install-title"
+            className="text-sm font-black tracking-[0.08em] uppercase"
+          >
+            Application
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            Installe À la Nantaise sur ton écran d’accueil pour un accès plus
+            rapide.
+          </p>
+        </div>
+      </div>
 
       {canNativeInstall ? (
         <button
