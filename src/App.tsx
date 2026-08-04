@@ -6,7 +6,6 @@ import { PwaUpdateBanner } from './components/PwaUpdateBanner'
 import { SessionProvider } from './context/SessionProvider'
 import { CalendarPage } from './pages/CalendarPage'
 import { HomePage } from './pages/HomePage'
-import { MatchCenterPage } from './pages/MatchCenterPage'
 import { RankingPage } from './pages/RankingPage'
 import { SettingsPage } from './pages/SettingsPage'
 
@@ -41,7 +40,6 @@ export default function App() {
           <Route element={<AppShell />}>
             <Route index element={<HomePage />} />
             <Route path="calendrier" element={<CalendarPage />} />
-            <Route path="match" element={<MatchCenterPage />} />
             <Route path="classement" element={<RankingPage />} />
             <Route path="parametres" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />

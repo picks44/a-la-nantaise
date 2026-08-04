@@ -284,8 +284,7 @@ npm run test:sql:isolation
 - `supabase/migrations/` : schéma, RPC et sécurité SQL
 - `supabase/tests/` : suites SQL exécutées sur la stack test isolée
 - `supabase-test/` : workdir CLI de la stack test (ports 55xxx, symlink vers les migrations)
-- `supabase/functions/` : Edge Functions `sync-fc-nantes`, `sync-api-football` (shadow) et `send-prediction-reminders`
-- `docs/api-football-shadow.md` : activation shadow API-Football (secrets, couverture, cron, repli)
+- `supabase/functions/` : Edge Functions `sync-fc-nantes` et `send-prediction-reminders`
 
 ## Déploiement
 
