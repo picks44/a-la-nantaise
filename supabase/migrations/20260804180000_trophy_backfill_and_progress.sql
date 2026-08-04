@@ -1,5 +1,6 @@
 -- Backfill trophées/séries après seed ou données historiques,
 -- et enrichit l’overview avec progression + libellé du match source.
+-- Le recalcul reste explicite (seed / migration / écritures métier), jamais depuis cette RPC de lecture.
 
 CREATE OR REPLACE FUNCTION public.get_player_trophy_overview(
   p_session_token TEXT,
@@ -12,31 +13,9 @@ SET search_path = public, extensions
 AS $$
 DECLARE
   v_player_id UUID;
-  v_has_stats BOOLEAN;
-  v_has_predictions BOOLEAN;
 BEGIN
   v_player_id := public.assert_player_session(p_session_token);
   PERFORM public.assert_season_exists(p_season_id);
-
-  -- Guérit les environnements seedés / importés sans recalcul.
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.player_season_stats AS pss
-    WHERE pss.season_id = p_season_id
-  )
-  INTO v_has_stats;
-
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.predictions AS pr
-    INNER JOIN public.matches AS m ON m.id = pr.match_id
-    WHERE m.season_id = p_season_id
-  )
-  INTO v_has_predictions;
-
-  IF NOT v_has_stats AND v_has_predictions THEN
-    PERFORM public.recalculate_season_achievements(p_season_id);
-  END IF;
 
   RETURN (
     WITH stats AS (
