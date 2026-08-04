@@ -315,6 +315,51 @@ describe('isolated SQL test guards', () => {
     )
   })
 
+  it('keeps the isolation script free of mutating SQL against the development database', () => {
+    const source = readFileSync(
+      join(rootDir, 'scripts/run-supabase-sql-isolation.mjs'),
+      'utf8',
+    )
+
+    assert.doesNotMatch(source, /_aln_sql_isolation_probe/)
+    assert.doesNotMatch(source, /LEGACY_PROBE_TABLE/)
+    assert.doesNotMatch(source, /\bDROP\s+TABLE\b/i)
+    assert.doesNotMatch(source, /\bCREATE\s+TABLE\b/i)
+    assert.doesNotMatch(source, /\bINSERT\s+INTO\b/i)
+    assert.doesNotMatch(source, /\bDELETE\s+FROM\b/i)
+    assert.doesNotMatch(source, /\bALTER\s+TABLE\b/i)
+    assert.doesNotMatch(source, /\bTRUNCATE\b/i)
+
+    const devSqlCalls = [
+      ...source.matchAll(
+        /dockerPsql\(\s*FORBIDDEN_DEV_DB_CONTAINER\s*,\s*`([\s\S]*?)`/g,
+      ),
+    ]
+    assert.ok(
+      devSqlCalls.length >= 1,
+      'expected at least one dockerPsql call against the development container',
+    )
+
+    for (const [, sql] of devSqlCalls) {
+      assert.match(sql, /^\s*SELECT\b/i)
+      for (const keyword of [
+        'DROP',
+        'CREATE',
+        'INSERT',
+        'UPDATE',
+        'DELETE',
+        'ALTER',
+        'TRUNCATE',
+      ]) {
+        assert.doesNotMatch(
+          sql,
+          new RegExp(`\\b${keyword}\\b`, 'i'),
+          `DEV dockerPsql SQL must not contain mutating keyword ${keyword}`,
+        )
+      }
+    }
+  })
+
   it('acquires a lock, blocks concurrent acquisition, and releases after success', () => {
     const lockDir = mkdtempSync(join(tmpdir(), 'aln-sql-lock-'))
     const lockPath = join(lockDir, 'test.lock')

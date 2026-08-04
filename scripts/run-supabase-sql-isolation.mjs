@@ -8,9 +8,6 @@ import {
 } from './supabase-test-shared.mjs'
 import { runSqlTests } from './run-supabase-sql-tests.mjs'
 
-/** Legacy write probe from an earlier isolation proof — remove if still present. */
-const LEGACY_PROBE_TABLE = '_aln_sql_isolation_probe'
-
 function dockerPsql(containerName, sql) {
   return execFileSync(
     'docker',
@@ -35,13 +32,6 @@ function dockerPsql(containerName, sql) {
       stdio: ['ignore', 'pipe', 'pipe'],
     },
   ).trim()
-}
-
-function dropLegacyProbeTable() {
-  dockerPsql(
-    FORBIDDEN_DEV_DB_CONTAINER,
-    `DROP TABLE IF EXISTS public.${LEGACY_PROBE_TABLE};`,
-  )
 }
 
 /**
@@ -89,8 +79,6 @@ function main() {
   process.stdout.write(
     'Optional isolation proof: read-only DEV fingerprint, SQL suite on TEST only.\n',
   )
-
-  dropLegacyProbeTable()
 
   const before = fingerprintDev()
   process.stdout.write('DEV fingerprint captured (sha256, not displayed).\n')
