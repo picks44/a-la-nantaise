@@ -47,10 +47,11 @@ import {
 import { localInputToUtcIso, utcIsoToLocalInput } from '../lib/datetime'
 import { toUserMessage } from '../lib/errors'
 import { formatKickoffDisplay, clampScore } from '../lib/format'
+import { ProviderAdmin } from '../components/ProviderAdmin'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { DbMatchStatus } from '../types'
 
-type AdminTab = 'matches' | 'players' | 'settings'
+type AdminTab = 'matches' | 'players' | 'provider' | 'settings'
 
 const STATUS_OPTIONS: DbMatchStatus[] = [
   'scheduled',
@@ -188,6 +189,7 @@ export function AdminPage() {
           [
             ['matches', 'Matchs'],
             ['players', 'Participants'],
+            ['provider', 'API-Football'],
             ['settings', 'Réglages'],
           ] as const
         ).map(([id, label]) => (
@@ -209,6 +211,7 @@ export function AdminPage() {
 
       {tab === 'matches' ? <MatchesAdmin sessionToken={sessionToken} /> : null}
       {tab === 'players' ? <PlayersAdmin sessionToken={sessionToken} /> : null}
+      {tab === 'provider' ? <ProviderAdmin sessionToken={sessionToken} /> : null}
       {tab === 'settings' ? (
         <SettingsAdmin sessionToken={sessionToken} />
       ) : null}

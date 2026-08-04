@@ -53,6 +53,17 @@ const KNOWN_CODES = [
   'FEED_TIMEOUT',
   'FEED_TOO_LARGE',
   'FEED_NOT_JSON',
+  'PROVIDER_DISABLED',
+  'PROVIDER_KEY_MISSING',
+  'PROVIDER_QUOTA_EXHAUSTED',
+  'PROVIDER_RATE_LIMITED',
+  'PROVIDER_TIMEOUT',
+  'PROVIDER_SYNC_COOLDOWN',
+  'PROVIDER_PROPOSAL_MISSING',
+  'MANUAL_RESULT_PROTECTED',
+  'PROVIDER_CONFLICT_NOT_FOUND',
+  'TEAM_NOT_CONFIGURED',
+  'NO_COMPETITIONS',
   'INVALID_PUSH_ENDPOINT',
   'INVALID_PUSH_KEYS',
   'PUSH_DEVICE_LIMIT',
@@ -206,6 +217,28 @@ export function toUserMessage(error: unknown): string {
       return 'La réponse du calendrier est trop volumineuse.'
     case 'FEED_NOT_JSON':
       return 'La réponse du calendrier n’est pas un JSON valide.'
+    case 'PROVIDER_DISABLED':
+      return 'L’intégration API-Football est désactivée.'
+    case 'PROVIDER_KEY_MISSING':
+      return 'La clé API-Football n’est pas configurée côté serveur.'
+    case 'PROVIDER_QUOTA_EXHAUSTED':
+      return 'Quota API-Football insuffisant pour aujourd’hui.'
+    case 'PROVIDER_RATE_LIMITED':
+      return 'Limite de débit API-Football atteinte. Réessaie plus tard.'
+    case 'PROVIDER_TIMEOUT':
+      return 'Délai dépassé lors de l’appel API-Football.'
+    case 'PROVIDER_SYNC_COOLDOWN':
+      return 'Synchronisation manuelle trop fréquente. Réessaie dans un instant.'
+    case 'PROVIDER_PROPOSAL_MISSING':
+      return 'Aucune proposition de résultat fournisseur pour ce match.'
+    case 'MANUAL_RESULT_PROTECTED':
+      return 'Une correction manuelle protège déjà ce résultat.'
+    case 'PROVIDER_CONFLICT_NOT_FOUND':
+      return 'Conflit de rapprochement introuvable.'
+    case 'TEAM_NOT_CONFIGURED':
+      return 'Équipe suivie non configurée. Vérifie-la d’abord.'
+    case 'NO_COMPETITIONS':
+      return 'Aucune compétition suivie n’est configurée.'
     case 'INVALID_PUSH_ENDPOINT':
       return 'Endpoint de notification invalide.'
     case 'INVALID_PUSH_KEYS':
