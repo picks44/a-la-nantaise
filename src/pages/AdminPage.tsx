@@ -26,10 +26,12 @@ import {
   adminUpdatePlayerName,
   ACCESS_CODE_MAX_LENGTH,
   ACCESS_CODE_MIN_LENGTH,
+  loginAdmin,
+  logoutAdmin,
   matchHasSourceDrift,
   matchSyncBadge,
   syncFcNantesMatches,
-  verifyAdminCode,
+  verifyAdminSession,
   type AdminMatch,
   type AdminPlayer,
   type AdminStats,
@@ -38,13 +40,13 @@ import {
 } from '../lib/adminApi'
 import { sortMatchesForList } from '../lib/matchOrder'
 import {
-  clearAdminCode,
-  readAdminCode,
-  saveAdminCode,
+  clearAdminSessionToken,
+  readAdminSessionToken,
+  saveAdminSessionToken,
 } from '../lib/adminSession'
 import { localInputToUtcIso, utcIsoToLocalInput } from '../lib/datetime'
 import { toUserMessage } from '../lib/errors'
-import { formatKickoff, clampScore } from '../lib/format'
+import { formatKickoffDisplay, clampScore } from '../lib/format'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { DbMatchStatus } from '../types'
 
@@ -75,6 +77,7 @@ interface MatchFormState {
   homeScore: string
   awayScore: string
   externalId: string
+  kickoffTimeConfirmed: boolean
 }
 
 const emptyMatchForm = (): MatchFormState => ({
@@ -86,6 +89,7 @@ const emptyMatchForm = (): MatchFormState => ({
   homeScore: '',
   awayScore: '',
   externalId: '',
+  kickoffTimeConfirmed: true,
 })
 
 function parseOptionalScore(raw: string): number | null {
@@ -94,8 +98,44 @@ function parseOptionalScore(raw: string): number | null {
 }
 
 export function AdminPage() {
-  const [adminCode, setAdminCode] = useState<string | null>(() => readAdminCode())
+  const [sessionToken, setSessionToken] = useState<string | null>(null)
+  const [checkingSession, setCheckingSession] = useState(true)
   const [tab, setTab] = useState<AdminTab>('matches')
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      setCheckingSession(false)
+      return
+    }
+
+    let cancelled = false
+    const stored = readAdminSessionToken()
+    if (!stored) {
+      setCheckingSession(false)
+      return
+    }
+
+    async function checkSession() {
+      try {
+        const ok = await verifyAdminSession(stored!)
+        if (cancelled) return
+        if (ok) {
+          setSessionToken(stored)
+        } else {
+          clearAdminSessionToken()
+        }
+      } catch {
+        if (!cancelled) clearAdminSessionToken()
+      } finally {
+        if (!cancelled) setCheckingSession(false)
+      }
+    }
+
+    void checkSession()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   if (!isSupabaseConfigured()) {
     return (
@@ -110,13 +150,23 @@ export function AdminPage() {
     )
   }
 
-  if (!adminCode) {
+  if (checkingSession) {
+    return (
+      <AdminShell>
+        <div className="panel p-5">
+          <p className="text-sm text-muted">Vérification de la session…</p>
+        </div>
+      </AdminShell>
+    )
+  }
+
+  if (!sessionToken) {
     return (
       <AdminShell>
         <AdminGate
-          onSuccess={(code) => {
-            saveAdminCode(code)
-            setAdminCode(code)
+          onSuccess={(token) => {
+            saveAdminSessionToken(token)
+            setSessionToken(token)
           }}
         />
       </AdminShell>
@@ -126,8 +176,11 @@ export function AdminPage() {
   return (
     <AdminShell
       onLeave={() => {
-        clearAdminCode()
-        setAdminCode(null)
+        void logoutAdmin(sessionToken).catch(() => {
+          // Ne bloque pas la sortie locale.
+        })
+        clearAdminSessionToken()
+        setSessionToken(null)
       }}
     >
       <div className="mb-4 flex gap-2 overflow-x-auto">
@@ -154,9 +207,11 @@ export function AdminPage() {
         ))}
       </div>
 
-      {tab === 'matches' ? <MatchesAdmin adminCode={adminCode} /> : null}
-      {tab === 'players' ? <PlayersAdmin adminCode={adminCode} /> : null}
-      {tab === 'settings' ? <SettingsAdmin adminCode={adminCode} /> : null}
+      {tab === 'matches' ? <MatchesAdmin sessionToken={sessionToken} /> : null}
+      {tab === 'players' ? <PlayersAdmin sessionToken={sessionToken} /> : null}
+      {tab === 'settings' ? (
+        <SettingsAdmin sessionToken={sessionToken} />
+      ) : null}
     </AdminShell>
   )
 }
@@ -211,7 +266,7 @@ function AdminShell({
   )
 }
 
-function AdminGate({ onSuccess }: { onSuccess: (code: string) => void }) {
+function AdminGate({ onSuccess }: { onSuccess: (token: string) => void }) {
   const codeId = useId()
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -222,12 +277,8 @@ function AdminGate({ onSuccess }: { onSuccess: (code: string) => void }) {
     setPending(true)
     setError(null)
     try {
-      const ok = await verifyAdminCode(code.trim())
-      if (!ok) {
-        setError('Code administrateur incorrect.')
-        return
-      }
-      onSuccess(code.trim())
+      const token = await loginAdmin(code.trim())
+      onSuccess(token)
     } catch (err) {
       setError(toUserMessage(err))
     } finally {
@@ -279,7 +330,7 @@ function AdminGate({ onSuccess }: { onSuccess: (code: string) => void }) {
   )
 }
 
-function PlayersAdmin({ adminCode }: { adminCode: string }) {
+function PlayersAdmin({ sessionToken }: { sessionToken: string }) {
   const [players, setPlayers] = useState<AdminPlayer[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -302,7 +353,7 @@ function PlayersAdmin({ adminCode }: { adminCode: string }) {
       setLoading(true)
       setError(null)
       try {
-        const rows = await adminGetPlayers(adminCode)
+        const rows = await adminGetPlayers(sessionToken)
         if (!cancelled) setPlayers(rows)
       } catch (err) {
         if (!cancelled) setError(toUserMessage(err))
@@ -314,13 +365,13 @@ function PlayersAdmin({ adminCode }: { adminCode: string }) {
     return () => {
       cancelled = true
     }
-  }, [adminCode])
+  }, [sessionToken])
 
   async function reload() {
     setLoading(true)
     setError(null)
     try {
-      setPlayers(await adminGetPlayers(adminCode))
+      setPlayers(await adminGetPlayers(sessionToken))
     } catch (err) {
       setError(toUserMessage(err))
     } finally {
@@ -334,7 +385,7 @@ function PlayersAdmin({ adminCode }: { adminCode: string }) {
     setMessage(null)
     setError(null)
     try {
-      await adminCreatePlayer(adminCode, newName)
+      await adminCreatePlayer(sessionToken, newName)
       setNewName('')
       setMessage(
         'Participant ajouté. Génère un PIN temporaire pour qu’il puisse se connecter.',
@@ -352,7 +403,7 @@ function PlayersAdmin({ adminCode }: { adminCode: string }) {
     setError(null)
     setMessage(null)
     try {
-      await adminUpdatePlayerName(adminCode, playerId, editName)
+      await adminUpdatePlayerName(sessionToken, playerId, editName)
       setEditingId(null)
       setMessage('Pseudo mis à jour.')
       await reload()
@@ -368,7 +419,7 @@ function PlayersAdmin({ adminCode }: { adminCode: string }) {
     setError(null)
     setMessage(null)
     try {
-      await adminSetPlayerActive(adminCode, player.id, !player.isActive)
+      await adminSetPlayerActive(sessionToken, player.id, !player.isActive)
       setMessage(
         player.isActive ? 'Participant désactivé.' : 'Participant réactivé.',
       )
@@ -386,7 +437,7 @@ function PlayersAdmin({ adminCode }: { adminCode: string }) {
     setMessage(null)
     setPinCopied(false)
     try {
-      const result = await adminResetPlayerPin(adminCode, player.id)
+      const result = await adminResetPlayerPin(sessionToken, player.id)
       setRevealedPin({
         playerId: player.id,
         pseudo: player.pseudo,
@@ -416,7 +467,7 @@ function PlayersAdmin({ adminCode }: { adminCode: string }) {
     setError(null)
     setMessage(null)
     try {
-      await adminUnlockPlayerPin(adminCode, player.id)
+      await adminUnlockPlayerPin(sessionToken, player.id)
       setMessage(`Tentatives débloquées pour ${player.pseudo}.`)
     } catch (err) {
       setError(toUserMessage(err))
@@ -606,7 +657,7 @@ function PlayersAdmin({ adminCode }: { adminCode: string }) {
   )
 }
 
-function MatchesAdmin({ adminCode }: { adminCode: string }) {
+function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
   const [matches, setMatches] = useState<AdminMatch[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -631,8 +682,8 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
       setError(null)
       try {
         const [rows, meta] = await Promise.all([
-          adminGetMatches(adminCode),
-          adminGetFixtureSyncMeta(adminCode),
+          adminGetMatches(sessionToken),
+          adminGetFixtureSyncMeta(sessionToken),
         ])
         if (!cancelled) {
           setMatches(rows)
@@ -648,15 +699,15 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
     return () => {
       cancelled = true
     }
-  }, [adminCode])
+  }, [sessionToken])
 
   async function reload() {
     setLoading(true)
     setError(null)
     try {
       const [rows, meta] = await Promise.all([
-        adminGetMatches(adminCode),
-        adminGetFixtureSyncMeta(adminCode),
+        adminGetMatches(sessionToken),
+        adminGetFixtureSyncMeta(sessionToken),
       ])
       setMatches(rows)
       setLastSyncedAt(meta.lastSyncedAt)
@@ -686,6 +737,7 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
       awayScore:
         match.finalScore?.away != null ? String(match.finalScore.away) : '',
       externalId: match.externalId ?? '',
+      kickoffTimeConfirmed: match.kickoffTimeConfirmed,
     })
     setFormOpen(true)
   }
@@ -726,6 +778,7 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
         homeScore,
         awayScore,
         externalId: payload.externalId.trim() || null,
+        kickoffTimeConfirmed: payload.kickoffTimeConfirmed,
       }
 
       let result
@@ -734,15 +787,15 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
           throw new Error('INCOMPLETE_RESULT')
         }
         result = await adminSetMatchResult(
-          adminCode,
+          sessionToken,
           matchId,
           homeScore,
           awayScore,
         )
       } else if (mode === 'update' && matchId) {
-        result = await adminUpdateMatch(adminCode, matchId, body)
+        result = await adminUpdateMatch(sessionToken, matchId, body)
       } else {
-        result = await adminCreateMatch(adminCode, body)
+        result = await adminCreateMatch(sessionToken, body)
       }
 
       setMessage(
@@ -768,7 +821,7 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
     setMessage(null)
     setSyncSummary(null)
     try {
-      const result = await syncFcNantesMatches(adminCode)
+      const result = await syncFcNantesMatches(sessionToken)
       setSyncSummary(result)
       setLastSyncedAt(result.lastSyncedAt)
       setMessage('Synchronisation terminée.')
@@ -785,7 +838,7 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
     setError(null)
     setMessage(null)
     try {
-      const result = await adminClearMatchOverride(adminCode, matchId)
+      const result = await adminClearMatchOverride(sessionToken, matchId)
       setMessage(
         result.recalculatedCount > 0
           ? `Match remis sous synchronisation. ${result.recalculatedCount} pronostic(s) recalculé(s).`
@@ -905,6 +958,20 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
                 className="field-input"
               />
             </Field>
+            <label className="flex items-center gap-2 self-end pb-1 text-[11px] font-bold tracking-[0.12em] uppercase">
+              <input
+                type="checkbox"
+                checked={form.kickoffTimeConfirmed}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    kickoffTimeConfirmed: event.target.checked,
+                  }))
+                }
+                className="size-4 border-2 border-ink"
+              />
+              Horaire confirmé
+            </label>
             <Field label="Domicile">
               <input
                 required
@@ -1038,7 +1105,11 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <p className="text-[11px] font-bold tracking-[0.12em] text-muted uppercase">
-                      Journée {match.matchday} · {formatKickoff(match.kickoffAt)}
+                      Journée {match.matchday} ·{' '}
+                      {formatKickoffDisplay(
+                        match.kickoffAt,
+                        match.kickoffTimeConfirmed,
+                      )}
                     </p>
                     <p className="mt-1 font-black uppercase">
                       {match.homeTeam}
@@ -1048,6 +1119,12 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
                     {match.finalScore ? (
                       <p className="mt-1 text-lg font-black tabular-nums">
                         {match.finalScore.home} – {match.finalScore.away}
+                      </p>
+                    ) : null}
+                    {!match.kickoffTimeConfirmed ? (
+                      <p className="mt-2 text-xs font-semibold text-warning">
+                        Horaire provisoire — pronostics fermés jusqu’à
+                        confirmation.
                       </p>
                     ) : null}
                     {drift ? (
@@ -1128,7 +1205,7 @@ function MatchesAdmin({ adminCode }: { adminCode: string }) {
   )
 }
 
-function SettingsAdmin({ adminCode }: { adminCode: string }) {
+function SettingsAdmin({ sessionToken }: { sessionToken: string }) {
   const newCodeId = useId()
   const confirmCodeId = useId()
   const [stats, setStats] = useState<AdminStats | null>(null)
@@ -1143,7 +1220,7 @@ function SettingsAdmin({ adminCode }: { adminCode: string }) {
     let cancelled = false
     async function load() {
       try {
-        const next = await adminGetStats(adminCode)
+        const next = await adminGetStats(sessionToken)
         if (!cancelled) setStats(next)
       } catch (err) {
         if (!cancelled) setError(toUserMessage(err))
@@ -1153,7 +1230,7 @@ function SettingsAdmin({ adminCode }: { adminCode: string }) {
     return () => {
       cancelled = true
     }
-  }, [adminCode])
+  }, [sessionToken])
 
   function requestAccessCodeChange(event: FormEvent) {
     event.preventDefault()
@@ -1184,7 +1261,7 @@ function SettingsAdmin({ adminCode }: { adminCode: string }) {
     setError(null)
     setMessage(null)
     try {
-      await adminUpdateAccessCode(adminCode, newAccessCode.trim())
+      await adminUpdateAccessCode(sessionToken, newAccessCode.trim())
       setNewAccessCode('')
       setConfirmAccessCode('')
       setConfirmOpen(false)

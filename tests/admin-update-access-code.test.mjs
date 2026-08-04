@@ -57,7 +57,7 @@ describe('admin_update_access_code migration', () => {
   })
 
   it('SQL regression covers refusals, hash, old/new codes and admin intact', () => {
-    assert.match(sqlTest, /INVALID_ADMIN_CODE/)
+    assert.match(sqlTest, /INVALID_ADMIN_SESSION/)
     assert.match(sqlTest, /INVALID_ACCESS_CODE/)
     assert.match(sqlTest, /INVALID_ACCESS_CODE_LENGTH/)
     assert.match(sqlTest, /ancien code encore valide/)
@@ -67,6 +67,12 @@ describe('admin_update_access_code migration', () => {
     assert.match(sqlTest, /ROLLBACK/)
     assert.doesNotMatch(sqlTest, /COMMIT;/)
   })
+
+  it('SQL regression authenticates via login_admin session token, not a raw admin code', () => {
+    assert.match(sqlTest, /login_admin\('code-admin-test'\)/)
+    assert.match(sqlTest, /test\.admin_token/)
+    assert.doesNotMatch(sqlTest, /admin_update_access_code\(\s*'code-admin-test'/)
+  })
 })
 
 describe('admin update access code frontend', () => {
@@ -75,12 +81,13 @@ describe('admin update access code frontend', () => {
   const session = readFileSync(sessionPath, 'utf8')
   const api = readFileSync(apiPath, 'utf8')
 
-  it('calls RPC with p_admin_code and p_new_access_code', () => {
+  it('calls RPC with p_admin_session_token and p_new_access_code', () => {
     assert.match(adminApi, /admin_update_access_code/)
-    assert.match(adminApi, /p_admin_code: adminCode/)
+    assert.match(adminApi, /p_admin_session_token: sessionToken/)
     assert.match(adminApi, /p_new_access_code: newAccessCode/)
     assert.match(adminApi, /ACCESS_CODE_MIN_LENGTH = 4/)
     assert.match(adminApi, /ACCESS_CODE_MAX_LENGTH = 64/)
+    assert.doesNotMatch(adminApi, /admin_update_access_code'[^)]*p_admin_code:/s)
   })
 
   it('requires identical confirmation fields before submit', () => {

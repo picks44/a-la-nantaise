@@ -23,6 +23,7 @@ export function MatchListItem({
 }: MatchListItemProps) {
   const isFinished = match.status === 'finished'
   const isPredicted = match.status === 'predicted'
+  const isUnconfirmed = match.status === 'kickoff_unconfirmed'
   const stadium = venueSecondaryLabel(match.venue)
   const resultLabel = pointsResultLabel(prediction?.points)
 
@@ -62,8 +63,12 @@ export function MatchListItem({
         >
           Journée {match.matchday}
           <span className="mx-1.5 opacity-40">·</span>
-          {formatMatchDateShort(match.kickoffAt)}{' '}
-          {formatMatchTime(match.kickoffAt)}
+          {formatMatchDateShort(match.kickoffAt)}
+          {isUnconfirmed ? (
+            ' · Horaire à confirmer'
+          ) : (
+            <> {formatMatchTime(match.kickoffAt)}</>
+          )}
         </p>
         <span className={['badge', statusClassName(match.status)].join(' ')}>
           {isNext && match.status === 'to_predict'
@@ -160,6 +165,12 @@ export function MatchListItem({
             >
               {prediction.homeScore} – {prediction.awayScore}
             </span>
+          </p>
+        ) : null}
+
+        {isUnconfirmed ? (
+          <p className="mt-2.5 border-t border-border pt-2.5 text-sm text-muted">
+            Horaire à confirmer — les pronostics ouvriront bientôt.
           </p>
         ) : null}
 

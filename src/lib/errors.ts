@@ -35,7 +35,10 @@ const KNOWN_CODES = [
   'MATCH_NOT_FOUND',
   'MATCH_NOT_OPENABLE',
   'MATCH_LOCKED',
+  'MATCH_KICKOFF_UNCONFIRMED',
   'MATCH_NOT_FINISHED',
+  'ADMIN_LOCKED',
+  'INVALID_ADMIN_SESSION',
   'SYNC_CONFLICT',
   'SYNC_FAILED',
   'INVALID_SYNC_PLAN',
@@ -164,10 +167,16 @@ export function toUserMessage(error: unknown): string {
       return 'Ce match a commencé : les pronostics sont maintenant verrouillés.'
     case 'MATCH_NOT_OPENABLE':
       return 'Ce match n’accepte plus de pronostic.'
+    case 'MATCH_KICKOFF_UNCONFIRMED':
+      return 'Horaire à confirmer : les pronostics ne sont pas encore ouverts.'
     case 'MATCH_NOT_FOUND':
       return 'Match introuvable.'
     case 'MATCH_NOT_FINISHED':
       return 'Le match doit être terminé pour calculer les points.'
+    case 'ADMIN_LOCKED':
+      return 'Trop de tentatives. Réessaie dans 15 minutes.'
+    case 'INVALID_ADMIN_SESSION':
+      return 'Session administrateur invalide ou expirée. Reconnecte-toi.'
     case 'SYNC_CONFLICT':
       return 'Conflit de rapprochement : plusieurs matchs correspondent à la même rencontre.'
     case 'SYNC_FAILED':

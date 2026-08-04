@@ -183,22 +183,24 @@ BEGIN
 END;
 $$;
 
--- Upsert via session
+-- Upsert via session refusé tant que must_change_pin (PIN temporaire)
 DO $$
-DECLARE
-  rec RECORD;
 BEGIN
-  SELECT * INTO rec
-  FROM public.upsert_prediction(
-    current_setting('test.session_a'),
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbc1',
-    2,
-    1
-  );
-
-  IF rec.player_id IS DISTINCT FROM 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaac01' THEN
-    RAISE EXCEPTION 'TEST_FAIL: player_id résolu incorrectement';
-  END IF;
+  BEGIN
+    PERFORM *
+    FROM public.upsert_prediction(
+      current_setting('test.session_a'),
+      'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbc1',
+      2,
+      1
+    );
+    RAISE EXCEPTION 'TEST_FAIL: PIN_CHANGE_REQUIRED attendu avant change_player_pin';
+  EXCEPTION
+    WHEN OTHERS THEN
+      IF SQLERRM NOT LIKE '%PIN_CHANGE_REQUIRED%' THEN
+        RAISE;
+      END IF;
+  END;
 END;
 $$;
 
@@ -250,6 +252,15 @@ BEGIN
 
   -- Session courante toujours valide
   PERFORM public.assert_player_session(kept);
+
+  -- Upsert métier autorisé après changement de PIN
+  PERFORM *
+  FROM public.upsert_prediction(
+    kept,
+    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbc1',
+    2,
+    1
+  );
 END;
 $$;
 

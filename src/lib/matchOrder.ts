@@ -25,6 +25,7 @@ export function findNextOpenMatch(matches: Match[], now = new Date()): Match | n
     .filter(
       (match) =>
         match.dbStatus === 'scheduled' &&
+        match.kickoffTimeConfirmed === true &&
         new Date(match.kickoffAt).getTime() > now.getTime(),
     )
     .sort(

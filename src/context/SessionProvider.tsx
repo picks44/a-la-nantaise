@@ -16,6 +16,7 @@ import {
 } from '../lib/push'
 import {
   clearLocalSession,
+  clearPlayerClientState,
   clearSessionToken,
   readLocalSession,
   saveAccessCode,
@@ -291,6 +292,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
 
     clearSessionToken()
+    await clearPlayerClientState()
     setSessionToken(null)
     setPlayerId(null)
     setPendingPlayerId(null)
@@ -314,6 +316,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
 
     clearAuthState()
+    await clearPlayerClientState()
     setBootstrapError(null)
     setPhase('needs_code')
   }, [clearAuthState, sessionToken])

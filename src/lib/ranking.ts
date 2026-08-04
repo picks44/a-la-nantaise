@@ -129,6 +129,7 @@ export function selectDefaultRoundNumber(
     .filter(
       (match) =>
         match.dbStatus === 'scheduled' &&
+        match.kickoffTimeConfirmed === true &&
         new Date(match.kickoffAt).getTime() > now.getTime(),
     )
     .sort(

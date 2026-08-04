@@ -58,6 +58,15 @@ describe('admin migration', () => {
     assert.match(sqlTests, /recalcul après correction/)
     assert.match(sqlTests, /ROLLBACK/)
   })
+
+  it('SQL tests call admin RPCs through a session token, not a raw admin code', () => {
+    assert.match(sqlTests, /login_admin\('admin-test-code'\)/)
+    assert.match(sqlTests, /test\.admin_token/)
+    assert.match(sqlTests, /INVALID_ADMIN_SESSION/)
+    assert.doesNotMatch(sqlTests, /admin_create_player\(\s*'admin-test-code'/)
+    assert.doesNotMatch(sqlTests, /admin_create_match\(\s*'admin-test-code'/)
+    assert.match(sqlTests, /accepte encore p_admin_code/)
+  })
 })
 
 describe('formatCountdown', () => {

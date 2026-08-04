@@ -10,6 +10,7 @@ export type MatchUiStatus =
   | 'to_predict'
   | 'predicted'
   | 'locked'
+  | 'kickoff_unconfirmed'
   | 'finished'
   | 'postponed'
   | 'cancelled'
@@ -29,6 +30,7 @@ export interface Match {
   id: string
   matchday: number
   kickoffAt: string
+  kickoffTimeConfirmed: boolean
   homeTeam: string
   awayTeam: string
   venue: 'home' | 'away'

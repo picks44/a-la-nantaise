@@ -26,6 +26,18 @@ export function formatKickoff(isoDate: string): string {
   return `${formatMatchDate(isoDate)} · ${formatMatchTime(isoDate)}`
 }
 
+/**
+ * Date + heure du coup d’envoi, ou date seule + « Horaire à confirmer »
+ * quand l’horaire n’est qu’un placeholder (ex. 00:00 Fixture Download).
+ */
+export function formatKickoffDisplay(
+  isoDate: string,
+  confirmed: boolean,
+): string {
+  if (!confirmed) return `${formatMatchDate(isoDate)} · Horaire à confirmer`
+  return formatKickoff(isoDate)
+}
+
 /** Date courte pour affiches de match. */
 export function formatMatchDateShort(isoDate: string): string {
   return new Intl.DateTimeFormat('fr-FR', {

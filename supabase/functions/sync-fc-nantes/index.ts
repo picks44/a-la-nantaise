@@ -44,6 +44,8 @@ function cleanClientError(error: unknown): { code: string; message: string } {
   const known = [
     'INVALID_ADMIN_CODE',
     'ADMIN_CODE_NOT_CONFIGURED',
+    'ADMIN_LOCKED',
+    'INVALID_ADMIN_SESSION',
     'INVALID_SYNC_PLAN',
     'SYNC_CONFLICT',
     'INVALID_FEED_SHAPE',
@@ -82,6 +84,10 @@ function frenchMessage(code: string): string {
       return 'Code administrateur incorrect.'
     case 'ADMIN_CODE_NOT_CONFIGURED':
       return 'Le code administrateur n’est pas encore configuré.'
+    case 'ADMIN_LOCKED':
+      return 'Trop de tentatives. Réessaie dans 15 minutes.'
+    case 'INVALID_ADMIN_SESSION':
+      return 'Session administrateur invalide ou expirée.'
     case 'SYNC_CONFLICT':
       return 'Conflit de rapprochement : plusieurs matchs correspondent à la même rencontre.'
     case 'INVALID_FEED_COUNT':
@@ -195,16 +201,23 @@ Deno.serve(async (req) => {
     )
   }
 
+  let sessionToken = ''
   let adminCode = ''
   try {
-    const body = (await req.json()) as { admin_code?: unknown; p_admin_code?: unknown }
-    const raw = body.admin_code ?? body.p_admin_code
-    adminCode = typeof raw === 'string' ? raw : ''
+    const body = (await req.json()) as {
+      admin_session_token?: unknown
+      admin_code?: unknown
+      p_admin_code?: unknown
+    }
+    const rawToken = body.admin_session_token
+    const rawCode = body.admin_code ?? body.p_admin_code
+    sessionToken = typeof rawToken === 'string' ? rawToken.trim() : ''
+    adminCode = typeof rawCode === 'string' ? rawCode : ''
   } catch {
     return publicError('INVALID_INPUT', 'Corps de requête invalide.')
   }
 
-  if (!adminCode.trim()) {
+  if (!sessionToken && !adminCode.trim()) {
     return publicError('INVALID_ADMIN_CODE', 'Code administrateur incorrect.')
   }
 
@@ -215,24 +228,59 @@ Deno.serve(async (req) => {
     },
   })
 
+  // Une session créée ici (à partir d’un admin_code legacy, ex. cron) est
+  // révoquée à la fin de l’appel. Une session fournie par le client
+  // (admin_session_token) reste active — elle appartient à l’admin connecté.
+  let ownsSession = false
+
   try {
-    // 1. Vérifier le code admin AVANT tout appel externe.
-    const { data: adminOk, error: adminError } = await supabase.rpc(
-      'verify_admin_code',
-      { p_admin_code: adminCode },
-    )
-
-    if (adminError) {
-      const cleaned = cleanClientError(adminError)
-      return publicError(cleaned.code, cleaned.message, 401)
-    }
-
-    if (!adminOk) {
-      return publicError(
-        'INVALID_ADMIN_CODE',
-        'Code administrateur incorrect.',
-        401,
+    // 1. Authentification AVANT tout appel externe.
+    //    - admin_session_token fourni : on vérifie la session existante.
+    //    - admin_code (legacy, ex. cron via Vault) : login_admin applique le
+    //      rate-limit puis renvoie une session fraîche.
+    if (sessionToken) {
+      const { data: sessionOk, error: sessionError } = await supabase.rpc(
+        'verify_admin_code',
+        { p_admin_session_token: sessionToken },
       )
+
+      if (sessionError) {
+        const cleaned = cleanClientError(sessionError)
+        return publicError(cleaned.code, cleaned.message, 401)
+      }
+
+      if (!sessionOk) {
+        return publicError(
+          'INVALID_ADMIN_SESSION',
+          frenchMessage('INVALID_ADMIN_SESSION'),
+          401,
+        )
+      }
+    } else {
+      const { data: loginRows, error: loginError } = await supabase.rpc(
+        'login_admin',
+        { p_admin_code: adminCode },
+      )
+
+      if (loginError) {
+        const cleaned = cleanClientError(loginError)
+        return publicError(cleaned.code, cleaned.message, 401)
+      }
+
+      const token = (
+        loginRows as Array<{ session_token?: string }> | null
+      )?.[0]?.session_token
+
+      if (!token) {
+        return publicError(
+          'INVALID_ADMIN_CODE',
+          'Code administrateur incorrect.',
+          401,
+        )
+      }
+
+      sessionToken = token
+      ownsSession = true
     }
 
     // 2. Télécharger et valider le flux (tout-ou-rien).
@@ -242,7 +290,7 @@ Deno.serve(async (req) => {
     // 3. Charger les matchs existants puis planifier.
     const { data: matchRows, error: matchesError } = await supabase.rpc(
       'admin_get_matches',
-      { p_admin_code: adminCode },
+      { p_admin_session_token: sessionToken },
     )
 
     if (matchesError) {
@@ -274,7 +322,7 @@ Deno.serve(async (req) => {
     const { data: commitResult, error: commitError } = await supabase.rpc(
       'admin_commit_fixture_sync',
       {
-        p_admin_code: adminCode,
+        p_admin_session_token: sessionToken,
         p_plan: syncPlanToRpcPayload(plan),
       },
     )
@@ -319,9 +367,20 @@ Deno.serve(async (req) => {
     const cleaned = cleanClientError(error)
     const status =
       cleaned.code === 'INVALID_ADMIN_CODE' ||
-      cleaned.code === 'ADMIN_CODE_NOT_CONFIGURED'
+      cleaned.code === 'ADMIN_CODE_NOT_CONFIGURED' ||
+      cleaned.code === 'ADMIN_LOCKED' ||
+      cleaned.code === 'INVALID_ADMIN_SESSION'
         ? 401
         : 400
     return publicError(cleaned.code, cleaned.message, status)
+  } finally {
+    // Nettoyage best-effort de la session créée pour ce cycle (legacy
+    // admin_code, ex. cron). Ne touche jamais une session fournie par le
+    // client — elle appartient à l’admin encore connecté.
+    if (ownsSession && sessionToken) {
+      await supabase
+        .rpc('logout_admin', { p_admin_session_token: sessionToken })
+        .catch(() => {})
+    }
   }
 })

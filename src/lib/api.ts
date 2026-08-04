@@ -42,6 +42,7 @@ interface DbMatchRow {
   home_team: string
   away_team: string
   kickoff_at: string
+  kickoff_time_confirmed?: boolean | null
   status: DbMatchStatus
   home_score: number | null
   away_score: number | null
@@ -328,6 +329,7 @@ export function mapMatch(row: DbMatchRow, now = new Date()): Match {
     id: row.id,
     matchday: row.round_number,
     kickoffAt: row.kickoff_at,
+    kickoffTimeConfirmed: row.kickoff_time_confirmed ?? true,
     homeTeam: row.home_team,
     awayTeam: row.away_team,
     venue,
@@ -361,6 +363,7 @@ function deriveUiStatus(
       id: row.id,
       matchday: row.round_number,
       kickoffAt: row.kickoff_at,
+      kickoffTimeConfirmed: row.kickoff_time_confirmed ?? true,
       homeTeam: row.home_team,
       awayTeam: row.away_team,
       venue: row.home_team === TRACKED_TEAM ? 'home' : 'away',
@@ -384,6 +387,10 @@ function deriveUiStatusFromMatch(
   if (match.dbStatus === 'postponed') return 'postponed'
   if (match.dbStatus === 'cancelled') return 'cancelled'
   if (match.dbStatus === 'finished') return 'finished'
+
+  // Horaire non confirmé (placeholder) : jamais verrouillé par le temps,
+  // jamais ouvert aux pronostics tant que l’admin ne l’a pas confirmé.
+  if (!match.kickoffTimeConfirmed) return 'kickoff_unconfirmed'
 
   const kickoffReached =
     match.dbStatus === 'live' || now.getTime() >= new Date(match.kickoffAt).getTime()

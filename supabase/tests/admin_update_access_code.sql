@@ -1,5 +1,7 @@
 -- Test manuel (SQL Editor) — se termine toujours par ROLLBACK.
 -- Ne pas exécuter en production hors transaction.
+-- Depuis la migration sessions admin (20260804120000), admin_update_access_code
+-- prend un p_admin_session_token — plus de p_admin_code direct.
 
 BEGIN;
 
@@ -12,22 +14,37 @@ UPDATE public.app_settings
 SET value = extensions.crypt('code-admin-test', extensions.gen_salt('bf'))
 WHERE key = 'admin_code_hash';
 
+UPDATE public.admin_auth_state
+SET failed_attempts = 0, locked_until = NULL
+WHERE id = TRUE;
+
 DO $$
+DECLARE
+  v_token text;
 BEGIN
-  -- Mauvais code admin
+  SELECT l.session_token INTO v_token
+  FROM public.login_admin('code-admin-test') AS l;
+
+  IF v_token IS NULL THEN
+    RAISE EXCEPTION 'TEST_FAIL: connexion admin de test échouée';
+  END IF;
+
+  PERFORM set_config('test.admin_token', v_token, true);
+
+  -- Session admin invalide
   BEGIN
-    PERFORM public.admin_update_access_code('mauvais-admin', 'nouveau-code-ok');
-    RAISE EXCEPTION 'TEST_FAIL: mauvais admin accepté';
+    PERFORM public.admin_update_access_code(repeat('0', 64), 'nouveau-code-ok');
+    RAISE EXCEPTION 'TEST_FAIL: session admin invalide acceptée';
   EXCEPTION
     WHEN OTHERS THEN
-      IF SQLERRM NOT LIKE '%INVALID_ADMIN_CODE%' THEN
+      IF SQLERRM NOT LIKE '%INVALID_ADMIN_SESSION%' THEN
         RAISE;
       END IF;
   END;
 
   -- Code vide
   BEGIN
-    PERFORM public.admin_update_access_code('code-admin-test', '   ');
+    PERFORM public.admin_update_access_code(v_token, '   ');
     RAISE EXCEPTION 'TEST_FAIL: code vide accepté';
   EXCEPTION
     WHEN OTHERS THEN
@@ -38,7 +55,7 @@ BEGIN
 
   -- Trop court
   BEGIN
-    PERFORM public.admin_update_access_code('code-admin-test', 'abc');
+    PERFORM public.admin_update_access_code(v_token, 'abc');
     RAISE EXCEPTION 'TEST_FAIL: code trop court accepté';
   EXCEPTION
     WHEN OTHERS THEN
@@ -50,7 +67,7 @@ BEGIN
   -- Trop long
   BEGIN
     PERFORM public.admin_update_access_code(
-      'code-admin-test',
+      v_token,
       repeat('x', 65)
     );
     RAISE EXCEPTION 'TEST_FAIL: code trop long accepté';
@@ -62,7 +79,7 @@ BEGIN
   END;
 
   -- Succès
-  IF public.admin_update_access_code('code-admin-test', 'nouveau-code-ok') IS NOT TRUE THEN
+  IF public.admin_update_access_code(v_token, 'nouveau-code-ok') IS NOT TRUE THEN
     RAISE EXCEPTION 'TEST_FAIL: succès attendu';
   END IF;
 
@@ -76,8 +93,8 @@ BEGIN
     RAISE EXCEPTION 'TEST_FAIL: nouveau code invalide';
   END IF;
 
-  -- Admin inchangé
-  IF public.verify_admin_code('code-admin-test') IS NOT TRUE THEN
+  -- Session admin toujours intacte (le code admin n’a pas changé)
+  IF public.verify_admin_code(v_token) IS NOT TRUE THEN
     RAISE EXCEPTION 'TEST_FAIL: code admin cassé';
   END IF;
 

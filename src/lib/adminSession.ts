@@ -1,13 +1,13 @@
-const ADMIN_CODE_KEY = 'aln_admin_code'
+const ADMIN_SESSION_TOKEN_KEY = 'aln_admin_session_token'
 
-export function readAdminCode(): string | null {
-  return sessionStorage.getItem(ADMIN_CODE_KEY)
+export function readAdminSessionToken(): string | null {
+  return sessionStorage.getItem(ADMIN_SESSION_TOKEN_KEY)
 }
 
-export function saveAdminCode(code: string): void {
-  sessionStorage.setItem(ADMIN_CODE_KEY, code)
+export function saveAdminSessionToken(token: string): void {
+  sessionStorage.setItem(ADMIN_SESSION_TOKEN_KEY, token)
 }
 
-export function clearAdminCode(): void {
-  sessionStorage.removeItem(ADMIN_CODE_KEY)
+export function clearAdminSessionToken(): void {
+  sessionStorage.removeItem(ADMIN_SESSION_TOKEN_KEY)
 }

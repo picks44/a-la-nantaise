@@ -81,6 +81,7 @@ interface DbMatchAdminRow {
   home_team: string
   away_team: string
   kickoff_at: string
+  kickoff_time_confirmed?: boolean | null
   status: DbMatchStatus
   home_score: number | null
   away_score: number | null
@@ -187,10 +188,28 @@ export function matchHasSourceDrift(match: AdminMatch): boolean {
   return teamsDiffer || kickoffDiffer
 }
 
-export async function verifyAdminCode(adminCode: string): Promise<boolean> {
+export async function loginAdmin(adminCode: string): Promise<string> {
+  const rows = await adminRpc<Array<{ session_token: string }>>('login_admin', {
+    p_admin_code: adminCode,
+  })
+  const row = rows?.[0]
+  if (!row?.session_token) {
+    throw new ApiError('INVALID_ADMIN_CODE', 'INVALID_ADMIN_CODE')
+  }
+  return row.session_token
+}
+
+export async function logoutAdmin(sessionToken: string): Promise<boolean> {
+  const result = await adminRpc<boolean>('logout_admin', {
+    p_admin_session_token: sessionToken,
+  })
+  return Boolean(result)
+}
+
+export async function verifyAdminSession(sessionToken: string): Promise<boolean> {
   try {
     const result = await adminRpc<boolean>('verify_admin_code', {
-      p_admin_code: adminCode,
+      p_admin_session_token: sessionToken,
     })
     return Boolean(result)
   } catch (error) {
@@ -199,19 +218,21 @@ export async function verifyAdminCode(adminCode: string): Promise<boolean> {
   }
 }
 
-export async function adminGetPlayers(adminCode: string): Promise<AdminPlayer[]> {
+export async function adminGetPlayers(
+  sessionToken: string,
+): Promise<AdminPlayer[]> {
   const rows = await adminRpc<DbPlayerRow[]>('admin_get_players', {
-    p_admin_code: adminCode,
+    p_admin_session_token: sessionToken,
   })
   return (rows ?? []).map(mapAdminPlayer)
 }
 
 export async function adminCreatePlayer(
-  adminCode: string,
+  sessionToken: string,
   displayName: string,
 ): Promise<AdminPlayer> {
   const rows = await adminRpc<DbPlayerRow[]>('admin_create_player', {
-    p_admin_code: adminCode,
+    p_admin_session_token: sessionToken,
     p_display_name: displayName,
   })
   const row = rows?.[0]
@@ -220,12 +241,12 @@ export async function adminCreatePlayer(
 }
 
 export async function adminUpdatePlayerName(
-  adminCode: string,
+  sessionToken: string,
   playerId: string,
   displayName: string,
 ): Promise<AdminPlayer> {
   const rows = await adminRpc<DbPlayerRow[]>('admin_update_player_name', {
-    p_admin_code: adminCode,
+    p_admin_session_token: sessionToken,
     p_player_id: playerId,
     p_display_name: displayName,
   })
@@ -235,12 +256,12 @@ export async function adminUpdatePlayerName(
 }
 
 export async function adminSetPlayerActive(
-  adminCode: string,
+  sessionToken: string,
   playerId: string,
   isActive: boolean,
 ): Promise<AdminPlayer> {
   const rows = await adminRpc<DbPlayerRow[]>('admin_set_player_active', {
-    p_admin_code: adminCode,
+    p_admin_session_token: sessionToken,
     p_player_id: playerId,
     p_is_active: isActive,
   })
@@ -250,13 +271,13 @@ export async function adminSetPlayerActive(
 }
 
 export async function adminResetPlayerPin(
-  adminCode: string,
+  sessionToken: string,
   playerId: string,
 ): Promise<{ temporaryPin: string; expiresAt: string }> {
   const rows = await adminRpc<
     Array<{ temporary_pin: string; expires_at: string }>
   >('admin_reset_player_pin', {
-    p_admin_code: adminCode,
+    p_admin_session_token: sessionToken,
     p_player_id: playerId,
   })
   const row = rows?.[0]
@@ -270,25 +291,27 @@ export async function adminResetPlayerPin(
 }
 
 export async function adminUnlockPlayerPin(
-  adminCode: string,
+  sessionToken: string,
   playerId: string,
 ): Promise<boolean> {
   const result = await adminRpc<boolean>('admin_unlock_player_pin', {
-    p_admin_code: adminCode,
+    p_admin_session_token: sessionToken,
     p_player_id: playerId,
   })
   return Boolean(result)
 }
 
-export async function adminGetMatches(adminCode: string): Promise<AdminMatch[]> {
+export async function adminGetMatches(
+  sessionToken: string,
+): Promise<AdminMatch[]> {
   const rows = await adminRpc<DbMatchAdminRow[]>('admin_get_matches', {
-    p_admin_code: adminCode,
+    p_admin_session_token: sessionToken,
   })
   return sortMatchesForList((rows ?? []).map(mapAdminMatch))
 }
 
 export async function adminCreateMatch(
-  adminCode: string,
+  sessionToken: string,
   input: {
     roundNumber: number
     homeTeam: string
@@ -298,10 +321,11 @@ export async function adminCreateMatch(
     homeScore: number | null
     awayScore: number | null
     externalId: string | null
+    kickoffTimeConfirmed: boolean
   },
 ): Promise<AdminMatchMutationResult> {
   const rows = await adminRpc<DbMatchAdminRow[]>('admin_create_match', {
-    p_admin_code: adminCode,
+    p_admin_session_token: sessionToken,
     p_round_number: input.roundNumber,
     p_home_team: input.homeTeam,
     p_away_team: input.awayTeam,
@@ -310,12 +334,13 @@ export async function adminCreateMatch(
     p_home_score: input.homeScore,
     p_away_score: input.awayScore,
     p_external_id: input.externalId,
+    p_kickoff_time_confirmed: input.kickoffTimeConfirmed,
   })
   return mapMutationResult(rows)
 }
 
 export async function adminUpdateMatch(
-  adminCode: string,
+  sessionToken: string,
   matchId: string,
   input: {
     roundNumber: number
@@ -326,10 +351,11 @@ export async function adminUpdateMatch(
     homeScore: number | null
     awayScore: number | null
     externalId: string | null
+    kickoffTimeConfirmed: boolean
   },
 ): Promise<AdminMatchMutationResult> {
   const rows = await adminRpc<DbMatchAdminRow[]>('admin_update_match', {
-    p_admin_code: adminCode,
+    p_admin_session_token: sessionToken,
     p_match_id: matchId,
     p_round_number: input.roundNumber,
     p_home_team: input.homeTeam,
@@ -339,18 +365,19 @@ export async function adminUpdateMatch(
     p_home_score: input.homeScore,
     p_away_score: input.awayScore,
     p_external_id: input.externalId,
+    p_kickoff_time_confirmed: input.kickoffTimeConfirmed,
   })
   return mapMutationResult(rows)
 }
 
 export async function adminSetMatchResult(
-  adminCode: string,
+  sessionToken: string,
   matchId: string,
   homeScore: number,
   awayScore: number,
 ): Promise<AdminMatchMutationResult> {
   const rows = await adminRpc<DbMatchAdminRow[]>('admin_set_match_result', {
-    p_admin_code: adminCode,
+    p_admin_session_token: sessionToken,
     p_match_id: matchId,
     p_home_score: homeScore,
     p_away_score: awayScore,
@@ -359,21 +386,21 @@ export async function adminSetMatchResult(
 }
 
 export async function adminClearMatchOverride(
-  adminCode: string,
+  sessionToken: string,
   matchId: string,
 ): Promise<AdminMatchMutationResult> {
   const rows = await adminRpc<DbMatchAdminRow[]>('admin_clear_match_override', {
-    p_admin_code: adminCode,
+    p_admin_session_token: sessionToken,
     p_match_id: matchId,
   })
   return mapMutationResult(rows)
 }
 
 export async function adminGetFixtureSyncMeta(
-  adminCode: string,
+  sessionToken: string,
 ): Promise<FixtureSyncMeta> {
   const rows = await adminRpc<DbSyncMetaRow[]>('admin_get_fixture_sync_meta', {
-    p_admin_code: adminCode,
+    p_admin_session_token: sessionToken,
   })
   const row = rows?.[0]
   return {
@@ -383,10 +410,10 @@ export async function adminGetFixtureSyncMeta(
 }
 
 export async function syncFcNantesMatches(
-  adminCode: string,
+  sessionToken: string,
 ): Promise<FixtureSyncResult> {
   const { data, error } = await getSupabase().functions.invoke('sync-fc-nantes', {
-    body: { admin_code: adminCode },
+    body: { admin_session_token: sessionToken },
   })
 
   if (error) {
@@ -452,9 +479,9 @@ export async function syncFcNantesMatches(
   }
 }
 
-export async function adminGetStats(adminCode: string): Promise<AdminStats> {
+export async function adminGetStats(sessionToken: string): Promise<AdminStats> {
   const rows = await adminRpc<DbStatsRow[]>('admin_get_stats', {
-    p_admin_code: adminCode,
+    p_admin_session_token: sessionToken,
   })
   const row = rows?.[0]
   if (!row) {
@@ -473,11 +500,11 @@ export const ACCESS_CODE_MIN_LENGTH = 4
 export const ACCESS_CODE_MAX_LENGTH = 64
 
 export async function adminUpdateAccessCode(
-  adminCode: string,
+  sessionToken: string,
   newAccessCode: string,
 ): Promise<boolean> {
   const result = await adminRpc<boolean>('admin_update_access_code', {
-    p_admin_code: adminCode,
+    p_admin_session_token: sessionToken,
     p_new_access_code: newAccessCode,
   })
   return Boolean(result)

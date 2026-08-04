@@ -307,18 +307,27 @@ describe('fixture sync migration and edge function', () => {
     assert.doesNotMatch(sql, /DELETE FROM public\.(players|matches|predictions)/i)
   })
 
-  it('verifies admin code before fetching the feed', () => {
-    const verifyIndex = edge.indexOf("rpc(\n      'verify_admin_code'")
+  it('authenticates via admin session before fetching the feed', () => {
+    const sessionCheckIndex = edge.indexOf("'verify_admin_code'")
     const fetchCallIndex = edge.indexOf('await fetchFixtureFeed()')
-    assert.ok(verifyIndex > 0)
-    assert.ok(fetchCallIndex > verifyIndex)
+    assert.ok(sessionCheckIndex > 0)
+    assert.ok(fetchCallIndex > sessionCheckIndex)
     assert.match(edge, /admin_commit_fixture_sync/)
+    assert.match(edge, /p_admin_session_token: sessionToken/)
     assert.doesNotMatch(edge, /service_role/i)
   })
 
-  it('documents refusal of a bad admin code in the edge function', () => {
+  it('accepts a client admin_session_token or a legacy admin_code (cron), revoking only self-created sessions', () => {
+    assert.match(edge, /admin_session_token\?:\s*unknown/)
+    assert.match(edge, /login_admin/)
+    assert.match(edge, /ownsSession/)
+    assert.match(edge, /logout_admin/)
+  })
+
+  it('documents refusal of a bad admin code or invalid admin session in the edge function', () => {
     assert.match(edge, /INVALID_ADMIN_CODE/)
     assert.match(edge, /Code administrateur incorrect/)
+    assert.match(edge, /INVALID_ADMIN_SESSION/)
   })
 })
 

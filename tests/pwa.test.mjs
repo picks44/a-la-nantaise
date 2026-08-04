@@ -44,6 +44,16 @@ describe('pwa helpers', () => {
     assert.doesNotMatch(config, /strategies:\s*'injectManifest'/)
   })
 
+  it('keeps the logout-time Cache Storage purge scoped to the same supabase.co host as NetworkOnly', () => {
+    // vite.config.ts never lets the SW cache Supabase responses (NetworkOnly);
+    // clearPlayerClientState only needs to purge the *runtime* cache when a
+    // browser previously cached a Supabase response before this policy shipped.
+    const config = read('vite.config.ts')
+    const session = read('src/lib/session.ts')
+    assert.match(config, /supabase\\\.co/)
+    assert.match(session, /const SUPABASE_CACHE_URL_MARKER = 'supabase\.co'/)
+  })
+
   it('ships push-events.js with push handlers only (no fetch / Supabase)', () => {
     const push = read('public/push-events.js')
     assert.match(push, /addEventListener\('push'/)

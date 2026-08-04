@@ -181,8 +181,10 @@ export function HomePage() {
     )
   }
 
+  const isUnconfirmed = nextMatch.status === 'kickoff_unconfirmed'
   const countdown = getCountdown(nextMatch.kickoffAt, now)
-  const inputsLocked = countdown.locked || nextMatch.status === 'locked'
+  const inputsLocked =
+    isUnconfirmed || countdown.locked || nextMatch.status === 'locked'
   const stadium = venueSecondaryLabel(nextMatch.venue)
 
   return (
@@ -197,22 +199,39 @@ export function HomePage() {
               Journée {nextMatch.matchday} · Ligue 2
             </p>
             <p className="mt-1 text-sm font-bold text-ink sm:text-base">
-              {formatMatchDate(nextMatch.kickoffAt)}
-              <span className="mx-2 text-ink/35">·</span>
-              <span className="tabular-nums">
-                {formatMatchTime(nextMatch.kickoffAt)}
-              </span>
+              {isUnconfirmed ? (
+                formatMatchDate(nextMatch.kickoffAt)
+              ) : (
+                <>
+                  {formatMatchDate(nextMatch.kickoffAt)}
+                  <span className="mx-2 text-ink/35">·</span>
+                  <span className="tabular-nums">
+                    {formatMatchTime(nextMatch.kickoffAt)}
+                  </span>
+                </>
+              )}
             </p>
+            {isUnconfirmed ? (
+              <p className="mt-0.5 text-xs font-semibold text-ink/60">
+                Horaire à confirmer
+              </p>
+            ) : null}
           </div>
           <span
             className={[
               'badge shrink-0',
-              inputsLocked
-                ? 'border-ink bg-ink text-yellow'
-                : 'border-green/40 bg-success-soft text-green-dark',
+              isUnconfirmed
+                ? 'border-border bg-surface-muted text-muted'
+                : inputsLocked
+                  ? 'border-ink bg-ink text-yellow'
+                  : 'border-green/40 bg-success-soft text-green-dark',
             ].join(' ')}
           >
-            {inputsLocked ? 'Pronos fermés' : 'Pronos ouverts'}
+            {isUnconfirmed
+              ? 'Bientôt disponible'
+              : inputsLocked
+                ? 'Pronos fermés'
+                : 'Pronos ouverts'}
           </span>
         </div>
 
@@ -308,13 +327,19 @@ export function HomePage() {
 
         <div className="flex flex-col gap-1 bg-ink px-4 py-3 text-white sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <p className="text-[11px] font-bold tracking-[0.1em] uppercase">
-            {countdown.locked ? 'Pronostics verrouillés' : 'Verrouillage dans'}
+            {isUnconfirmed
+              ? 'Pronostics'
+              : countdown.locked
+                ? 'Pronostics verrouillés'
+                : 'Verrouillage dans'}
           </p>
           <p className="font-black tracking-wide text-yellow tabular-nums sm:text-lg">
-            {formatCountdown(countdown)}
+            {isUnconfirmed ? 'Bientôt disponible' : formatCountdown(countdown)}
           </p>
           <p className="text-xs text-white/60 sm:text-right">
-            Jusqu’au coup d’envoi (heure serveur)
+            {isUnconfirmed
+              ? 'L’horaire officiel n’est pas encore confirmé.'
+              : 'Jusqu’au coup d’envoi (heure serveur)'}
           </p>
         </div>
       </section>

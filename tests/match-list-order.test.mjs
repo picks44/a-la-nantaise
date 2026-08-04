@@ -22,6 +22,7 @@ function match(partial) {
     id: partial.id,
     matchday: partial.matchday,
     kickoffAt: partial.kickoffAt,
+    kickoffTimeConfirmed: partial.kickoffTimeConfirmed ?? true,
     homeTeam: 'FC Nantes',
     awayTeam: 'Red Star FC',
     venue: 'home',
