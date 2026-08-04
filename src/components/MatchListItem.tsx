@@ -1,4 +1,4 @@
-import type { Match, Prediction } from '../types'
+import type { Match, MatchGroupReveal, Prediction } from '../types'
 import {
   formatMatchDateShort,
   formatMatchTime,
@@ -9,6 +9,9 @@ import { pointsResultLabel, statusClassName, statusLabel } from '../lib/status'
 interface MatchListItemProps {
   match: Match
   prediction?: Prediction
+  reveal?: MatchGroupReveal
+  revealLoading?: boolean
+  revealError?: string | null
   /** Prochain match ouvert aux pronostics — seul fond jaune dominant. */
   isNext?: boolean
   /** Deep link depuis une notification (`?match=`). */
@@ -18,6 +21,9 @@ interface MatchListItemProps {
 export function MatchListItem({
   match,
   prediction,
+  reveal,
+  revealLoading = false,
+  revealError = null,
   isNext = false,
   highlighted = false,
 }: MatchListItemProps) {
@@ -185,7 +191,206 @@ export function MatchListItem({
             Match annulé — aucun point attribué.
           </p>
         ) : null}
+
+        {match.status !== 'cancelled' && match.status !== 'postponed' ? (
+          <RevealSection
+            match={match}
+            reveal={reveal}
+            loading={revealLoading}
+            error={revealError}
+          />
+        ) : null}
       </div>
     </article>
+  )
+}
+
+function RevealSection({
+  match,
+  reveal,
+  loading,
+  error,
+}: {
+  match: Match
+  reveal?: MatchGroupReveal
+  loading: boolean
+  error: string | null
+}) {
+  const isBeforeReveal =
+    match.status === 'to_predict' ||
+    match.status === 'predicted' ||
+    match.status === 'kickoff_unconfirmed'
+
+  if (isBeforeReveal) {
+    return (
+      <div className="mt-3 border-t border-border pt-3 text-sm text-muted">
+        <p className="font-bold text-ink">Les pronos du groupe</p>
+        <p className="mt-1">
+          Les pronostics des autres seront reveles automatiquement au coup
+          d’envoi.
+        </p>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="mt-3 border-t border-border pt-3 text-sm text-muted transition-all duration-300">
+        Chargement des pronostics du groupe…
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="mt-3 border-t border-border pt-3 text-sm text-danger transition-all duration-300">
+        {error}
+      </div>
+    )
+  }
+
+  if (!reveal?.revealed) {
+    return (
+      <div className="mt-3 border-t border-border pt-3 text-sm text-muted transition-all duration-300">
+        Pronostics collectifs encore verrouilles.
+      </div>
+    )
+  }
+
+  const participants = reveal.participants ?? []
+  const participantCount = reveal.participantCount ?? participants.length
+  const nonParticipantCount = reveal.nonParticipantCount ?? 0
+  const mostPlayed = reveal.mostPlayedScores ?? []
+  const uniqueScores = reveal.uniqueScores ?? []
+  const trophies = reveal.newTrophies ?? []
+  const performance = reveal.performanceRanking ?? []
+
+  return (
+    <section className="mt-3 space-y-3 border-t border-border pt-3 transition-all duration-300">
+      <div className="space-y-1">
+        <p className="font-bold text-ink">Les pronos du groupe</p>
+        {participantCount === 0 ? (
+          <p className="text-sm text-muted">
+            Aucun autre prono visible pour ce match pour le moment.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+            <StatChip
+              label="Participants"
+              value={String(participantCount)}
+            />
+            <StatChip
+              label="Sans prono"
+              value={String(nonParticipantCount)}
+            />
+            <StatChip
+              label="Score le plus joue"
+              value={mostPlayed.length > 0 ? mostPlayed.join(', ') : '—'}
+            />
+            <StatChip
+              label="Pronos uniques"
+              value={uniqueScores.length > 0 ? uniqueScores.join(', ') : 'Aucun'}
+            />
+          </div>
+        )}
+      </div>
+
+      {participantCount > 0 && reveal.percentages ? (
+        <div className="grid grid-cols-3 gap-2 text-xs">
+          <StatChip
+            label="Victoire"
+            value={`${reveal.percentages.victory}%`}
+          />
+          <StatChip label="Nul" value={`${reveal.percentages.draw}%`} />
+          <StatChip
+            label="Defaite"
+            value={`${reveal.percentages.defeat}%`}
+          />
+        </div>
+      ) : null}
+
+      {participants.length > 0 ? (
+        <ul className="space-y-2">
+          {participants.map((participant) => (
+            <li
+              key={participant.playerId}
+              className="rounded-[var(--radius-sm)] border border-border bg-canvas/70 px-3 py-2 text-sm"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-bold text-ink">{participant.pseudo}</p>
+                <div className="flex flex-wrap gap-1">
+                  <span className="badge">{participant.outcome}</span>
+                  {reveal.resultReady && participant.points != null ? (
+                    <span className="badge border-green bg-success-soft text-green-dark">
+                      {participant.points} pt{participant.points > 1 ? 's' : ''}
+                    </span>
+                  ) : null}
+                  {reveal.resultReady && participant.exactScore ? (
+                    <span className="badge border-yellow bg-yellow text-ink">
+                      Score exact
+                    </span>
+                  ) : null}
+                  {reveal.resultReady && participant.bestPrediction ? (
+                    <span className="badge border-ink bg-ink text-yellow">
+                      Meilleur prono
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              <p className="mt-1 text-sm font-black tabular-nums text-ink">
+                {participant.homeScore} – {participant.awayScore}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {reveal.resultReady && performance.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-xs font-bold tracking-[0.08em] text-muted uppercase">
+            Classement du match
+          </p>
+          <ul className="space-y-1 text-sm">
+            {performance.map((row) => (
+              <li
+                key={row.playerId}
+                className="flex items-center justify-between rounded-[var(--radius-sm)] border border-border px-3 py-2"
+              >
+                <span className="font-medium text-ink">
+                  #{row.rank} {row.pseudo}
+                </span>
+                <span className="font-black tabular-nums text-green-dark">
+                  {row.points} pt{row.points > 1 ? 's' : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {trophies.length > 0 ? (
+        <div className="rounded-[var(--radius-sm)] border border-yellow/60 bg-yellow/20 px-3 py-2 text-sm">
+          <p className="font-bold text-ink">Nouveaux trophees sur ce match</p>
+          <ul className="mt-1 space-y-1 text-ink/80">
+            {trophies.map((trophy) => (
+              <li key={`${trophy.playerId}-${trophy.trophyKey}`}>
+                {trophy.pseudo} · {trophy.name}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+function StatChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[var(--radius-sm)] border border-border bg-canvas/70 px-2.5 py-2">
+      <p className="text-[10px] font-bold tracking-[0.08em] text-muted uppercase">
+        {label}
+      </p>
+      <p className="mt-1 font-black text-ink">{value}</p>
+    </div>
   )
 }

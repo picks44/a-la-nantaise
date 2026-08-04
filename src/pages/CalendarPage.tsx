@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom'
 import { MatchListItem } from '../components/MatchListItem'
 import { useSession } from '../context/useSession'
 import {
+  fetchActiveSeason,
+  fetchMatchGroupReveal,
   fetchMatches,
   fetchMyPredictions,
   findNextOpenMatch,
@@ -11,7 +13,7 @@ import {
 } from '../lib/api'
 import { shouldShowJumpToNextMatch } from '../lib/matchOrder'
 import { toUserMessage } from '../lib/errors'
-import type { Match, Prediction } from '../types'
+import type { Match, MatchGroupReveal, Prediction, Season } from '../types'
 
 const MATCH_ID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -26,6 +28,10 @@ export function CalendarPage() {
 
   const [matches, setMatches] = useState<Match[]>([])
   const [predictions, setPredictions] = useState<Prediction[]>([])
+  const [season, setSeason] = useState<Season | null>(null)
+  const [reveals, setReveals] = useState<Record<string, MatchGroupReveal>>({})
+  const [revealErrors, setRevealErrors] = useState<Record<string, string>>({})
+  const [revealLoadingIds, setRevealLoadingIds] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
@@ -43,11 +49,13 @@ export function CalendarPage() {
       setLoading(true)
       setError(null)
       try {
-        const [matchRows, predictionRows] = await Promise.all([
+        const [seasonRow, matchRows, predictionRows] = await Promise.all([
+          fetchActiveSeason(sessionToken!),
           fetchMatches(sessionToken!),
           fetchMyPredictions(sessionToken!),
         ])
         if (cancelled) return
+        setSeason(seasonRow)
         setMatches(matchRows)
         setPredictions(predictionRows)
       } catch (err) {
@@ -62,6 +70,112 @@ export function CalendarPage() {
       cancelled = true
     }
   }, [sessionToken, playerId])
+
+  const revealableMatchIds = useMemo(
+    () =>
+      matches
+        .filter((match) => {
+          const withStatus = withPredictionStatus(
+            match,
+            Boolean(getPredictionForMatch(predictions, match.id, playerId ?? '')),
+            now,
+          )
+          return withStatus.status === 'locked' || withStatus.status === 'finished'
+        })
+        .map((match) => match.id),
+    [matches, now, playerId, predictions],
+  )
+
+  useEffect(() => {
+    if (!sessionToken || !season?.id || revealableMatchIds.length === 0) return
+    let cancelled = false
+    const missingIds = revealableMatchIds.filter((matchId) => !reveals[matchId])
+    if (missingIds.length === 0) return
+
+    setRevealLoadingIds((current) => {
+      const next = { ...current }
+      for (const matchId of missingIds) next[matchId] = true
+      return next
+    })
+
+    void Promise.all(
+      missingIds.map(async (matchId) => {
+        try {
+          const reveal = await fetchMatchGroupReveal({
+            sessionToken,
+            seasonId: season.id,
+            matchId,
+          })
+          if (cancelled) return
+          setReveals((current) => ({ ...current, [matchId]: reveal }))
+          setRevealErrors((current) => {
+            const next = { ...current }
+            delete next[matchId]
+            return next
+          })
+        } catch (err) {
+          if (cancelled) return
+          setRevealErrors((current) => ({
+            ...current,
+            [matchId]: getRevealErrorMessage(err),
+          }))
+        } finally {
+          if (!cancelled) {
+            setRevealLoadingIds((current) => {
+              const next = { ...current }
+              delete next[matchId]
+              return next
+            })
+          }
+        }
+      }),
+    )
+
+    return () => {
+      cancelled = true
+    }
+  }, [revealableMatchIds, reveals, season?.id, sessionToken])
+
+  useEffect(() => {
+    if (!sessionToken || !playerId) return
+    const stableSessionToken = sessionToken
+
+    function refresh() {
+      setReveals({})
+      setRevealErrors({})
+      setRevealLoadingIds({})
+      setLoading(true)
+      setError(null)
+      void Promise.all([
+        fetchActiveSeason(stableSessionToken),
+        fetchMatches(stableSessionToken),
+        fetchMyPredictions(stableSessionToken),
+      ])
+        .then(([seasonRow, matchRows, predictionRows]) => {
+          setSeason(seasonRow)
+          setMatches(matchRows)
+          setPredictions(predictionRows)
+        })
+        .catch((err) => setError(toUserMessage(err)))
+        .finally(() => setLoading(false))
+    }
+
+    function handleVisibility() {
+      if (document.visibilityState === 'visible') refresh()
+    }
+
+    window.addEventListener('focus', refresh)
+    window.addEventListener('pageshow', refresh)
+    window.addEventListener('online', refresh)
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      window.removeEventListener('focus', refresh)
+      window.removeEventListener('pageshow', refresh)
+      window.removeEventListener('online', refresh)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [playerId, sessionToken])
 
   const items = useMemo(() => {
     if (!playerId) return []
@@ -132,6 +246,9 @@ export function CalendarPage() {
               <MatchListItem
                 match={match}
                 prediction={prediction}
+                reveal={reveals[match.id]}
+                revealLoading={Boolean(revealLoadingIds[match.id])}
+                revealError={revealErrors[match.id] ?? null}
                 isNext={match.id === nextOpenId}
                 highlighted={match.id === highlightMatchId}
               />
@@ -141,6 +258,14 @@ export function CalendarPage() {
       )}
     </div>
   )
+}
+
+function getRevealErrorMessage(error: unknown): string {
+  const message = toUserMessage(error)
+  if (message === 'Une erreur est survenue. Réessaie dans quelques instants.') {
+    return 'Pronostics collectifs temporairement indisponibles.'
+  }
+  return message
 }
 
 function EmptyCard({

@@ -26,6 +26,7 @@ const KNOWN_CODES = [
   'DUPLICATE_PLAYER_NAME',
   'INVALID_INPUT',
   'INVALID_SCORE',
+  'SEASON_NOT_FOUND',
   'INVALID_ROUND',
   'INVALID_KICKOFF',
   'INVALID_STATUS',
@@ -151,6 +152,8 @@ export function toUserMessage(error: unknown): string {
       return 'Ce pseudo est déjà utilisé.'
     case 'INVALID_SCORE':
       return 'Les scores doivent être des entiers entre 0 et 15.'
+    case 'SEASON_NOT_FOUND':
+      return 'La saison demandee est introuvable pour le moment.'
     case 'INVALID_ROUND':
       return 'Le numéro de journée doit être entre 1 et 34.'
     case 'INVALID_KICKOFF':

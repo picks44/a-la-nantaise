@@ -1,5 +1,6 @@
 import type {
   DbMatchStatus,
+  MatchGroupReveal,
   Match,
   MatchUiStatus,
   ParticipationStatus,
@@ -7,6 +8,8 @@ import type {
   PlayerOption,
   Prediction,
   RoundParticipationRow,
+  Season,
+  TrophyOverview,
 } from '../types'
 import { ApiError, getErrorCode } from './errors'
 import { getSupabase } from './supabase'
@@ -37,6 +40,7 @@ interface DbPlayerRow {
 
 interface DbMatchRow {
   id: string
+  season_id?: string
   external_id: string | null
   round_number: number
   home_team: string
@@ -80,6 +84,15 @@ interface DbParticipationRow {
   status: ParticipationStatus
   predicted_count: number | string
   expected_count: number | string
+}
+
+interface DbSeasonRow {
+  id: string
+  slug: string
+  name: string
+  starts_at: string | null
+  ends_at: string | null
+  is_active: boolean
 }
 
 async function rpc<T>(
@@ -307,6 +320,225 @@ export async function fetchRoundParticipation(
   }))
 }
 
+export async function fetchActiveSeason(sessionToken: string): Promise<Season> {
+  const rows = await rpc<DbSeasonRow[]>('get_active_season', {
+    p_session_token: sessionToken,
+  })
+  const row = rows?.[0]
+  if (!row?.id) {
+    throw new ApiError('SEASON_NOT_FOUND', 'Saison active introuvable.')
+  }
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    isActive: Boolean(row.is_active),
+  }
+}
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is string => typeof item === 'string')
+}
+
+export async function fetchMatchGroupReveal(input: {
+  sessionToken: string
+  seasonId: string
+  matchId: string
+}): Promise<MatchGroupReveal> {
+  const data = await rpc<unknown>('get_match_group_reveal', {
+    p_session_token: input.sessionToken,
+    p_season_id: input.seasonId,
+    p_match_id: input.matchId,
+  })
+  const payload = (data ?? {}) as Record<string, unknown>
+
+  return {
+    seasonId: String(payload.seasonId ?? input.seasonId),
+    matchId: String(payload.matchId ?? input.matchId),
+    revealed: Boolean(payload.revealed),
+    lockedUntil: String(payload.lockedUntil ?? ''),
+    message:
+      typeof payload.message === 'string' ? payload.message : undefined,
+    resultReady:
+      typeof payload.resultReady === 'boolean'
+        ? payload.resultReady
+        : undefined,
+    myPrediction:
+      payload.myPrediction &&
+      typeof payload.myPrediction === 'object' &&
+      !Array.isArray(payload.myPrediction)
+        ? {
+            homeScore: Number(
+              (payload.myPrediction as Record<string, unknown>).homeScore,
+            ),
+            awayScore: Number(
+              (payload.myPrediction as Record<string, unknown>).awayScore,
+            ),
+            points:
+              (payload.myPrediction as Record<string, unknown>).points == null
+                ? null
+                : Number(
+                    (payload.myPrediction as Record<string, unknown>).points,
+                  ),
+          }
+        : null,
+    participants: Array.isArray(payload.participants)
+      ? payload.participants.map((item) => {
+          const row = item as Record<string, unknown>
+          return {
+            playerId: String(row.playerId ?? ''),
+            pseudo: String(row.pseudo ?? ''),
+            homeScore: Number(row.homeScore ?? 0),
+            awayScore: Number(row.awayScore ?? 0),
+            outcome: String(row.outcome ?? ''),
+            points: row.points == null ? null : Number(row.points),
+            exactScore: Boolean(row.exactScore),
+            bestPrediction: Boolean(row.bestPrediction),
+          }
+        })
+      : undefined,
+    participantCount:
+      payload.participantCount == null
+        ? undefined
+        : Number(payload.participantCount),
+    nonParticipantCount:
+      payload.nonParticipantCount == null
+        ? undefined
+        : Number(payload.nonParticipantCount),
+    percentages:
+      payload.percentages &&
+      typeof payload.percentages === 'object' &&
+      !Array.isArray(payload.percentages)
+        ? {
+            victory: Number(
+              (payload.percentages as Record<string, unknown>).victory ?? 0,
+            ),
+            draw: Number(
+              (payload.percentages as Record<string, unknown>).draw ?? 0,
+            ),
+            defeat: Number(
+              (payload.percentages as Record<string, unknown>).defeat ?? 0,
+            ),
+          }
+        : undefined,
+    mostPlayedScores: toStringArray(payload.mostPlayedScores),
+    uniqueScores: toStringArray(payload.uniqueScores),
+    bestPredictionPoints:
+      payload.bestPredictionPoints == null
+        ? null
+        : Number(payload.bestPredictionPoints),
+    correctOutcomePlayers: toStringArray(payload.correctOutcomePlayers),
+    performanceRanking: Array.isArray(payload.performanceRanking)
+      ? payload.performanceRanking.map((item) => {
+          const row = item as Record<string, unknown>
+          return {
+            playerId: String(row.playerId ?? ''),
+            pseudo: String(row.pseudo ?? ''),
+            points: Number(row.points ?? 0),
+            rank: Number(row.rank ?? 0),
+          }
+        })
+      : undefined,
+    newTrophies: Array.isArray(payload.newTrophies)
+      ? payload.newTrophies.map((item) => {
+          const row = item as Record<string, unknown>
+          return {
+            playerId: String(row.playerId ?? ''),
+            pseudo: String(row.pseudo ?? ''),
+            trophyKey: String(row.trophyKey ?? ''),
+            name: String(row.name ?? ''),
+          }
+        })
+      : undefined,
+  }
+}
+
+export async function fetchTrophyOverview(input: {
+  sessionToken: string
+  seasonId: string
+}): Promise<TrophyOverview> {
+  const data = await rpc<unknown>('get_player_trophy_overview', {
+    p_session_token: input.sessionToken,
+    p_season_id: input.seasonId,
+  })
+  const payload = (data ?? {}) as Record<string, unknown>
+  const stats = (payload.stats ?? {}) as Record<string, unknown>
+
+  return {
+    seasonId: String(payload.seasonId ?? input.seasonId),
+    stats: {
+      currentPredictionStreak: Number(stats.currentPredictionStreak ?? 0),
+      bestPredictionStreak: Number(stats.bestPredictionStreak ?? 0),
+      currentGoodResultStreak: Number(stats.currentGoodResultStreak ?? 0),
+      bestGoodResultStreak: Number(stats.bestGoodResultStreak ?? 0),
+      currentExactStreak: Number(stats.currentExactStreak ?? 0),
+      bestExactStreak: Number(stats.bestExactStreak ?? 0),
+      totalExactScores: Number(stats.totalExactScores ?? 0),
+      trophiesCount: Number(stats.trophiesCount ?? 0),
+    },
+    earnedTrophies: Array.isArray(payload.earnedTrophies)
+      ? payload.earnedTrophies.map((item) => {
+          const row = item as Record<string, unknown>
+          return {
+            id: String(row.id ?? ''),
+            trophyKey: String(row.trophyKey ?? ''),
+            name: String(row.name ?? ''),
+            description: String(row.description ?? ''),
+            icon: String(row.icon ?? ''),
+            awardedAt: String(row.awardedAt ?? ''),
+            sourceMatchId:
+              row.sourceMatchId == null ? null : String(row.sourceMatchId),
+            sourceRoundNumber:
+              row.sourceRoundNumber == null
+                ? null
+                : Number(row.sourceRoundNumber),
+            presentedAt:
+              row.presentedAt == null ? null : String(row.presentedAt),
+          }
+        })
+      : [],
+    lockedTrophies: Array.isArray(payload.lockedTrophies)
+      ? payload.lockedTrophies.map((item) => {
+          const row = item as Record<string, unknown>
+          return {
+            trophyKey: String(row.trophyKey ?? ''),
+            name: String(row.name ?? ''),
+            description: String(row.description ?? ''),
+            icon: String(row.icon ?? ''),
+            repeatable: Boolean(row.repeatable),
+          }
+        })
+      : [],
+    pendingCelebrations: Array.isArray(payload.pendingCelebrations)
+      ? payload.pendingCelebrations.map((item) => {
+          const row = item as Record<string, unknown>
+          return {
+            id: String(row.id ?? ''),
+            trophyKey: String(row.trophyKey ?? ''),
+            name: String(row.name ?? ''),
+            description: String(row.description ?? ''),
+            icon: String(row.icon ?? ''),
+            awardedAt: String(row.awardedAt ?? ''),
+          }
+        })
+      : [],
+  }
+}
+
+export async function acknowledgeTrophyCelebrations(input: {
+  sessionToken: string
+  seasonId: string
+}): Promise<number> {
+  const result = await rpc<number>('acknowledge_trophy_celebrations', {
+    p_session_token: input.sessionToken,
+    p_season_id: input.seasonId,
+  })
+  return Number(result ?? 0)
+}
+
 export async function recalculateMatchPoints(
   accessCode: string,
   matchId: string,
@@ -327,6 +559,7 @@ export function mapMatch(row: DbMatchRow, now = new Date()): Match {
 
   return {
     id: row.id,
+    seasonId: row.season_id,
     matchday: row.round_number,
     kickoffAt: row.kickoff_at,
     kickoffTimeConfirmed: row.kickoff_time_confirmed ?? true,

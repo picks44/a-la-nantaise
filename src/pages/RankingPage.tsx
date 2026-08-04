@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { GroupRanking } from '../components/Podium'
 import { useSession } from '../context/useSession'
 import {
+  acknowledgeTrophyCelebrations,
+  fetchActiveSeason,
   fetchMatches,
   fetchRanking,
   fetchRoundParticipation,
+  fetchTrophyOverview,
 } from '../lib/api'
 import {
   formatParticipationSummary,
@@ -18,9 +21,15 @@ import {
   participationClassName,
   participationLabel,
 } from '../lib/rankingDisplay'
-import type { Match, Player, RoundParticipationRow } from '../types'
+import type {
+  Match,
+  Player,
+  RoundParticipationRow,
+  Season,
+  TrophyOverview,
+} from '../types'
 
-type RankingTab = 'general' | 'participation'
+type RankingTab = 'general' | 'participation' | 'trophies'
 
 export function RankingPage() {
   const { sessionToken, activePlayer } = useSession()
@@ -31,12 +40,17 @@ export function RankingPage() {
     [],
   )
   const [selectedRound, setSelectedRound] = useState<number | null>(null)
+  const [season, setSeason] = useState<Season | null>(null)
+  const [trophyOverview, setTrophyOverview] = useState<TrophyOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [participationLoading, setParticipationLoading] = useState(false)
+  const [trophyLoading, setTrophyLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [participationError, setParticipationError] = useState<string | null>(
     null,
   )
+  const [trophyError, setTrophyError] = useState<string | null>(null)
+  const [acknowledging, setAcknowledging] = useState(false)
 
   useEffect(() => {
     if (!sessionToken) return
@@ -46,11 +60,13 @@ export function RankingPage() {
       setLoading(true)
       setError(null)
       try {
-        const [rankingRows, matchRows] = await Promise.all([
+        const [seasonRow, rankingRows, matchRows] = await Promise.all([
+          fetchActiveSeason(sessionToken!),
           fetchRanking(sessionToken!),
           fetchMatches(sessionToken!),
         ])
         if (cancelled) return
+        setSeason(seasonRow)
         setRanking(rankingRows)
         setMatches(matchRows)
         setSelectedRound((current) =>
@@ -68,6 +84,40 @@ export function RankingPage() {
       cancelled = true
     }
   }, [sessionToken])
+
+  useEffect(() => {
+    if (!sessionToken || !season?.id || tab !== 'trophies') {
+      return
+    }
+    const stableSessionToken = sessionToken
+    const stableSeasonId = season.id
+    let cancelled = false
+
+    async function loadTrophies() {
+      setTrophyLoading(true)
+      setTrophyError(null)
+      try {
+        const overview = await fetchTrophyOverview({
+          sessionToken: stableSessionToken,
+          seasonId: stableSeasonId,
+        })
+        if (!cancelled) setTrophyOverview(overview)
+      } catch (err) {
+        if (!cancelled) {
+          setTrophyError(
+            getFriendlyStatsMessage(err, 'Impossible de charger les trophees.'),
+          )
+        }
+      } finally {
+        if (!cancelled) setTrophyLoading(false)
+      }
+    }
+
+    void loadTrophies()
+    return () => {
+      cancelled = true
+    }
+  }, [sessionToken, season?.id, tab])
 
   useEffect(() => {
     if (!sessionToken || selectedRound == null || tab !== 'participation') {
@@ -136,7 +186,11 @@ export function RankingPage() {
           if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return
           event.preventDefault()
           setTab((current) =>
-            current === 'general' ? 'participation' : 'general',
+            current === 'general'
+              ? 'participation'
+              : current === 'participation'
+                ? 'trophies'
+                : 'general',
           )
         }}
       >
@@ -155,6 +209,14 @@ export function RankingPage() {
           controls="panel-participation"
         >
           Participation
+        </TabButton>
+        <TabButton
+          selected={tab === 'trophies'}
+          onSelect={() => setTab('trophies')}
+          id="tab-trophies"
+          controls="panel-trophies"
+        >
+          Trophees & series
         </TabButton>
       </div>
 
@@ -191,7 +253,7 @@ export function RankingPage() {
             />
           )}
         </div>
-      ) : (
+      ) : tab === 'participation' ? (
         <div
           role="tabpanel"
           id="panel-participation"
@@ -243,6 +305,45 @@ export function RankingPage() {
               )}
             </>
           )}
+        </div>
+      ) : (
+        <div
+          role="tabpanel"
+          id="panel-trophies"
+          aria-labelledby="tab-trophies"
+          className="space-y-3"
+        >
+          <TrophyPanel
+            season={season}
+            overview={trophyOverview}
+            loading={trophyLoading}
+            error={trophyError}
+            acknowledging={acknowledging}
+            onDismissCelebration={() => {
+              if (!sessionToken || !season?.id || acknowledging) return
+              setAcknowledging(true)
+              void acknowledgeTrophyCelebrations({
+                sessionToken,
+                seasonId: season.id,
+              })
+                .then(() => {
+                  setTrophyOverview((current) =>
+                    current
+                      ? { ...current, pendingCelebrations: [] }
+                      : current,
+                  )
+                })
+                .catch((err) => {
+                  setTrophyError(
+                    getFriendlyStatsMessage(
+                      err,
+                      'Impossible de confirmer les trophees pour le moment.',
+                    ),
+                  )
+                })
+                .finally(() => setAcknowledging(false))
+            }}
+          />
         </div>
       )}
     </div>
@@ -368,4 +469,161 @@ function StatusCard({
       </p>
     </div>
   )
+}
+
+function TrophyPanel({
+  season,
+  overview,
+  loading,
+  error,
+  acknowledging,
+  onDismissCelebration,
+}: {
+  season: Season | null
+  overview: TrophyOverview | null
+  loading: boolean
+  error: string | null
+  acknowledging: boolean
+  onDismissCelebration: () => void
+}) {
+  if (loading) {
+    return <StatusCard message="Chargement des trophees…" />
+  }
+
+  if (error) {
+    return <StatusCard message={error} tone="error" />
+  }
+
+  if (!overview) {
+    return (
+      <StatusCard message="Statistiques temporairement indisponibles." tone="error" />
+    )
+  }
+
+  const stats = overview.stats
+  const pending = overview.pendingCelebrations
+
+  return (
+    <div className="space-y-3">
+      {season ? (
+        <section className="panel p-4">
+          <p className="text-[11px] font-bold tracking-[0.08em] text-muted uppercase">
+            Saison active
+          </p>
+          <p className="mt-1 font-black text-ink">{season.name}</p>
+        </section>
+      ) : null}
+
+      {pending.length > 0 ? (
+        <section className="panel border-yellow bg-yellow/20 p-4" aria-live="polite">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-black tracking-[0.08em] uppercase text-ink">
+                Nouveau trophée
+              </p>
+              <p className="mt-1 text-sm text-ink/80">
+                {pending.length > 1
+                  ? `${pending.length} nouveaux trophees ont ete debloques.`
+                  : `${pending[0]?.name ?? 'Un trophee'} a ete debloque.`}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn-ink min-h-11 sm:w-auto"
+              onClick={onDismissCelebration}
+              disabled={acknowledging}
+            >
+              {acknowledging ? 'Validation…' : 'Fermer'}
+            </button>
+          </div>
+          <ul className="mt-3 space-y-2">
+            {pending.map((item) => (
+              <li
+                key={item.id}
+                className="rounded-[var(--radius-sm)] border border-yellow/60 bg-white/40 px-3 py-2 text-sm"
+              >
+                <p className="font-bold text-ink">{item.name}</p>
+                <p className="mt-1 text-ink/75">{item.description}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <section className="grid gap-2 sm:grid-cols-2">
+        <StatsCard label="Serie actuelle de participation" value={String(stats.currentPredictionStreak)} />
+        <StatsCard label="Record de participation" value={String(stats.bestPredictionStreak)} />
+        <StatsCard label="Serie actuelle de bonnes issues" value={String(stats.currentGoodResultStreak)} />
+        <StatsCard label="Record de bonnes issues" value={String(stats.bestGoodResultStreak)} />
+        <StatsCard label="Serie actuelle de scores exacts" value={String(stats.currentExactStreak)} />
+        <StatsCard label="Record de scores exacts" value={String(stats.bestExactStreak)} />
+        <StatsCard label="Scores exacts au total" value={String(stats.totalExactScores)} />
+        <StatsCard label="Trophees obtenus" value={String(stats.trophiesCount)} />
+      </section>
+
+      <section className="panel overflow-hidden">
+        <div className="border-b border-border px-4 py-3">
+          <h2 className="font-black text-ink">Mes trophees</h2>
+        </div>
+        {overview.earnedTrophies.length === 0 ? (
+          <div className="p-4 text-sm text-muted">
+            Tes premiers trophees apparaitront ici des que la saison decollera.
+          </div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {overview.earnedTrophies.map((item) => (
+              <li key={item.id} className="px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-bold text-ink">{item.name}</p>
+                  <span className="text-xs text-muted">
+                    {new Date(item.awardedAt).toLocaleDateString('fr-FR')}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-muted">{item.description}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="panel overflow-hidden">
+        <div className="border-b border-border px-4 py-3">
+          <h2 className="font-black text-ink">Encore verrouilles</h2>
+        </div>
+        {overview.lockedTrophies.length === 0 ? (
+          <div className="p-4 text-sm text-muted">
+            Tous les trophees disponibles sont deja debloques sur cette saison.
+          </div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {overview.lockedTrophies.map((item) => (
+              <li key={item.trophyKey} className="px-4 py-3">
+                <p className="font-bold text-ink">{item.name}</p>
+                <p className="mt-1 text-sm text-muted">{item.description}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function StatsCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="panel p-4">
+      <p className="text-[11px] font-bold tracking-[0.08em] text-muted uppercase">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-black text-ink tabular-nums">{value}</p>
+    </div>
+  )
+}
+
+function getFriendlyStatsMessage(error: unknown, fallback: string): string {
+  const message = toUserMessage(error)
+  if (message === 'Une erreur est survenue. Réessaie dans quelques instants.') {
+    return fallback
+  }
+  return message
 }
