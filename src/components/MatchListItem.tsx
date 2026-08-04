@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import type { Match, MatchGroupReveal, Prediction } from '../types'
 import {
   formatMatchDateShort,
@@ -30,16 +31,21 @@ export function MatchListItem({
   const isFinished = match.status === 'finished'
   const isPredicted = match.status === 'predicted'
   const isUnconfirmed = match.status === 'kickoff_unconfirmed'
+  const canEditProno =
+    match.status === 'to_predict' || match.status === 'predicted'
   const stadium = venueSecondaryLabel(match.venue)
   const resultLabel = pointsResultLabel(prediction?.points)
 
-  const shellClass = isNext
-    ? 'border-ink bg-yellow'
-    : highlighted
-      ? 'border-green bg-success-soft ring-2 ring-green/40'
-      : isFinished
-        ? 'border-ink bg-ink text-white'
-        : 'border-border bg-surface'
+  // Jaune fort réservé au prochain match encore à jouer ; prono enregistré = surface claire.
+  const shellClass = highlighted
+    ? 'border-green bg-success-soft ring-2 ring-green/40'
+    : isFinished
+      ? 'border-green-dark bg-green-dark text-white'
+      : isPredicted
+        ? 'border-green/35 bg-yellow-soft'
+        : isNext
+          ? 'border-ink bg-yellow'
+          : 'border-border bg-surface'
 
   return (
     <article
@@ -53,8 +59,8 @@ export function MatchListItem({
       {isNext ? <span id="prochain-match" className="sr-only" /> : null}
       <div
         className={[
-          'flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2',
-          isNext
+          'flex flex-wrap items-center justify-between gap-2 border-b px-3 py-1.5 sm:py-2',
+          isNext && !isPredicted
             ? 'border-ink/15'
             : isFinished
               ? 'border-white/15'
@@ -63,8 +69,8 @@ export function MatchListItem({
       >
         <p
           className={[
-            'text-[11px] font-bold tracking-[0.08em] uppercase',
-            isFinished ? 'text-white/60' : 'text-ink/65',
+            'text-[11px] font-semibold tracking-[0.06em] uppercase',
+            isFinished ? 'text-white/70' : 'text-ink/65',
           ].join(' ')}
         >
           Journée {match.matchday}
@@ -83,7 +89,7 @@ export function MatchListItem({
         </span>
       </div>
 
-      <div className="px-3 py-3">
+      <div className="px-3 py-2.5 sm:py-3">
         <p
           className={[
             'mb-1.5 text-center text-[10px] font-bold tracking-[0.12em] uppercase',
@@ -96,14 +102,14 @@ export function MatchListItem({
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
           <p
             className={[
-              'text-right text-sm font-black tracking-tight uppercase sm:text-base',
+              'text-right text-sm font-semibold leading-snug text-balance sm:text-base',
               isFinished ? 'text-white' : 'text-ink',
             ].join(' ')}
           >
             {match.homeTeam}
           </p>
 
-          <div className="min-w-[4rem] text-center">
+          <div className="min-w-[3.5rem] text-center sm:min-w-[4rem]">
             {isFinished && match.finalScore ? (
               <p className="font-black text-yellow tabular-nums text-xl">
                 {match.finalScore.home}
@@ -114,7 +120,7 @@ export function MatchListItem({
               <p
                 className={[
                   'text-lg font-black',
-                  isNext ? 'text-ink/35' : 'text-muted',
+                  isNext && !isPredicted ? 'text-ink/35' : 'text-muted',
                 ].join(' ')}
               >
                 vs
@@ -124,7 +130,7 @@ export function MatchListItem({
 
           <p
             className={[
-              'text-left text-sm font-black tracking-tight uppercase sm:text-base',
+              'text-left text-sm font-semibold leading-snug text-balance sm:text-base',
               isFinished ? 'text-white' : 'text-ink',
             ].join(' ')}
           >
@@ -158,8 +164,10 @@ export function MatchListItem({
         prediction ? (
           <p
             className={[
-              'mt-2.5 border-t pt-2.5 text-sm',
-              isNext ? 'border-ink/15 text-ink/75' : 'border-border text-muted',
+              'mt-2 border-t pt-2 text-sm',
+              isNext && !isPredicted
+                ? 'border-ink/15 text-ink/75'
+                : 'border-border text-muted',
             ].join(' ')}
           >
             Pronostic :{' '}
@@ -172,6 +180,17 @@ export function MatchListItem({
               {prediction.homeScore} – {prediction.awayScore}
             </span>
           </p>
+        ) : null}
+
+        {canEditProno ? (
+          <div className="mt-2.5">
+            <Link
+              to="/"
+              className="inline-flex min-h-11 items-center text-sm font-bold tracking-[0.04em] text-green-dark underline-offset-2 hover:underline"
+            >
+              {isPredicted ? 'Modifier mon prono' : 'Faire mon prono'}
+            </Link>
+          </div>
         ) : null}
 
         {isUnconfirmed ? (
@@ -224,7 +243,7 @@ function RevealSection({
   if (isBeforeReveal) {
     return (
       <div className="mt-3 border-t border-border pt-3 text-sm text-muted">
-        <p className="font-bold text-ink">Les pronos du groupe</p>
+        <p className="font-semibold text-ink">Les pronos du groupe</p>
         <p className="mt-1">
           Les pronostics des autres seront reveles automatiquement au coup
           d’envoi.
@@ -268,7 +287,7 @@ function RevealSection({
   return (
     <section className="mt-3 space-y-3 border-t border-border pt-3 transition-all duration-300">
       <div className="space-y-1">
-        <p className="font-bold text-ink">Les pronos du groupe</p>
+        <p className="font-semibold text-ink">Les pronos du groupe</p>
         {participantCount === 0 ? (
           <p className="text-sm text-muted">
             Aucun autre prono visible pour ce match pour le moment.
@@ -317,7 +336,7 @@ function RevealSection({
               className="rounded-[var(--radius-sm)] border border-border bg-canvas/70 px-3 py-2 text-sm"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-bold text-ink">{participant.pseudo}</p>
+                <p className="font-semibold text-ink">{participant.pseudo}</p>
                 <div className="flex flex-wrap gap-1">
                   <span className="badge">{participant.outcome}</span>
                   {reveal.resultReady && participant.points != null ? (
@@ -331,7 +350,7 @@ function RevealSection({
                     </span>
                   ) : null}
                   {reveal.resultReady && participant.bestPrediction ? (
-                    <span className="badge border-ink bg-ink text-yellow">
+                    <span className="badge border-green-dark bg-green-dark text-yellow">
                       Meilleur prono
                     </span>
                   ) : null}

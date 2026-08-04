@@ -93,12 +93,12 @@ export function formatCountdown(parts: CountdownParts): string {
   const oneHourMs = 60 * 60 * 1000
 
   if (parts.totalMs >= fortyEightHoursMs) {
-    return `${days} j ${hoursInDay} h`
+    return `${days} j · ${hoursInDay} h`
   }
 
   if (parts.totalMs >= oneHourMs) {
-    return `${totalHours} h ${minutes} min`
+    return `${totalHours} h · ${minutes} min`
   }
 
-  return `${minutes} min ${seconds} s`
+  return `${minutes} min · ${seconds} s`
 }

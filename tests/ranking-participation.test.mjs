@@ -194,7 +194,7 @@ describe('ranking display helpers', () => {
   })
 
   it('exposes French participation labels', () => {
-    assert.equal(participationLabel('complete'), 'Fait')
+    assert.equal(participationLabel('complete'), 'Prono fait')
     assert.equal(participationLabel('partial'), 'Partiel')
     assert.equal(participationLabel('missing'), 'Non fait')
     assert.equal(participationLabel('not_applicable'), 'Non applicable')

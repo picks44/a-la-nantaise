@@ -223,7 +223,7 @@ export function HomePage() {
               isUnconfirmed
                 ? 'border-border bg-surface-muted text-muted'
                 : inputsLocked
-                  ? 'border-ink bg-ink text-yellow'
+                  ? 'border-green-dark bg-green-dark text-yellow'
                   : 'border-green/40 bg-success-soft text-green-dark',
             ].join(' ')}
           >
@@ -252,7 +252,7 @@ export function HomePage() {
               void handleSave()
             }}
           >
-            <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2 sm:gap-4">
+            <div className="mx-auto grid w-full max-w-md grid-cols-[1fr_auto_1fr] items-end gap-2 sm:max-w-lg sm:gap-3">
               <ScoreInput
                 label={nextMatch.homeTeam}
                 value={draft.home}
@@ -283,7 +283,7 @@ export function HomePage() {
               />
             </div>
 
-            <div className="flex justify-center">
+            <div className="flex justify-center pb-[max(0px,env(safe-area-inset-bottom))]">
               <button
                 type="submit"
                 disabled={inputsLocked || saving}
@@ -313,7 +313,10 @@ export function HomePage() {
                 aria-hidden="true"
                 className="mr-1.5 inline size-4 align-text-bottom"
               />
-              Pronostic enregistré.
+              Pronostic enregistré :{' '}
+              <span className="font-black tabular-nums">
+                {draft.home}–{draft.away}
+              </span>
             </p>
           ) : saved && !saveError ? (
             <p className="mt-3 text-center text-sm font-medium text-green-dark">
@@ -325,8 +328,8 @@ export function HomePage() {
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-1 bg-ink px-4 py-3 text-white sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <p className="text-[11px] font-bold tracking-[0.1em] uppercase">
+        <div className="flex flex-col gap-1 bg-green-dark px-4 py-3 text-white sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <p className="text-[11px] font-bold tracking-[0.1em] text-yellow/90 uppercase">
             {isUnconfirmed
               ? 'Pronostics'
               : countdown.locked
@@ -336,7 +339,7 @@ export function HomePage() {
           <p className="font-black tracking-wide text-yellow tabular-nums sm:text-lg">
             {isUnconfirmed ? 'Bientôt disponible' : formatCountdown(countdown)}
           </p>
-          <p className="text-xs text-white/60 sm:text-right">
+          <p className="text-xs text-white/80 sm:text-right">
             {isUnconfirmed
               ? 'L’horaire officiel n’est pas encore confirmé.'
               : 'Jusqu’au coup d’envoi (heure serveur)'}
@@ -387,7 +390,7 @@ function LastMatchBlock({
       </div>
 
       <div className="px-4 py-4">
-        <p className="text-center text-[11px] font-bold tracking-[0.1em] text-yellow uppercase">
+        <p className="text-center text-sm font-semibold leading-snug text-yellow">
           {match.homeTeam}
           <span className="mx-2 text-white/40">vs</span>
           {match.awayTeam}

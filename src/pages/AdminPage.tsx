@@ -1115,7 +1115,7 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
                         match.kickoffTimeConfirmed,
                       )}
                     </p>
-                    <p className="mt-1 font-black uppercase">
+                    <p className="mt-1 font-semibold leading-snug">
                       {match.homeTeam}
                       <span className="mx-2 text-muted">–</span>
                       {match.awayTeam}

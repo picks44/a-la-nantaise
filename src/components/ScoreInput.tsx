@@ -33,9 +33,9 @@ export function ScoreInput({
       <label
         htmlFor={inputId}
         className={[
-          'max-w-full text-center font-black tracking-tight uppercase',
+          'max-w-full text-center leading-snug text-balance',
           isBoard
-            ? 'text-xs leading-tight text-ink sm:text-sm'
+            ? 'text-xs font-bold text-ink sm:text-sm'
             : 'label-caps',
         ].join(' ')}
       >
@@ -58,7 +58,7 @@ export function ScoreInput({
         className={[
           'text-center font-black tabular-nums transition disabled:cursor-not-allowed disabled:opacity-50',
           isBoard
-            ? 'mx-auto w-full max-w-[5.5rem] rounded-[var(--radius-sm)] border border-ink bg-ink py-2.5 text-3xl text-yellow sm:max-w-[6.5rem] sm:py-3 sm:text-4xl'
+            ? 'mx-auto w-full max-w-[5.5rem] rounded-[var(--radius-sm)] border-2 border-green-dark bg-green-dark py-2.5 text-3xl text-yellow shadow-sm ring-offset-2 hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ink sm:max-w-[6.5rem] sm:py-3 sm:text-4xl'
             : 'w-full max-w-[5.5rem] rounded-[var(--radius-sm)] border border-border bg-surface text-3xl text-ink',
         ].join(' ')}
       />

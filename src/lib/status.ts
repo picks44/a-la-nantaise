@@ -2,7 +2,7 @@ import type { MatchUiStatus } from '../types'
 
 const STATUS_LABELS: Record<MatchUiStatus, string> = {
   to_predict: 'À pronostiquer',
-  predicted: 'Prédit',
+  predicted: 'Prono enregistré',
   locked: 'Verrouillé',
   kickoff_unconfirmed: 'Horaire à confirmer',
   finished: 'Terminé',

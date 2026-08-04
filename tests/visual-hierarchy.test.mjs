@@ -46,20 +46,23 @@ describe('visual hierarchy polish', () => {
     assert.match(css, /outline: 2px solid var\(--color-focus\)/)
   })
 
-  it('keeps calendar cards white by default without heavy side bars', () => {
+  it('keeps calendar next match yellow without painting every predicted card', () => {
     const item = read('src/components/MatchListItem.tsx')
     assert.match(item, /isNext/)
     assert.match(item, /border-border bg-surface/)
     assert.match(item, /border-ink bg-yellow/)
+    assert.match(item, /bg-yellow-soft/)
+    assert.match(item, /Modifier mon prono/)
+    assert.match(item, /Prono enregistré|statusLabel/)
     assert.doesNotMatch(item, /border-l-4 border-l-yellow/)
     assert.doesNotMatch(item, /border-l-4 border-l-green/)
+    assert.doesNotMatch(item, /font-black tracking-tight uppercase/)
   })
 
   it('does not paint every rank-1 row yellow in ranking views', () => {
     const ranking = read('src/pages/RankingPage.tsx')
     const podium = read('src/components/Podium.tsx')
     assert.match(ranking, /GroupRanking/)
-    assert.match(podium, /isFirstOccurrenceOfRank/)
     assert.doesNotMatch(ranking, /isLeader \? 'bg-yellow'/)
     assert.doesNotMatch(podium, /isLeader \? 'bg-yellow'/)
     assert.match(ranking, /border-l-green/)
@@ -67,7 +70,7 @@ describe('visual hierarchy polish', () => {
     assert.match(podium, /h-5 w-1\.5.*bg-green/)
   })
 
-  it('uses green for desktop active nav and sticky header with crest mark', () => {
+  it('keeps the heraldic crest visible in the mobile header', () => {
     const layout = read('src/components/Layout.tsx')
     assert.match(layout, /sticky top-0/)
     assert.match(layout, /after:bg-green/)
@@ -75,6 +78,10 @@ describe('visual hierarchy polish', () => {
     assert.match(layout, /min-h-11/)
     assert.match(layout, /BrandMark/)
     assert.match(layout, /bg-yellow/)
+    assert.match(layout, /safe-area-inset-top/)
+    assert.match(layout, /inline-flex size-11 shrink-0/)
+    assert.doesNotMatch(layout, /hidden shrink-0[\s\S]*BrandMark|BrandMark[\s\S]*hidden sm:block/)
+    assert.match(layout, /bg-green-dark/)
   })
 
   it('centralizes brand crest colors sampled from the logo', () => {
@@ -95,7 +102,9 @@ describe('visual hierarchy polish', () => {
     const score = read('src/components/ScoreInput.tsx')
     assert.match(score, /max-w-\[5\.5rem\]/)
     assert.match(score, /text-3xl/)
+    assert.match(score, /bg-green-dark/)
     assert.doesNotMatch(score, /sm:text-5xl/)
+    assert.doesNotMatch(score, /font-black tracking-tight uppercase/)
   })
 
   it('makes ConfirmModal keyboard-accessible', () => {
@@ -113,16 +122,27 @@ describe('visual hierarchy polish', () => {
     assert.match(home, /btn-green/)
     assert.match(home, /text-success/)
     assert.match(home, /bg-success-soft text-green-dark/)
+    assert.match(home, /Pronostic enregistré :/)
+    assert.match(home, /bg-green-dark/)
     assert.doesNotMatch(home, /absolute top-0 bottom-0 left-0 w-1 bg-ink/)
     assert.match(home, /Classement du groupe/)
     assert.match(home, /<form/)
     assert.match(home, /type="submit"/)
     assert.match(home, /flex justify-center/)
-    assert.match(home, /grid grid-cols-\[1fr_auto_1fr\]/)
+    assert.match(home, /grid-cols-\[1fr_auto_1fr\]/)
     assert.match(settings, /btn-danger/)
     assert.match(settings, /Se déconnecter/)
+    assert.match(settings, /max-w-3xl/)
     assert.doesNotMatch(settings, /Changer de joueur/)
     assert.doesNotMatch(settings, /checked \? 'bg-yellow'/)
+  })
+
+  it('uses explicit calendar status labels', () => {
+    const status = read('src/lib/status.ts')
+    assert.match(status, /Prono enregistré/)
+    assert.match(status, /À pronostiquer/)
+    assert.match(status, /Verrouillé/)
+    assert.doesNotMatch(status, /predicted: 'Prédit'/)
   })
 })
 
@@ -134,7 +154,6 @@ describe('home group ranking', () => {
     assert.doesNotMatch(podium, /topThree/)
     assert.match(podium, /players\.map\(/)
     assert.match(podium, /Classement du groupe/)
-    assert.match(podium, /isFirstOccurrenceOfRank/)
     assert.match(podium, /badge border-green bg-green/)
     assert.match(podium, /awaitingFirstResult/)
     assert.match(podium, /premier match/)
@@ -158,7 +177,7 @@ describe('home group ranking', () => {
     assert.deepEqual(ranks, [1, 1, 1, 1, 1])
   })
 
-  it('does not invent a unique leader when everyone is tied at zero', () => {
+  it('styles every tied leader the same way', () => {
     const players = [
       { id: 'a', pseudo: 'Alpha', points: 0, exactScores: 0 },
       { id: 'b', pseudo: 'Bravo', points: 0, exactScores: 0 },
@@ -166,10 +185,12 @@ describe('home group ranking', () => {
     ]
     assert.deepEqual(getCompetitionRanks(players), [1, 1, 1])
     const podium = read('src/components/Podium.tsx')
-    assert.match(
+    assert.match(podium, /const isLeaderMark = rank === 1/)
+    assert.doesNotMatch(
       podium,
-      /isLeaderMark[\s\S]*?bg-yellow|rank === 1 && isFirstOccurrenceOfRank[\s\S]*?bg-yellow/,
+      /isLeaderMark = rank === 1 && isFirstOccurrenceOfRank/,
     )
+    assert.match(podium, /isLeaderMark[\s\S]*?bg-yellow/)
   })
 
   it('marks a sole leader when scores diverge', () => {

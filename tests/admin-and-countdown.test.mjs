@@ -74,21 +74,21 @@ describe('formatCountdown', () => {
     const now = new Date('2026-08-03T10:00:00Z')
     const kickoff = new Date('2026-08-29T20:00:00Z').toISOString()
     const parts = getCountdown(kickoff, now)
-    assert.match(formatCountdown(parts), /^\d+ j \d+ h$/)
+    assert.match(formatCountdown(parts), /^\d+ j · \d+ h$/)
   })
 
   it('formats mid durations with hours and minutes', () => {
     const now = new Date('2026-08-03T10:00:00Z')
     const kickoff = new Date('2026-08-04T04:24:00Z').toISOString()
     const parts = getCountdown(kickoff, now)
-    assert.equal(formatCountdown(parts), '18 h 24 min')
+    assert.equal(formatCountdown(parts), '18 h · 24 min')
   })
 
   it('formats short durations with minutes and seconds', () => {
     const now = new Date('2026-08-03T10:00:00Z')
     const kickoff = new Date('2026-08-03T10:42:18Z').toISOString()
     const parts = getCountdown(kickoff, now)
-    assert.equal(formatCountdown(parts), '42 min 18 s')
+    assert.equal(formatCountdown(parts), '42 min · 18 s')
   })
 
   it('shows locked state after kickoff', () => {

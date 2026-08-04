@@ -24,17 +24,15 @@ function RankingRow({
   rank,
   isActive,
   isTie,
-  isFirstOccurrenceOfRank,
   variant,
 }: {
   player: Player
   rank: number
   isActive: boolean
   isTie: boolean
-  isFirstOccurrenceOfRank: boolean
   variant: 'compact' | 'full'
 }) {
-  const isLeaderMark = rank === 1 && isFirstOccurrenceOfRank
+  const isLeaderMark = rank === 1
   const hasScoredResults = player.scoredPredictions > 0
 
   return (
@@ -46,10 +44,7 @@ function RankingRow({
       ].join(' ')}
     >
       <span
-        className={[
-          'flex w-10 shrink-0 flex-col items-start sm:w-12',
-          isLeaderMark ? 'text-ink' : 'text-green-dark',
-        ].join(' ')}
+        className="flex w-10 shrink-0 flex-col items-start text-green-dark sm:w-12"
         aria-label={`${rank}e place${isTie ? ' ex æquo' : ''}`}
       >
         <span
@@ -69,14 +64,14 @@ function RankingRow({
           />
         ) : null}
         {isTie ? (
-          <span className="mt-0.5 text-[9px] font-bold tracking-wider text-ink/55 uppercase">
+          <span className="mt-0.5 text-[9px] font-semibold tracking-wide text-ink/55">
             ex æquo
           </span>
         ) : null}
       </span>
 
       <div className="min-w-0 flex-1">
-        <p className="flex flex-wrap items-center gap-2 font-bold">
+        <p className="flex flex-wrap items-center gap-2 font-semibold">
           <span className="truncate text-sm sm:text-base">{player.pseudo}</span>
           {isActive ? (
             <span className="badge border-green bg-green text-white">Toi</span>
@@ -132,7 +127,7 @@ function RankingRow({
         >
           {player.points}
         </p>
-        <p className="text-[10px] font-bold tracking-wider uppercase opacity-70">
+        <p className="text-[10px] font-semibold tracking-wider uppercase opacity-70">
           pts
         </p>
       </div>
@@ -231,8 +226,6 @@ export function GroupRanking({
       <ol className="divide-y divide-border">
         {players.map((player, index) => {
           const rank = ranks[index]
-          const isFirstOccurrenceOfRank =
-            ranks.findIndex((value) => value === rank) === index
           const isTie = ranks.filter((value) => value === rank).length > 1
 
           return (
@@ -242,7 +235,6 @@ export function GroupRanking({
               rank={rank}
               isActive={player.id === activePlayerId}
               isTie={isTie}
-              isFirstOccurrenceOfRank={isFirstOccurrenceOfRank}
               variant={variant}
             />
           )

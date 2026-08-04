@@ -1,7 +1,7 @@
 import type { ParticipationStatus } from '../types'
 
 const PARTICIPATION_LABELS: Record<ParticipationStatus, string> = {
-  complete: 'Fait',
+  complete: 'Prono fait',
   partial: 'Partiel',
   missing: 'Non fait',
   not_applicable: 'Non applicable',

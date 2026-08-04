@@ -69,7 +69,7 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
+    <div className="mx-auto max-w-3xl space-y-4">
       <header>
         <h1 className="title-display">Paramètres</h1>
         <p className="mt-1 text-sm text-muted">
@@ -88,103 +88,118 @@ export function SettingsPage() {
         </p>
       ) : null}
 
-      <section aria-labelledby="active-player-title" className="panel p-4">
-        <h2
-          id="active-player-title"
-          className="text-sm font-black tracking-[0.08em] uppercase"
+      <div className="grid gap-4 md:grid-cols-2">
+        <section
+          aria-labelledby="active-player-title"
+          className="panel flex items-center gap-3 p-3 sm:p-4"
         >
-          Pseudo actuel
-        </h2>
-        <p className="mt-2 inline-flex items-center gap-2 text-base font-bold text-green-dark">
-          <UserRound aria-hidden="true" className="size-5" />
-          {activePlayer?.pseudo ?? '—'}
-        </p>
-      </section>
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-green/30 bg-success-soft text-green-dark">
+            <UserRound aria-hidden="true" className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <h2
+              id="active-player-title"
+              className="text-[11px] font-bold tracking-[0.1em] text-muted uppercase"
+            >
+              Pseudo actuel
+            </h2>
+            <p className="truncate text-base font-semibold text-green-dark">
+              {activePlayer?.pseudo ?? '—'}
+            </p>
+          </div>
+        </section>
 
-      <section aria-labelledby="change-pin-title" className="panel p-4">
-        <h2
-          id="change-pin-title"
-          className="text-sm font-black tracking-[0.08em] uppercase"
-        >
-          Changer mon PIN
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          4 ou 6 chiffres. Les autres appareils seront déconnectés.
-        </p>
-        <form onSubmit={handleChangePin} className="mt-4 space-y-3">
-          <div>
-            <label
-              htmlFor={oldPinId}
-              className="mb-1 block text-[11px] font-bold tracking-[0.12em] uppercase"
-            >
-              PIN actuel
-            </label>
-            <input
-              id={oldPinId}
-              type="password"
-              inputMode="numeric"
-              autoComplete="current-password"
-              maxLength={6}
-              value={oldPin}
-              onChange={(event) => setOldPin(sanitizePinInput(event.target.value))}
-              required
-              className="w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas px-3 py-3 font-semibold tracking-[0.3em]"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor={newPinId}
-              className="mb-1 block text-[11px] font-bold tracking-[0.12em] uppercase"
-            >
-              Nouveau PIN
-            </label>
-            <input
-              id={newPinId}
-              type="password"
-              inputMode="numeric"
-              autoComplete="new-password"
-              maxLength={6}
-              value={newPin}
-              onChange={(event) => setNewPin(sanitizePinInput(event.target.value))}
-              required
-              className="w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas px-3 py-3 font-semibold tracking-[0.3em]"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor={confirmPinId}
-              className="mb-1 block text-[11px] font-bold tracking-[0.12em] uppercase"
-            >
-              Confirmer le nouveau PIN
-            </label>
-            <input
-              id={confirmPinId}
-              type="password"
-              inputMode="numeric"
-              autoComplete="new-password"
-              maxLength={6}
-              value={confirmPin}
-              onChange={(event) =>
-                setConfirmPin(sanitizePinInput(event.target.value))
-              }
-              required
-              className="w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas px-3 py-3 font-semibold tracking-[0.3em]"
-            />
-          </div>
-          <button
-            type="submit"
-            className="btn-ink"
-            disabled={
-              pending ||
-              !isValidPinFormat(oldPin) ||
-              !isValidPinFormat(newPin) ||
-              newPin !== confirmPin
-            }
+        <section aria-labelledby="change-pin-title" className="panel p-4 md:col-span-2">
+          <h2
+            id="change-pin-title"
+            className="text-sm font-black tracking-[0.08em] uppercase"
           >
-            {pending ? 'Enregistrement…' : 'Mettre à jour le PIN'}
-          </button>
-        </form>
-      </section>
+            Changer mon PIN
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            4 ou 6 chiffres. Les autres appareils seront déconnectés.
+          </p>
+          <form onSubmit={handleChangePin} className="mt-4 space-y-3">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <label
+                  htmlFor={oldPinId}
+                  className="mb-1 block text-[11px] font-bold tracking-[0.12em] uppercase"
+                >
+                  PIN actuel
+                </label>
+                <input
+                  id={oldPinId}
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="current-password"
+                  maxLength={6}
+                  value={oldPin}
+                  onChange={(event) =>
+                    setOldPin(sanitizePinInput(event.target.value))
+                  }
+                  required
+                  className="w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas px-3 py-3 font-semibold tracking-[0.3em]"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor={newPinId}
+                  className="mb-1 block text-[11px] font-bold tracking-[0.12em] uppercase"
+                >
+                  Nouveau PIN
+                </label>
+                <input
+                  id={newPinId}
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="new-password"
+                  maxLength={6}
+                  value={newPin}
+                  onChange={(event) =>
+                    setNewPin(sanitizePinInput(event.target.value))
+                  }
+                  required
+                  className="w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas px-3 py-3 font-semibold tracking-[0.3em]"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor={confirmPinId}
+                  className="mb-1 block text-[11px] font-bold tracking-[0.12em] uppercase"
+                >
+                  Confirmer
+                </label>
+                <input
+                  id={confirmPinId}
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="new-password"
+                  maxLength={6}
+                  value={confirmPin}
+                  onChange={(event) =>
+                    setConfirmPin(sanitizePinInput(event.target.value))
+                  }
+                  required
+                  className="w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas px-3 py-3 font-semibold tracking-[0.3em]"
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              className="btn-ink"
+              disabled={
+                pending ||
+                !isValidPinFormat(oldPin) ||
+                !isValidPinFormat(newPin) ||
+                newPin !== confirmPin
+              }
+            >
+              {pending ? 'Enregistrement…' : 'Mettre à jour le PIN'}
+            </button>
+          </form>
+        </section>
+      </div>
 
       {sessionToken && playerId && activePlayer ? (
         <PushNotificationsSection
@@ -210,48 +225,50 @@ export function SettingsPage() {
         </Link>
       </section>
 
-      <section aria-labelledby="logout-title" className="panel p-4">
-        <h2
-          id="logout-title"
-          className="text-sm font-black tracking-[0.08em] uppercase"
-        >
-          Session
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          Déconnecte ce joueur sur cet appareil. Le code du groupe reste
-          mémorisé.
-        </p>
-        <button
-          type="button"
-          onClick={() => void handleLogout()}
-          className="btn-secondary mt-4 gap-2"
-          disabled={pending}
-        >
-          <LogOut aria-hidden="true" className="size-4" />
-          Se déconnecter
-        </button>
-      </section>
+      <div className="grid gap-4 md:grid-cols-2">
+        <section aria-labelledby="logout-title" className="panel p-4">
+          <h2
+            id="logout-title"
+            className="text-sm font-black tracking-[0.08em] uppercase"
+          >
+            Session
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            Déconnecte ce joueur sur cet appareil. Le code du groupe reste
+            mémorisé.
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleLogout()}
+            className="btn-secondary mt-4 gap-2"
+            disabled={pending}
+          >
+            <LogOut aria-hidden="true" className="size-4" />
+            Se déconnecter
+          </button>
+        </section>
 
-      <section aria-labelledby="leave-group-title" className="panel p-4">
-        <h2
-          id="leave-group-title"
-          className="text-sm font-black tracking-[0.08em] uppercase"
-        >
-          Groupe
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          Efface le code et la session mémorisés sur cet appareil.
-        </p>
-        <button
-          type="button"
-          onClick={() => void leaveGroup()}
-          className="btn-danger mt-4"
-          disabled={pending}
-        >
-          <LogOut aria-hidden="true" className="size-4" />
-          Quitter le groupe
-        </button>
-      </section>
+        <section aria-labelledby="leave-group-title" className="panel p-4">
+          <h2
+            id="leave-group-title"
+            className="text-sm font-black tracking-[0.08em] uppercase"
+          >
+            Groupe
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            Efface le code et la session mémorisés sur cet appareil.
+          </p>
+          <button
+            type="button"
+            onClick={() => void leaveGroup()}
+            className="btn-danger mt-4"
+            disabled={pending}
+          >
+            <LogOut aria-hidden="true" className="size-4" />
+            Quitter le groupe
+          </button>
+        </section>
+      </div>
 
       <PwaInstallSection />
     </div>

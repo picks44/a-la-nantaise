@@ -283,10 +283,10 @@ export function RankingPage() {
             </div>
           ) : (
             <>
-              <label className="block space-y-1.5">
-                <span className="label-caps">Journée</span>
+              <label className="panel flex flex-col gap-1.5 p-3 sm:flex-row sm:items-center sm:gap-3">
+                <span className="label-caps shrink-0">Journée</span>
                 <select
-                  className="field-input"
+                  className="field-input min-h-11 flex-1 border-2 border-ink bg-surface font-semibold"
                   value={selectedRound ?? ''}
                   onChange={(event) =>
                     setSelectedRound(Number(event.target.value))
@@ -376,6 +376,8 @@ function ParticipationList({
   )
   const { predictedCount, applicableCount } = summarizeParticipation(rows)
   const summary = formatParticipationSummary(predictedCount, applicableCount)
+  const progressRatio =
+    applicableCount > 0 ? predictedCount / applicableCount : 0
 
   return (
     <section className="panel overflow-hidden" aria-label="Participation">
@@ -385,9 +387,22 @@ function ParticipationList({
           hors période pour les joueurs).
         </p>
       ) : (
-        <p className="border-b border-border px-4 py-3 text-sm font-bold text-ink">
-          {summary}
-        </p>
+        <div className="space-y-2 border-b border-border px-4 py-3">
+          <p className="text-sm font-bold text-ink">{summary}</p>
+          <div
+            className="h-2 overflow-hidden rounded-full border border-ink/15 bg-canvas"
+            role="progressbar"
+            aria-valuenow={predictedCount}
+            aria-valuemin={0}
+            aria-valuemax={applicableCount}
+            aria-label="Progression des pronostics"
+          >
+            <div
+              className="h-full bg-green transition-[width]"
+              style={{ width: `${Math.round(progressRatio * 100)}%` }}
+            />
+          </div>
+        </div>
       )}
       <ul className="divide-y divide-border">
         {rows.map((row) => {
@@ -396,12 +411,12 @@ function ParticipationList({
             <li
               key={row.playerId}
               className={[
-                'flex items-center gap-3 px-4 py-3',
+                'flex items-center gap-3 px-4 py-2.5 sm:py-3',
                 isActive ? 'border-l-4 border-l-green bg-success-soft/60' : '',
               ].join(' ')}
             >
               <div className="min-w-0 flex-1">
-                <p className="flex flex-wrap items-center gap-2 font-bold">
+                <p className="flex flex-wrap items-center gap-2 font-semibold">
                   <span className="truncate">{row.pseudo}</span>
                   {isActive ? (
                     <span className="badge border-green bg-green text-white">
@@ -454,7 +469,7 @@ function TabButton({
       className={[
         'min-h-11 flex-1 rounded-[var(--radius-sm)] px-3 text-xs font-extrabold tracking-[0.08em] uppercase transition',
         selected
-          ? 'bg-ink text-yellow'
+          ? 'bg-green-dark text-yellow'
           : 'text-ink/65 hover:bg-canvas hover:text-ink',
       ].join(' ')}
       onClick={onSelect}
@@ -540,7 +555,7 @@ function TrophyPanel({
         >
           <div className="flex flex-wrap items-start justify-between gap-3 p-4">
             <div className="flex items-start gap-3">
-              <span className="flex size-11 items-center justify-center rounded-[var(--radius-sm)] border border-ink bg-ink text-yellow">
+              <span className="flex size-11 items-center justify-center rounded-[var(--radius-sm)] border border-ink bg-green-dark text-yellow">
                 <Trophy className="size-5" aria-hidden />
               </span>
               <div>
@@ -577,7 +592,7 @@ function TrophyPanel({
         </section>
       ) : null}
 
-      <section className="overflow-hidden rounded-[var(--radius-md)] border border-ink bg-ink text-yellow">
+      <section className="overflow-hidden rounded-[var(--radius-md)] border border-green-dark bg-green-dark text-yellow">
         <div className="grid gap-0 sm:grid-cols-3">
           <HeroStat
             icon={Flame}
@@ -729,12 +744,12 @@ function LockedTrophyCard({
         nearComplete ? 'border-yellow bg-yellow/10' : 'opacity-90',
       ].join(' ')}
     >
-      <div className="flex items-start gap-3 p-4">
+      <div className="flex items-start gap-3 p-3 sm:p-4">
         <TrophyIcon name={trophy.icon} unlocked={false} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-bold text-ink">{trophy.name}</p>
-            <span className="inline-flex items-center gap-1 text-[10px] font-black tracking-[0.08em] uppercase text-muted">
+            <p className="font-semibold text-ink">{trophy.name}</p>
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold tracking-[0.08em] uppercase text-muted">
               <Lock className="size-3" aria-hidden />
               Verrouillé
             </span>

@@ -29,12 +29,12 @@ export function Header() {
   const { activePlayer } = useSession()
 
   return (
-    <header className="sticky top-0 z-40 border-b border-ink bg-yellow">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
-        <div className="flex min-w-0 items-center gap-3">
+    <header className="sticky top-0 z-40 border-b border-ink bg-yellow pt-[env(safe-area-inset-top)]">
+      <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-2.5">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <Link
             to="/"
-            className="hidden shrink-0 rounded-[var(--radius-sm)] p-0.5 sm:block"
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-sm)] p-0.5"
             aria-label="À la Nantaise — accueil"
           >
             <BrandMark size="sm" className="rounded-[var(--radius-sm)]" />
@@ -42,11 +42,11 @@ export function Header() {
           <div className="min-w-0">
             <Link
               to="/"
-              className="block truncate text-lg font-black tracking-tight text-ink uppercase sm:text-xl"
+              className="block truncate text-base font-black tracking-tight text-ink uppercase sm:text-xl"
             >
               À la Nantaise
             </Link>
-            <p className="text-[10px] font-bold tracking-[0.12em] text-green-dark uppercase">
+            <p className="hidden truncate text-[10px] font-bold tracking-[0.12em] text-green-dark uppercase min-[400px]:block">
               Pronos 26/27
               <span className="mx-1.5 text-ink/30">·</span>
               <span className="tracking-normal text-ink/70 normal-case">
@@ -56,7 +56,7 @@ export function Header() {
           </div>
         </div>
 
-        <div className="flex items-center gap-1 sm:gap-3">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-3">
           <nav
             className="hidden items-center gap-3 md:flex"
             aria-label="Navigation principale"
@@ -70,7 +70,7 @@ export function Header() {
 
           <Link
             to="/parametres"
-            className="inline-flex size-11 items-center justify-center border border-ink/25 text-ink transition hover:border-ink hover:bg-ink hover:text-yellow"
+            className="inline-flex size-11 items-center justify-center border border-ink/25 text-ink transition hover:border-ink hover:bg-green-dark hover:text-yellow"
             aria-label="Paramètres d’accès"
             title="Paramètres d’accès"
           >
@@ -85,7 +85,7 @@ export function Header() {
 export function BottomNav() {
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-ink pb-[max(0.5rem,env(safe-area-inset-bottom))] md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-green-dark pb-[max(0.5rem,env(safe-area-inset-bottom))] md:hidden"
       aria-label="Navigation mobile"
     >
       <div className="mx-auto flex max-w-lg">
