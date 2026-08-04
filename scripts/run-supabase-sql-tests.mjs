@@ -1,137 +1,130 @@
-import { execFileSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import {
+  EXPECTED_TEST_DB_CONTAINER,
+  acquireSqlTestLock,
+  assertResolvedTestContainer,
+  assertTestSupabaseTarget,
+  listSqlTestFiles,
+  prepareTestTarget,
+  rootDir,
+  runSqlFileInContainer,
+  runSupabaseTest,
+  isDbContainerRunning,
+} from './supabase-test-shared.mjs'
 
-const rootDir = join(dirname(fileURLToPath(import.meta.url)), '..')
-const supabaseDir = join(rootDir, 'supabase')
-const configPath = join(supabaseDir, 'config.toml')
-const testsDir = join(supabaseDir, 'tests')
-
-function parseTomlScalar(source, key) {
-  const match = source.match(new RegExp(`^${key}\\s*=\\s*"?([^"\\n]+)"?$`, 'm'))
-  return match?.[1] ?? null
+// Backward-compatible export name used by older unit tests; now enforces the TEST stack.
+export function assertLocalSupabaseTarget(config) {
+  return assertTestSupabaseTarget(config)
 }
 
-function parseLocalSupabaseConfig() {
-  const toml = readFileSync(configPath, 'utf8')
-  const projectId = parseTomlScalar(toml, 'project_id')
-  const apiBlockMatch = toml.match(/\[api\][\s\S]*?(?=\n\[|$)/)
-  const apiPortMatch = apiBlockMatch?.[0]?.match(/^port\s*=\s*(\d+)$/m)
-  const apiPort = Number(apiPortMatch?.[1] ?? NaN)
-  const dbBlockMatch = toml.match(/\[db\][\s\S]*?(?=\n\[|$)/)
-  const dbPortMatch = dbBlockMatch?.[0]?.match(/^port\s*=\s*(\d+)$/m)
-  const dbPort = Number(dbPortMatch?.[1] ?? NaN)
+export {
+  assertTestSupabaseTarget,
+  acquireSqlTestLock,
+  prepareTestTarget,
+  EXPECTED_TEST_DB_CONTAINER,
+}
 
+function parseCliFlags(argv) {
   return {
-    projectId,
-    apiHost: '127.0.0.1',
-    apiPort,
-    dbHost: '127.0.0.1',
-    dbPort,
+    stop: argv.includes('--stop'),
   }
 }
 
-export function assertLocalSupabaseTarget(config = parseLocalSupabaseConfig()) {
-  if (!config.projectId) {
-    throw new Error('project_id manquant dans supabase/config.toml')
+function ensureTestStackRunning() {
+  const alreadyRunning = isDbContainerRunning(EXPECTED_TEST_DB_CONTAINER)
+  if (alreadyRunning) {
+    assertResolvedTestContainer(EXPECTED_TEST_DB_CONTAINER)
+    return { startedByUs: false }
   }
 
-  if (config.apiHost !== '127.0.0.1' || config.apiPort !== 54321) {
-    throw new Error(
-      `Refus de lancer les tests SQL: cible API non locale (${config.apiHost}:${config.apiPort}).`,
-    )
-  }
-
-  if (config.dbHost !== '127.0.0.1' || config.dbPort !== 54322) {
-    throw new Error(
-      `Refus de lancer les tests SQL: cible DB non locale (${config.dbHost}:${config.dbPort}).`,
-    )
-  }
-
-  return config
+  process.stdout.write('Starting isolated Supabase test stack...\n')
+  runSupabaseTest(['start'], { stdio: 'inherit' })
+  assertResolvedTestContainer(EXPECTED_TEST_DB_CONTAINER)
+  return { startedByUs: true }
 }
 
-function run(command, args, options = {}) {
-  return execFileSync(command, args, {
-    cwd: rootDir,
-    stdio: 'pipe',
-    encoding: 'utf8',
-    ...options,
+function resetTestDatabase() {
+  process.stdout.write('Resetting Supabase test database with migrations (no seed)...\n')
+  runSupabaseTest(['db', 'reset', '--local', '--no-seed', '--yes'], {
+    stdio: 'inherit',
   })
+  assertResolvedTestContainer(EXPECTED_TEST_DB_CONTAINER)
 }
 
-function getDbContainerName(projectId) {
-  return `supabase_db_${projectId}`
+function stopTestStack() {
+  process.stdout.write('Stopping isolated Supabase test stack...\n')
+  runSupabaseTest(['stop'], { stdio: 'inherit' })
 }
 
-function ensureLocalDbContainer(containerName) {
-  const names = run('docker', ['ps', '--format', '{{.Names}}']).split(/\r?\n/).filter(Boolean)
-  if (!names.includes(containerName)) {
-    throw new Error(
-      `Conteneur local ${containerName} introuvable. Lance d'abord \`supabase start\`.`,
+export function runSqlTests({ stop = false } = {}) {
+  const config = prepareTestTarget()
+  const lock = acquireSqlTestLock()
+  let startedByUs = false
+  let exitCode = 0
+
+  try {
+    process.stdout.write(
+      `Target: Supabase test (${config.projectId}) ` +
+        `API ${config.apiHost}:${config.apiPort} / DB ${config.dbHost}:${config.dbPort} / ` +
+        `container ${config.containerName}\n`,
     )
+
+    const stack = ensureTestStackRunning()
+    startedByUs = stack.startedByUs
+    resetTestDatabase()
+
+    const sqlTests = listSqlTestFiles()
+    process.stdout.write(
+      `Running ${sqlTests.length} SQL test files against Supabase test ` +
+        `${config.containerName}...\n`,
+    )
+
+    for (const filePath of sqlTests) {
+      const relative = filePath.slice(rootDir.length + 1)
+      process.stdout.write(`\n==> ${relative}\n`)
+      runSqlFileInContainer(config.containerName, filePath)
+    }
+
+    process.stdout.write('\nAll isolated SQL tests passed.\n')
+  } catch (error) {
+    exitCode = 1
+    const message = error instanceof Error ? error.message : String(error)
+    process.stderr.write(`\nSQL tests failed: ${message}\n`)
+    if (error?.status != null) {
+      exitCode = Number(error.status) || 1
+    }
+  } finally {
+    try {
+      if (stop || startedByUs) {
+        stopTestStack()
+      }
+    } catch (stopError) {
+      const message =
+        stopError instanceof Error ? stopError.message : String(stopError)
+      process.stderr.write(`Failed to stop Supabase test stack: ${message}\n`)
+      exitCode = exitCode || 1
+    }
+
+    try {
+      lock.release()
+    } catch (lockError) {
+      const message =
+        lockError instanceof Error ? lockError.message : String(lockError)
+      process.stderr.write(`Failed to release SQL test lock: ${message}\n`)
+      exitCode = exitCode || 1
+    }
   }
-}
 
-function resetLocalDatabase() {
-  process.stdout.write('Reset local database with migrations...\n')
-  execFileSync(
-    'supabase',
-    ['db', 'reset', '--local', '--no-seed', '--yes'],
-    {
-      cwd: rootDir,
-      stdio: 'inherit',
-      encoding: 'utf8',
-    },
-  )
-}
-
-function listSqlTests() {
-  if (!existsSync(testsDir)) {
-    throw new Error('Répertoire supabase/tests introuvable.')
-  }
-
-  return readdirSync(testsDir)
-    .filter((name) => name.endsWith('.sql'))
-    .sort()
-    .map((name) => join(testsDir, name))
-}
-
-function runSqlFile(containerName, filePath) {
-  const sql = readFileSync(filePath, 'utf8')
-  execFileSync(
-    'docker',
-    ['exec', '-i', containerName, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres', '-f', '-'],
-    {
-      cwd: rootDir,
-      input: sql,
-      stdio: ['pipe', 'inherit', 'inherit'],
-      encoding: 'utf8',
-    },
-  )
+  return exitCode
 }
 
 function main() {
-  const config = assertLocalSupabaseTarget()
-  const containerName = getDbContainerName(config.projectId)
-  ensureLocalDbContainer(containerName)
-  resetLocalDatabase()
-
-  const sqlTests = listSqlTests()
-  process.stdout.write(
-    `Running ${sqlTests.length} SQL test files against local Supabase ${config.apiHost}:${config.apiPort} / ${config.dbHost}:${config.dbPort}...\n`,
-  )
-
-  for (const filePath of sqlTests) {
-    const relative = filePath.slice(rootDir.length + 1)
-    process.stdout.write(`\n==> ${relative}\n`)
-    runSqlFile(containerName, filePath)
-  }
-
-  process.stdout.write('\nAll local SQL tests passed.\n')
+  const flags = parseCliFlags(process.argv.slice(2))
+  const code = runSqlTests(flags)
+  process.exit(code)
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+import { pathToFileURL } from 'node:url'
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main()
 }

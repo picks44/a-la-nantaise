@@ -34,7 +34,8 @@ cp .env.example .env
 
 | Environnement | Commande de lancement | Frontend | Supabase ciblé | Rôle de Docker | Configuration | Précautions |
 |---|---|---|---|---|---|---|
-| Frontend local + Supabase local | `supabase start` puis `npm run dev` | `http://localhost:5173` | `http://127.0.0.1:54321` | Docker exécute la stack Supabase locale via la CLI | `.env.local` prioritaire + `supabase/config.toml` | Mode le plus sûr pour développer et lancer les tests SQL |
+| Frontend local + Supabase local (dev) | `supabase start` puis `npm run dev` | `http://localhost:5173` | `http://127.0.0.1:54321` | Stack Docker `a-la-nantaise` (ports 54xxx) | `.env.local` + `supabase/config.toml` | Données manuelles de développement ; **jamais** réinitialisée par les tests SQL |
+| Tests SQL isolés | `npm run test:sql:local` | n/a | `http://127.0.0.1:55321` | Stack Docker `a-la-nantaise-test` (ports 55xxx) | `supabase-test/supabase/config.toml` | Reset uniquement de la base de test ; la stack dev reste intacte |
 | Frontend local + Supabase distant | `npm run dev` avec `.env.local` absent ou neutralisé | `http://localhost:5173` | URL de `.env` | Aucun conteneur applicatif | `.env` | Vérifier explicitement la cible avant tout test mutatif |
 | CI GitHub | workflow automatique | pas de serveur persistant | aucun projet réel | aucun | `.github/workflows/ci.yml` injecte des placeholders | ne valide pas une vraie instance Supabase |
 | Vercel Preview / Production | build Vercel | domaine Vercel | dépend des variables Vercel | aucun | `vercel.json` + variables Vercel | le repo ne contient pas le project ref Supabase distant |
@@ -150,11 +151,61 @@ Ne jamais y mettre de `service_role`.
 npm run dev
 ```
 
-Services locaux attendus :
+Services locaux attendus (stack **dev**) :
 
 - API Supabase : `127.0.0.1:54321`
 - Postgres : `127.0.0.1:54322`
 - Studio : `127.0.0.1:54323`
+
+## Deux stacks Supabase locales
+
+Le dépôt maintient **deux** environnements Docker distincts :
+
+| | Stack **dev** | Stack **test** |
+|---|---|---|
+| `project_id` | `a-la-nantaise` | `a-la-nantaise-test` |
+| Conteneur DB | `supabase_db_a-la-nantaise` | `supabase_db_a-la-nantaise-test` |
+| Workdir CLI | dépôt (défaut) | `supabase-test/` |
+| Config | `supabase/config.toml` | `supabase-test/supabase/config.toml` |
+| API | `127.0.0.1:54321` | `127.0.0.1:55321` |
+| Postgres | `127.0.0.1:54322` | `127.0.0.1:55322` |
+| Shadow DB | `54320` | `55320` |
+| Studio | `54323` | `55323` |
+| Inbucket | `54324` | `55324` |
+| Analytics | `54327` | `55327` |
+| Pooler | `54329` | `55329` |
+| Usage | `npm run dev`, `.env.local`, données manuelles | `npm run test:sql:local` uniquement |
+
+Les migrations restent une seule source de vérité : `supabase/migrations/` (symlink depuis la stack test). Les fichiers SQL de test restent dans `supabase/tests/` et sont lus directement par le runner.
+
+### Commandes de la stack test
+
+```bash
+npm run supabase:test:start
+npm run supabase:test:status
+npm run supabase:test:stop
+```
+
+Ces commandes utilisent exclusivement `--workdir supabase-test` et **ne peuvent pas** arrêter ni réinitialiser la stack de développement.
+
+### Dépannage : port déjà occupé
+
+Si `supabase:test:start` échoue parce qu’un port `553xx` est pris :
+
+1. `npm run supabase:test:status` pour voir si la stack test tourne déjà ;
+2. `lsof -i :55321` (ou le port signalé) pour identifier le processus ;
+3. arrêter uniquement la stack test avec `npm run supabase:test:stop` ;
+4. ne jamais libérer un port `54xxx` en stoppant la stack test — ce sont les ports de développement.
+
+### Suppression volontaire de la stack test
+
+```bash
+npm run supabase:test:stop
+# optionnel, volumes Docker de la stack test uniquement :
+supabase --workdir supabase-test stop --no-backup
+```
+
+Ne jamais utiliser `supabase stop` sans `--workdir supabase-test` si tu veux préserver la stack dev.
 
 ## Démarrage local avec un Supabase distant
 
@@ -188,17 +239,24 @@ npm run test:sql:local
 
 `npm run test:sql:local` :
 
-- vérifie explicitement que la cible est locale (`127.0.0.1:54321` / `127.0.0.1:54322`) ;
-- exécute un `supabase db reset --local --no-seed --yes` ;
-- lance tous les fichiers de `supabase/tests/*.sql` contre la base locale Docker.
+- cible uniquement la stack **Supabase test** (`a-la-nantaise-test`, ports `55321` / `55322`, conteneur `supabase_db_a-la-nantaise-test`) ;
+- refuse la stack de développement (`54321` / `54322`, `supabase_db_a-la-nantaise`) et toute cible distante / liée ;
+- démarre la stack test si besoin, applique les migrations via `db reset --local --no-seed`, puis exécute `supabase/tests/*.sql` ;
+- **ne touche jamais** à la base de développement : codes d’accès, PIN, joueurs, matchs et sessions locaux restent intacts ;
+- empêche deux exécutions simultanées via un verrou local non versionné.
 
-Si la cible n’est pas locale, la commande échoue avant toute mutation.
+Preuve d’isolation optionnelle (empreinte **lecture seule** de la base dev, sans écriture) :
+
+```bash
+npm run test:sql:isolation
+```
 
 ### Garde-fous importants
 
 - ne jamais exécuter `supabase db push` ou `supabase db reset --linked` sans avoir vérifié manuellement le projet ciblé ;
 - le repo ne versionne aucun `supabase link` ni project ref distant ;
-- aucune commande courante du dépôt ne doit viser silencieusement la production.
+- aucune commande courante du dépôt ne doit viser silencieusement la production ;
+- ne jamais copier `supabase/.temp/` (fichiers de liaison) vers `supabase-test/`.
 
 ## Commandes utiles
 
@@ -209,9 +267,12 @@ npm run preview
 npm run lint
 npm run typecheck
 npm test
+npm run supabase:test:start
+npm run supabase:test:status
+npm run supabase:test:stop
 npm run test:sql:local
+npm run test:sql:isolation
 ```
-
 ## Architecture courte
 
 - `src/lib/supabase.ts` : client Supabase frontend
@@ -221,6 +282,8 @@ npm run test:sql:local
 - `src/pages/AccessPage.tsx` : entrée groupe + PIN
 - `src/pages/AdminPage.tsx` : administration
 - `supabase/migrations/` : schéma, RPC et sécurité SQL
+- `supabase/tests/` : suites SQL exécutées sur la stack test isolée
+- `supabase-test/` : workdir CLI de la stack test (ports 55xxx, symlink vers les migrations)
 - `supabase/functions/` : Edge Functions `sync-fc-nantes` et `send-prediction-reminders`
 
 ## Déploiement

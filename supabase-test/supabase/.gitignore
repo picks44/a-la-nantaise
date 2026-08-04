@@ -1,0 +1,3 @@
+# CLI local state — never commit; never copy remote link files from supabase/.temp
+.branches
+.temp

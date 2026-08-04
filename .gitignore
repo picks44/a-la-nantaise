@@ -20,6 +20,8 @@ dist-ssr
 # Previews / caches locaux
 .tmp-shots
 supabase/.temp/
+supabase-test/supabase/.temp/
+supabase-test/supabase/.branches/
 pnpm-lock.yaml
 
 # Editor directories and files

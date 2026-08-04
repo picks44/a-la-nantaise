@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  closeSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+  mkdirSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -7,7 +15,27 @@ import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import { diagnoseFrontendTarget } from '../scripts/frontend-env-diagnostic.mjs'
-import { assertLocalSupabaseTarget } from '../scripts/run-supabase-sql-tests.mjs'
+import {
+  assertLocalSupabaseTarget,
+  assertTestSupabaseTarget,
+} from '../scripts/run-supabase-sql-tests.mjs'
+import {
+  EXPECTED_TEST_API_PORT,
+  EXPECTED_TEST_DB_CONTAINER,
+  EXPECTED_TEST_DB_PORT,
+  EXPECTED_TEST_PROJECT_ID,
+  FORBIDDEN_DEV_API_PORT,
+  FORBIDDEN_DEV_DB_CONTAINER,
+  FORBIDDEN_DEV_DB_PORT,
+  FORBIDDEN_DEV_PROJECT_ID,
+  acquireSqlTestLock,
+  assertArgsHaveNoLinked,
+  assertNoRemoteLinkInTestTemp,
+  assertSafeCliEnvironment,
+  getDbContainerName,
+  parseTestSupabaseConfig,
+  testConfigPath,
+} from '../scripts/supabase-test-shared.mjs'
 
 const rootDir = join(dirname(fileURLToPath(import.meta.url)), '..')
 const diagnosticScript = join(rootDir, 'scripts/frontend-env-diagnostic.mjs')
@@ -138,30 +166,213 @@ describe('frontend environment diagnostics', () => {
   })
 })
 
-describe('local SQL test guard', () => {
-  it('accepts only the expected local Supabase ports', () => {
-    const config = assertLocalSupabaseTarget({
-      projectId: 'a-la-nantaise',
-      apiHost: '127.0.0.1',
-      apiPort: 54321,
-      dbHost: '127.0.0.1',
-      dbPort: 54322,
-    })
+describe('isolated SQL test guards', () => {
+  const validTestConfig = {
+    projectId: EXPECTED_TEST_PROJECT_ID,
+    apiHost: '127.0.0.1',
+    apiPort: EXPECTED_TEST_API_PORT,
+    dbHost: '127.0.0.1',
+    dbPort: EXPECTED_TEST_DB_PORT,
+  }
 
-    assert.equal(config.projectId, 'a-la-nantaise')
+  it('accepts only the dedicated Supabase test stack', () => {
+    const config = assertTestSupabaseTarget(validTestConfig)
+    assert.equal(config.projectId, EXPECTED_TEST_PROJECT_ID)
+    assert.equal(config.containerName, EXPECTED_TEST_DB_CONTAINER)
+    assert.equal(
+      getDbContainerName(config.projectId),
+      EXPECTED_TEST_DB_CONTAINER,
+    )
   })
 
-  it('rejects a non-local API target before any reset or mutation', () => {
+  it('keeps assertLocalSupabaseTarget as an alias of the test guard', () => {
+    const config = assertLocalSupabaseTarget(validTestConfig)
+    assert.equal(config.containerName, EXPECTED_TEST_DB_CONTAINER)
+  })
+
+  it('rejects development API and DB ports', () => {
     assert.throws(
       () =>
-        assertLocalSupabaseTarget({
-          projectId: 'a-la-nantaise',
+        assertTestSupabaseTarget({
+          ...validTestConfig,
+          apiPort: FORBIDDEN_DEV_API_PORT,
+        }),
+      /port API de développement/,
+    )
+
+    assert.throws(
+      () =>
+        assertTestSupabaseTarget({
+          ...validTestConfig,
+          dbPort: FORBIDDEN_DEV_DB_PORT,
+        }),
+      /port DB de développement/,
+    )
+  })
+
+  it('rejects the development project_id', () => {
+    assert.throws(
+      () =>
+        assertTestSupabaseTarget({
+          ...validTestConfig,
+          projectId: FORBIDDEN_DEV_PROJECT_ID,
+        }),
+      /project_id de développement/,
+    )
+  })
+
+  it('rejects a non-local / remote API host', () => {
+    assert.throws(
+      () =>
+        assertTestSupabaseTarget({
+          ...validTestConfig,
           apiHost: 'example.supabase.co',
           apiPort: 443,
-          dbHost: '127.0.0.1',
-          dbPort: 54322,
         }),
-      /Refus de lancer les tests SQL: cible API non locale/,
+      /cible API non locale/,
     )
+  })
+
+  it('rejects a missing test configuration file', () => {
+    assert.throws(
+      () => parseTestSupabaseConfig(join(tmpdir(), 'missing-aln-test-config.toml')),
+      /Configuration de test absente/,
+    )
+  })
+
+  it('parses the committed test config with the expected ports and project_id', () => {
+    const config = parseTestSupabaseConfig(testConfigPath)
+    assert.equal(config.projectId, EXPECTED_TEST_PROJECT_ID)
+    assert.equal(config.apiPort, EXPECTED_TEST_API_PORT)
+    assert.equal(config.dbPort, EXPECTED_TEST_DB_PORT)
+    const guarded = assertTestSupabaseTarget(config)
+    assert.equal(guarded.containerName, EXPECTED_TEST_DB_CONTAINER)
+    assert.notEqual(guarded.containerName, FORBIDDEN_DEV_DB_CONTAINER)
+  })
+
+  it('resolves the test container name and refuses the development container name', () => {
+    assert.equal(
+      getDbContainerName(EXPECTED_TEST_PROJECT_ID),
+      EXPECTED_TEST_DB_CONTAINER,
+    )
+    assert.equal(
+      getDbContainerName(FORBIDDEN_DEV_PROJECT_ID),
+      FORBIDDEN_DEV_DB_CONTAINER,
+    )
+    assert.throws(
+      () =>
+        assertTestSupabaseTarget({
+          ...validTestConfig,
+          projectId: FORBIDDEN_DEV_PROJECT_ID,
+        }),
+      /développement/,
+    )
+  })
+
+  it('refuses remote link files in the test .temp directory', () => {
+    const tempRoot = mkdtempSync(join(tmpdir(), 'aln-temp-link-'))
+    try {
+      writeFileSync(join(tempRoot, 'project-ref'), 'fake-remote-project-ref\n')
+      assert.throws(
+        () => assertNoRemoteLinkInTestTemp(tempRoot),
+        /fichiers de liaison distante/,
+      )
+
+      rmSync(join(tempRoot, 'project-ref'))
+      writeFileSync(join(tempRoot, 'cli-latest'), 'v2.111.0\n')
+      assert.doesNotThrow(() => assertNoRemoteLinkInTestTemp(tempRoot))
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('refuses CLI-influencing env vars but ignores VITE_SUPABASE_URL', () => {
+    assert.throws(
+      () =>
+        assertSafeCliEnvironment({
+          SUPABASE_DB_URL: 'postgresql://remote.example/postgres',
+        }),
+      /SUPABASE_DB_URL/,
+    )
+
+    assert.doesNotThrow(() =>
+      assertSafeCliEnvironment({
+        VITE_SUPABASE_URL: 'https://preview.example.supabase.co',
+      }),
+    )
+
+    assert.doesNotThrow(() =>
+      assertSafeCliEnvironment({
+        SUPABASE_ACCESS_TOKEN: 'sbp_local_cli_token_does_not_select_target',
+      }),
+    )
+  })
+
+  it('refuses --linked arguments', () => {
+    assert.throws(
+      () => assertArgsHaveNoLinked(['db', 'reset', '--linked']),
+      /--linked/,
+    )
+  })
+
+  it('acquires a lock, blocks concurrent acquisition, and releases after success', () => {
+    const lockDir = mkdtempSync(join(tmpdir(), 'aln-sql-lock-'))
+    const lockPath = join(lockDir, 'test.lock')
+    const first = acquireSqlTestLock(lockPath)
+    try {
+      assert.throws(() => acquireSqlTestLock(lockPath), /déjà en cours/)
+      first.release()
+      const second = acquireSqlTestLock(lockPath)
+      second.release()
+      assert.equal(
+        (() => {
+          try {
+            readFileSync(lockPath, 'utf8')
+            return true
+          } catch (error) {
+            return error?.code === 'ENOENT' ? false : true
+          }
+        })(),
+        false,
+      )
+    } finally {
+      try {
+        first.release()
+      } catch {
+        // already released
+      }
+      rmSync(lockDir, { recursive: true, force: true })
+    }
+  })
+
+  it('releases the lock after a simulated failure path', () => {
+    const lockDir = mkdtempSync(join(tmpdir(), 'aln-sql-lock-fail-'))
+    const lockPath = join(lockDir, 'test.lock')
+    const lock = acquireSqlTestLock(lockPath)
+    try {
+      throw new Error('simulated failure')
+    } catch {
+      lock.release()
+    }
+
+    const again = acquireSqlTestLock(lockPath)
+    again.release()
+    rmSync(lockDir, { recursive: true, force: true })
+  })
+
+  it('recovers a stale lock left by a dead process', () => {
+    const lockDir = mkdtempSync(join(tmpdir(), 'aln-sql-lock-stale-'))
+    const lockPath = join(lockDir, 'test.lock')
+    mkdirSync(dirname(lockPath), { recursive: true })
+    const fd = openSync(lockPath, 'wx')
+    try {
+      writeFileSync(fd, '999999999\n')
+    } finally {
+      closeSync(fd)
+    }
+
+    const lock = acquireSqlTestLock(lockPath)
+    lock.release()
+    rmSync(lockDir, { recursive: true, force: true })
   })
 })

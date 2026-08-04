@@ -15,7 +15,11 @@
     "env:frontend:default": "node scripts/frontend-env-diagnostic.mjs default",
     "env:frontend:local": "node scripts/frontend-env-diagnostic.mjs local",
     "env:frontend:effective": "node scripts/frontend-env-diagnostic.mjs effective",
+    "supabase:test:start": "node scripts/supabase-test-stack.mjs start",
+    "supabase:test:stop": "node scripts/supabase-test-stack.mjs stop",
+    "supabase:test:status": "node scripts/supabase-test-stack.mjs status",
     "test:sql:local": "node scripts/run-supabase-sql-tests.mjs",
+    "test:sql:isolation": "node scripts/run-supabase-sql-isolation.mjs",
     "typecheck": "tsc -b --pretty false",
     "test": "node --experimental-strip-types --test tests/**/*.test.mjs"
   },
