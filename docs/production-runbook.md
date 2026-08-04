@@ -49,7 +49,7 @@ supabase migration list --linked
   apparaître comme **appliquées** côté distant (colonne `Remote`).
 - Une migration présente en local mais absente côté distant signifie qu’elle
   n’a pas encore été exécutée en production : ne pas déployer un frontend qui
-  suppose son application (voir l’ordre documenté dans `README.md`).
+  suppose son application.
 - En cas de doute sur une fonction précise, vérifier sa signature directement
   dans le **SQL Editor** :
 
@@ -59,20 +59,16 @@ FROM pg_proc
 WHERE proname = 'nom_de_la_fonction';
 ```
 
-### Ordre de déploiement sûr (sessions admin + horaires)
+### Ordre de déploiement sûr
 
-1. **Migrations Supabase** (jusqu’à `20260804150000_admin_code_edge_compat` inclus) —
-   la base accepte encore l’ancienne Edge (`p_admin_code`) via un fallback
-   temporaire dans `assert_admin_session`.
-2. **Edge Function `sync-fc-nantes`** — auth via `login_admin` (cron/`admin_code`)
-   ou `admin_session_token` (manuel) ; RPC uniquement en signatures session.
-3. **Front** (Vercel) — UI admin session opaque, plus de code en clair stocké.
-4. **Retrait compat** — appliquer la migration
-   `20260804160000_drop_admin_code_auth_compat` (ne laisser que les sessions
-   opaques, sans exécuter de script de maintenance manuel).
+1. **Vérifier la cible distante** avant toute action (`supabase link` n’est pas versionné dans le dépôt).
+2. **Appliquer toutes les migrations requises** présentes dans `supabase/migrations/`.
+3. **Déployer ensuite les Edge Functions concernées**.
+4. **Déployer enfin le frontend Vercel**.
 
-Pendant l’étape 1→2, l’ancienne Edge continue de fonctionner. Ne pas déployer
-le front avant les migrations (sinon PIN / horaires / admin session cassés).
+Le dépôt local inclut déjà la migration
+`20260804160000_drop_admin_code_auth_compat` : en l’état actuel du code,
+considérer les sessions opaques admin comme le comportement attendu.
 
 ## 3. Consulter les logs
 

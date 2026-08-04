@@ -111,7 +111,7 @@ export function AccessPage() {
         <h1 className="title-display text-xl">Configuration requise</h1>
         <p className="mt-2 text-sm text-muted">
           {bootstrapError ??
-            'Ajoute VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY dans un fichier .env local.'}
+            'Ajoute VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY dans `.env.local` ou `.env`.'}
         </p>
       </AccessShell>
     )

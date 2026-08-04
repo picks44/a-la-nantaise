@@ -143,7 +143,7 @@ export function AdminPage() {
         <div className="panel p-5">
           <h1 className="title-display text-xl">Configuration requise</h1>
           <p className="mt-2 text-sm text-muted">
-            Variables Supabase manquantes dans le fichier `.env` local.
+            Variables Supabase manquantes dans `.env.local` ou `.env`.
           </p>
         </div>
       </AdminShell>

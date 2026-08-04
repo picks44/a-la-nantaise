@@ -12,6 +12,10 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint .",
     "preview": "vite preview",
+    "env:frontend:default": "node scripts/frontend-env-diagnostic.mjs default",
+    "env:frontend:local": "node scripts/frontend-env-diagnostic.mjs local",
+    "env:frontend:effective": "node scripts/frontend-env-diagnostic.mjs effective",
+    "test:sql:local": "node scripts/run-supabase-sql-tests.mjs",
     "typecheck": "tsc -b --pretty false",
     "test": "node --experimental-strip-types --test tests/**/*.test.mjs"
   },
