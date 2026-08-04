@@ -44,7 +44,7 @@ function getSourceLabel(mode) {
     case 'local':
       return '.env.local'
     case 'effective':
-      return '.env puis .env.local puis .env.development puis .env.development.local'
+      return 'process.env.VITE_SUPABASE_URL puis .env puis .env.local puis .env.development puis .env.development.local'
     default:
       throw new Error(`Mode invalide: ${mode}`)
   }
@@ -93,6 +93,11 @@ function toSafeTarget(urlValue) {
 export function diagnoseFrontendTarget(mode, options = {}) {
   const rootDir = options.rootDir ?? defaultRootDir
   const values = loadEnvFiles(rootDir, mode)
+  const processEnv = options.processEnv ?? process.env
+
+  if (mode === 'effective' && typeof processEnv.VITE_SUPABASE_URL === 'string') {
+    values.VITE_SUPABASE_URL = processEnv.VITE_SUPABASE_URL
+  }
 
   return {
     mode,

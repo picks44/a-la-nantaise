@@ -42,6 +42,7 @@ cp .env.example .env
 ### Comportement du dépôt
 
 - `npm run dev` lance **uniquement Vite**.
+- en mode développement, `process.env.VITE_SUPABASE_URL` a priorité sur tous les fichiers `.env*` ;
 - si `.env.local` existe, Vite le charge avant `.env` en développement ;
 - la stack Supabase locale est exécutée par la **CLI Supabase via Docker** ;
 - il n’existe **aucun** `Dockerfile` ni fichier Compose dédié à l’application.
@@ -51,7 +52,7 @@ cp .env.example .env
 ```bash
 npm run env:frontend:default    # lit .env
 npm run env:frontend:local      # lit .env.local
-npm run env:frontend:effective  # applique la priorité .env.local > .env
+npm run env:frontend:effective  # applique la priorité process.env > .env.local > .env et variantes development
 ```
 
 Ces commandes affichent uniquement :

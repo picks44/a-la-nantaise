@@ -71,6 +71,34 @@ describe('frontend environment diagnostics', () => {
     )
   })
 
+  it('lets process.env override every env file in effective mode', () => {
+    withTempEnvFiles(
+      {
+        '.env': 'VITE_SUPABASE_URL=https://base.example.supabase.co\n',
+        '.env.local': 'VITE_SUPABASE_URL=http://127.0.0.1:54321\n',
+        '.env.development': 'VITE_SUPABASE_URL=https://dev.example.supabase.co\n',
+        '.env.development.local':
+          'VITE_SUPABASE_URL=https://dev-local.example.supabase.co\n',
+      },
+      (tempRoot) => {
+        const diagnostic = diagnoseFrontendTarget('effective', {
+          rootDir: tempRoot,
+          processEnv: {
+            VITE_SUPABASE_URL: 'https://process.example.supabase.co',
+          },
+        })
+
+        assert.equal(diagnostic.label, 'Supabase distant')
+        assert.equal(diagnostic.origin, 'https://process.example.supabase.co')
+        assert.equal(diagnostic.hostname, 'process.example.supabase.co')
+        assert.match(
+          diagnostic.sourceLabel,
+          /process\.env\.VITE_SUPABASE_URL/,
+        )
+      },
+    )
+  })
+
   it('reports missing configuration without depending on local .env files', () => {
     withTempEnvFiles({}, (tempRoot) => {
       const diagnostic = diagnoseFrontendTarget('effective', { rootDir: tempRoot })
