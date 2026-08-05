@@ -20,7 +20,7 @@ function desktopNavClass({ isActive }: { isActive: boolean }): string {
 
 function mobileNavClass({ isActive }: { isActive: boolean }): string {
   return [
-    'flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 px-2 py-2 text-[10px] font-bold tracking-[0.08em] uppercase transition-[color] duration-150 ease-out',
+    'flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 px-2 py-2 text-[11px] font-bold tracking-[0.08em] uppercase transition-[color] duration-150 ease-out',
     isActive ? 'text-yellow' : 'text-white/65 hover:text-white',
   ].join(' ')
 }
@@ -88,13 +88,16 @@ export function BottomNav() {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-green-dark pb-[max(0.5rem,env(safe-area-inset-bottom))] md:hidden"
       aria-label="Navigation mobile"
     >
-      <div className="mx-auto flex max-w-lg">
-        {navItems.map(({ to, label, icon: Icon, end }) => (
-          <NavLink key={to} to={to} end={end} className={mobileNavClass}>
-            <Icon aria-hidden="true" className="size-5" strokeWidth={2.25} />
-            <span>{label}</span>
-          </NavLink>
-        ))}
+      {/* Conteneur shell ; zone d’actions compacte centrée (évite une barre vide). */}
+      <div className="mx-auto w-full max-w-5xl">
+        <div className="mx-auto flex max-w-lg">
+          {navItems.map(({ to, label, icon: Icon, end }) => (
+            <NavLink key={to} to={to} end={end} className={mobileNavClass}>
+              <Icon aria-hidden="true" className="size-5" strokeWidth={2.25} />
+              <span>{label}</span>
+            </NavLink>
+          ))}
+        </div>
       </div>
     </nav>
   )

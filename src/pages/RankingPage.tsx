@@ -4,7 +4,6 @@ import {
   Crown,
   Eye,
   Flame,
-  Lock,
   Medal,
   Shield,
   Sparkles,
@@ -14,6 +13,7 @@ import {
 } from 'lucide-react'
 import { GroupRanking } from '../components/Podium'
 import { ConfettiBurst } from '../components/ConfettiBurst'
+import { RoundRecapCard } from '../components/RoundRecapCard'
 import { useSession } from '../context/useSession'
 import {
   celebrationStorageKey,
@@ -25,8 +25,10 @@ import {
 import {
   acknowledgeTrophyCelebrations,
   fetchActiveSeason,
+  fetchLiveSeasonRanking,
   fetchMatches,
-  fetchRanking,
+  fetchPlayerRoundRecap,
+  fetchPlayerSeasonTimeline,
   fetchRoundParticipation,
   fetchTrophyOverview,
 } from '../lib/api'
@@ -39,19 +41,23 @@ import {
 } from '../lib/ranking'
 import { toUserMessage } from '../lib/errors'
 import {
+  formatProvisionalBadge,
+  formatGapToPreviousHuman,
   participationClassName,
   participationLabel,
 } from '../lib/rankingDisplay'
 import type {
   Match,
   Player,
+  PlayerRoundRecap,
   RoundParticipationRow,
   Season,
+  SeasonTimeline,
   TrophyAward,
   TrophyOverview,
 } from '../types'
 
-type RankingTab = 'general' | 'participation' | 'trophies'
+type RankingTab = 'general' | 'participation' | 'trophies' | 'parcours'
 
 export function RankingPage() {
   const { sessionToken, activePlayer, accessCode, playerId } = useSession()
@@ -64,14 +70,19 @@ export function RankingPage() {
   const [selectedRound, setSelectedRound] = useState<number | null>(null)
   const [season, setSeason] = useState<Season | null>(null)
   const [trophyOverview, setTrophyOverview] = useState<TrophyOverview | null>(null)
+  const [recap, setRecap] = useState<PlayerRoundRecap | null>(null)
+  const [timeline, setTimeline] = useState<SeasonTimeline | null>(null)
   const [loading, setLoading] = useState(true)
   const [participationLoading, setParticipationLoading] = useState(false)
   const [trophyLoading, setTrophyLoading] = useState(false)
+  const [timelineLoading, setTimelineLoading] = useState(false)
+  const [recapLoading, setRecapLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [participationError, setParticipationError] = useState<string | null>(
     null,
   )
   const [trophyError, setTrophyError] = useState<string | null>(null)
+  const [timelineError, setTimelineError] = useState<string | null>(null)
   const [acknowledging, setAcknowledging] = useState(false)
 
   useEffect(() => {
@@ -82,9 +93,12 @@ export function RankingPage() {
       setLoading(true)
       setError(null)
       try {
-        const [seasonRow, rankingRows, matchRows] = await Promise.all([
-          fetchActiveSeason(sessionToken!),
-          fetchRanking(sessionToken!),
+        const seasonRow = await fetchActiveSeason(sessionToken!)
+        const [rankingRows, matchRows] = await Promise.all([
+          fetchLiveSeasonRanking({
+            sessionToken: sessionToken!,
+            seasonId: seasonRow.id,
+          }),
           fetchMatches(sessionToken!),
         ])
         if (cancelled) return
@@ -106,6 +120,37 @@ export function RankingPage() {
       cancelled = true
     }
   }, [sessionToken])
+
+  useEffect(() => {
+    if (!sessionToken || !season?.id) return
+    const referenceRound =
+      ranking.find((row) => row.referenceRoundNumber != null)
+        ?.referenceRoundNumber ?? null
+    if (referenceRound == null) {
+      setRecap(null)
+      return
+    }
+    let cancelled = false
+    async function loadRecap() {
+      setRecapLoading(true)
+      try {
+        const payload = await fetchPlayerRoundRecap({
+          sessionToken: sessionToken!,
+          seasonId: season!.id,
+          roundNumber: referenceRound!,
+        })
+        if (!cancelled) setRecap(payload)
+      } catch {
+        if (!cancelled) setRecap(null)
+      } finally {
+        if (!cancelled) setRecapLoading(false)
+      }
+    }
+    void loadRecap()
+    return () => {
+      cancelled = true
+    }
+  }, [sessionToken, season?.id, ranking])
 
   useEffect(() => {
     if (!sessionToken || !season?.id || tab !== 'trophies') {
@@ -169,15 +214,56 @@ export function RankingPage() {
     }
   }, [sessionToken, selectedRound, tab])
 
-  const ranks = useMemo(() => getCompetitionRanks(ranking), [ranking])
+  useEffect(() => {
+    if (!sessionToken || !season?.id || tab !== 'parcours') return
+    const stableSessionToken = sessionToken
+    const stableSeasonId = season.id
+    let cancelled = false
+
+    async function loadTimeline() {
+      setTimelineLoading(true)
+      setTimelineError(null)
+      try {
+        const payload = await fetchPlayerSeasonTimeline({
+          sessionToken: stableSessionToken,
+          seasonId: stableSeasonId,
+        })
+        if (!cancelled) setTimeline(payload)
+      } catch (err) {
+        if (!cancelled) setTimelineError(toUserMessage(err))
+      } finally {
+        if (!cancelled) setTimelineLoading(false)
+      }
+    }
+
+    void loadTimeline()
+    return () => {
+      cancelled = true
+    }
+  }, [sessionToken, season?.id, tab])
+
+  const ranks = useMemo(
+    () =>
+      ranking.every((player) => player.rank != null)
+        ? ranking.map((player) => player.rank as number)
+        : getCompetitionRanks(ranking),
+    [ranking],
+  )
   const roundNumbers = useMemo(() => listRoundNumbers(matches), [matches])
+  const isProvisional = ranking.some((player) => player.isRankingProvisional)
+  const referenceRound = ranking.find(
+    (player) => player.referenceRoundNumber != null,
+  )?.referenceRoundNumber
 
   function retry() {
-    if (!sessionToken) return
+    if (!sessionToken || !season?.id) return
     setLoading(true)
     setError(null)
     void Promise.all([
-      fetchRanking(sessionToken),
+      fetchLiveSeasonRanking({
+        sessionToken,
+        seasonId: season.id,
+      }),
       fetchMatches(sessionToken),
     ])
       .then(([rankingRows, matchRows]) => {
@@ -207,13 +293,20 @@ export function RankingPage() {
         onKeyDown={(event) => {
           if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return
           event.preventDefault()
-          setTab((current) =>
-            current === 'general'
-              ? 'participation'
-              : current === 'participation'
-                ? 'trophies'
-                : 'general',
-          )
+          const order: RankingTab[] = [
+            'general',
+            'participation',
+            'trophies',
+            'parcours',
+          ]
+          setTab((current) => {
+            const index = order.indexOf(current)
+            const next =
+              event.key === 'ArrowRight'
+                ? order[(index + 1) % order.length]
+                : order[(index - 1 + order.length) % order.length]
+            return next
+          })
         }}
       >
         <TabButton
@@ -240,6 +333,14 @@ export function RankingPage() {
         >
           Trophées & séries
         </TabButton>
+        <TabButton
+          selected={tab === 'parcours'}
+          onSelect={() => setTab('parcours')}
+          id="tab-parcours"
+          controls="panel-parcours"
+        >
+          Parcours
+        </TabButton>
       </div>
 
       {loading ? (
@@ -256,7 +357,19 @@ export function RankingPage() {
           role="tabpanel"
           id="panel-general"
           aria-labelledby="tab-general"
+          className="space-y-4"
         >
+          {referenceRound != null ? (
+            <p className="text-xs font-semibold text-muted">
+              Référence journée {referenceRound} ·{' '}
+              {formatProvisionalBadge(isProvisional)}
+            </p>
+          ) : null}
+          {recapLoading ? (
+            <StatusCard message="Chargement du récap…" />
+          ) : recap ? (
+            <RoundRecapCard recap={recap} />
+          ) : null}
           {ranking.length === 0 ? (
             <div className="panel border-dashed p-6 text-center">
               <p className="font-bold text-ink">Classement vide</p>
@@ -272,6 +385,7 @@ export function RankingPage() {
               title="Classement complet"
               showLink={false}
               variant="full"
+              live
             />
           )}
         </div>
@@ -328,7 +442,7 @@ export function RankingPage() {
             </>
           )}
         </div>
-      ) : (
+      ) : tab === 'trophies' ? (
         <div
           role="tabpanel"
           id="panel-trophies"
@@ -369,8 +483,161 @@ export function RankingPage() {
             }}
           />
         </div>
+      ) : (
+        <div
+          role="tabpanel"
+          id="panel-parcours"
+          aria-labelledby="tab-parcours"
+          className="space-y-3"
+        >
+          {timelineLoading ? (
+            <StatusCard message="Chargement du parcours…" />
+          ) : timelineError ? (
+            <StatusCard message={timelineError} tone="error" />
+          ) : !timeline || timeline.rounds.length === 0 ? (
+            <div className="panel border-dashed p-6 text-center">
+              <p className="font-bold text-ink">Parcours en construction</p>
+              <p className="mt-1 text-sm text-muted">
+                Les jalons apparaîtront dès qu’une journée sera terminée.
+              </p>
+            </div>
+          ) : (
+            <SeasonTimelinePanel timeline={timeline} />
+          )}
+        </div>
       )}
     </div>
+  )
+}
+
+function SeasonTimelinePanel({ timeline }: { timeline: SeasonTimeline }) {
+  const trophiesByRound = new Map<number, typeof timeline.trophies>()
+  for (const trophy of timeline.trophies) {
+    if (trophy.sourceRoundNumber == null) continue
+    const list = trophiesByRound.get(trophy.sourceRoundNumber) ?? []
+    list.push(trophy)
+    trophiesByRound.set(trophy.sourceRoundNumber, list)
+  }
+
+  return (
+    <section
+      className="panel section-stack overflow-hidden p-4"
+      aria-label="Parcours de saison"
+    >
+      <div className="grid gap-2 sm:grid-cols-3">
+        <div className="rounded-[var(--radius-sm)] border border-border bg-canvas/50 px-3 py-2">
+          <p className="label-caps">Journées terminées</p>
+          <p className="mt-1 text-2xl font-black tabular-nums">
+            {timeline.rounds.length}
+          </p>
+        </div>
+        {timeline.bestRound ? (
+          <div className="rounded-[var(--radius-sm)] border border-border bg-canvas/50 px-3 py-2">
+            <p className="label-caps">Meilleure journée</p>
+            <p className="mt-1 font-black">
+              J{timeline.bestRound.roundNumber} · {timeline.bestRound.roundPoints}{' '}
+              pts
+            </p>
+          </div>
+        ) : null}
+        {timeline.bestRank ? (
+          <div className="rounded-[var(--radius-sm)] border border-border bg-canvas/50 px-3 py-2">
+            <p className="label-caps">Meilleure position</p>
+            <p className="mt-1 font-black">
+              {timeline.bestRank.rank === 1
+                ? '1re'
+                : `${timeline.bestRank.rank}e`}{' '}
+              · J{timeline.bestRank.roundNumber}
+            </p>
+          </div>
+        ) : null}
+      </div>
+
+      <ol className="season-timeline">
+        {timeline.rounds.map((round) => {
+          const isBestRound =
+            timeline.bestRound?.roundNumber === round.roundNumber
+          const isBestRank =
+            timeline.bestRank?.roundNumber === round.roundNumber
+          const roundTrophies = trophiesByRound.get(round.roundNumber) ?? []
+          const isMilestone =
+            isBestRound || isBestRank || roundTrophies.length > 0
+          const gapHuman = formatGapToPreviousHuman(round.gapToPrevious, {
+            isLeader: round.rank === 1,
+          })
+
+          return (
+            <li
+              key={round.roundNumber}
+              className={[
+                'season-timeline-item',
+                isMilestone ? 'season-timeline-item--milestone' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+            >
+              <div className="season-timeline-marker" aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="text-sm font-bold">Journée {round.roundNumber}</p>
+                  <p className="text-sm tabular-nums text-muted">
+                    {round.rank != null
+                      ? round.rank === 1
+                        ? '1re'
+                        : `${round.rank}e`
+                      : '—'}{' '}
+                    · {round.roundPoints} pts
+                  </p>
+                </div>
+                {isMilestone ? (
+                  <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                    {isBestRound ? (
+                      <li className="badge-text border-yellow bg-yellow text-ink">
+                        Meilleure journée
+                      </li>
+                    ) : null}
+                    {isBestRank ? (
+                      <li className="badge-text border-green bg-success-soft text-green-dark">
+                        Meilleure position
+                      </li>
+                    ) : null}
+                    {roundTrophies.map((trophy) => (
+                      <li
+                        key={trophy.id}
+                        className="badge-text border-green/30 bg-success-soft text-green-dark"
+                      >
+                        {trophy.name}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {gapHuman && isMilestone ? (
+                  <p className="mt-1 text-xs text-muted">{gapHuman}</p>
+                ) : null}
+              </div>
+            </li>
+          )
+        })}
+      </ol>
+
+      {timeline.trophies.some((t) => t.sourceRoundNumber == null) ? (
+        <div>
+          <p className="label-caps mb-2">Autres trophées</p>
+          <ul className="flex flex-wrap gap-2">
+            {timeline.trophies
+              .filter((t) => t.sourceRoundNumber == null)
+              .map((trophy) => (
+                <li
+                  key={trophy.id}
+                  className="badge-text border-green/30 bg-success-soft text-green-dark"
+                >
+                  {trophy.name}
+                </li>
+              ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
   )
 }
 
@@ -429,7 +696,7 @@ function ParticipationList({
                 <p className="flex flex-wrap items-center gap-2 font-semibold">
                   <span className="truncate">{row.pseudo}</span>
                   {isActive ? (
-                    <span className="badge border-green bg-green text-white">
+                    <span className="badge-text border-green bg-green text-white">
                       Toi
                     </span>
                   ) : null}
@@ -441,7 +708,7 @@ function ParticipationList({
               </div>
               <span
                 className={[
-                  'badge',
+                  'badge-text',
                   participationClassName(row.status),
                 ].join(' ')}
               >
@@ -941,18 +1208,13 @@ function HeroStat({
 
 function EarnedTrophyCard({ trophy }: { trophy: TrophyAward }) {
   return (
-    <article className="panel overflow-hidden border-green-dark/40 bg-green-dark/5">
-      <div className="flex items-start gap-3 p-4">
+    <article className="panel overflow-hidden border-green-dark/30">
+      <div className="flex items-start gap-3 px-3 py-2.5 sm:px-4 sm:py-3">
         <TrophyIcon name={trophy.icon} unlocked />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-black text-ink">{trophy.name}</p>
-            <span className="badge border-green-dark bg-green-dark text-white">
-              Débloqué
-            </span>
-          </div>
-          <p className="mt-1 text-sm text-muted">{trophy.description}</p>
-          <p className="mt-2 text-xs font-semibold text-ink/70">
+          <p className="font-black text-ink">{trophy.name}</p>
+          <p className="mt-0.5 text-sm text-muted">{trophy.description}</p>
+          <p className="mt-1.5 text-xs font-semibold text-ink/70">
             {new Date(trophy.awardedAt).toLocaleDateString('fr-FR')}
             {trophy.sourceRoundNumber != null
               ? ` · Journée ${trophy.sourceRoundNumber}`
@@ -985,20 +1247,15 @@ function LockedTrophyCard({
         'panel overflow-hidden',
         nearComplete ? 'border-yellow bg-yellow/10' : 'opacity-90',
       ].join(' ')}
+      aria-label={`${trophy.name}, verrouillé`}
     >
-      <div className="flex items-start gap-3 p-3 sm:p-4">
+      <div className="flex items-start gap-3 px-3 py-2.5 sm:px-4 sm:py-3">
         <TrophyIcon name={trophy.icon} unlocked={false} />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-semibold text-ink">{trophy.name}</p>
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold tracking-[0.08em] uppercase text-muted">
-              <Lock className="size-3" aria-hidden />
-              Verrouillé
-            </span>
-          </div>
-          <p className="mt-1 text-sm text-muted">{trophy.description}</p>
+          <p className="font-semibold text-ink">{trophy.name}</p>
+          <p className="mt-0.5 text-sm text-muted">{trophy.description}</p>
           {hasProgress ? (
-            <div className="mt-3">
+            <div className="mt-2">
               <div className="mb-1 flex items-center justify-between text-xs font-bold text-ink">
                 <span>Progression</span>
                 <span className="tabular-nums">
@@ -1011,6 +1268,7 @@ function LockedTrophyCard({
                 aria-valuenow={trophy.progressCurrent!}
                 aria-valuemin={0}
                 aria-valuemax={trophy.progressTarget!}
+                aria-label={`Progression ${trophy.name}`}
               >
                 <div
                   className="h-full bg-yellow transition-[width]"
@@ -1019,8 +1277,8 @@ function LockedTrophyCard({
               </div>
             </div>
           ) : (
-            <p className="mt-2 text-xs font-semibold text-muted">
-              Se débloque en match — à surveiller
+            <p className="mt-1.5 text-xs font-semibold text-muted">
+              Se débloque en match
             </p>
           )}
         </div>

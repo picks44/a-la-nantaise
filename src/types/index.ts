@@ -49,6 +49,8 @@ export interface Prediction {
   points?: number
 }
 
+export type RoundStatus = 'open' | 'provisional' | 'completed'
+
 export interface Player {
   id: string
   pseudo: string
@@ -60,6 +62,154 @@ export interface Player {
   /** Pourcentage 0–100, ou null si aucun prono noté. */
   successRate: number | null
   gapToLeader: number
+  /** Rang compétition serveur (classement vivant). */
+  rank?: number
+  previousRank?: number | null
+  rankDelta?: number | null
+  isNewToRanking?: boolean
+  roundPoints?: number
+  referenceRoundNumber?: number | null
+  referenceRoundStatus?: RoundStatus | null
+  isRankingProvisional?: boolean
+  /** Écart de points avec la ligne précédente ; null pour le leader. */
+  gapToPrevious?: number | null
+}
+
+export type RoundPlayerParticipationStatus =
+  | 'none'
+  | 'partial'
+  | 'complete'
+  | 'not_applicable'
+
+export type RecapMessageKey =
+  | 'no_participation'
+  | 'champion_of_round'
+  | 'personal_best_rank'
+  | 'strong_rise'
+  | 'exact_scores_notable'
+  | 'positive_day'
+  | 'neutral_day'
+  | 'tough_day'
+
+export interface RoundStatusPayload {
+  seasonId: string
+  roundNumber: number
+  status: RoundStatus
+  isDefinitive: boolean
+  hasStarted: boolean
+  roundMatchCount: number
+  nonCancelledMatchCount: number
+  finishedCount: number
+  cancelledCount: number
+  postponedCount: number
+  remainingCount: number
+}
+
+export interface RoundPlayerStatsRow {
+  playerId: string
+  displayName: string
+  roundPoints: number
+  exactScoreCount: number
+  correctOutcomeOnlyCount: number
+  successfulPredictionCount: number
+  scoredPredictionCount: number
+  predictedMatchCount: number
+  participationMatchCount: number
+  missedPredictionCount: number
+  participationStatus: RoundPlayerParticipationStatus
+  rankInRound: number | null
+}
+
+export interface RoundPlayerStatsPayload {
+  seasonId: string
+  roundNumber: number
+  roundStatus: RoundStatus
+  players: RoundPlayerStatsRow[]
+  group: {
+    participantCount: number
+    participantAveragePoints: number | null
+    championPlayerIds: string[]
+    championRoundPoints: number | null
+  }
+}
+
+export interface PlayerRoundRecapMatch {
+  matchId: string
+  label: string
+  status: string
+  finalScore: Score | null
+  prediction: Score | null
+  points: number | null
+  predicted: boolean
+}
+
+export interface PlayerRoundRecapTrophy {
+  trophyKey: string
+  name: string
+  icon: string
+  sourceMatchId: string | null
+}
+
+export interface PlayerRoundRecap {
+  seasonId: string
+  roundNumber: number
+  roundStatus: RoundStatus
+  isDefinitive: boolean
+  messageKey: RecapMessageKey
+  messageParams: Record<string, string | number>
+  summary: {
+    roundPoints: number
+    exactScoreCount: number
+    correctOutcomeOnlyCount: number
+    successfulPredictionCount: number
+    scoredPredictionCount: number
+    missedPredictionCount: number
+    predictedMatchCount: number
+    participationMatchCount: number
+    participated: boolean
+  }
+  ranking: {
+    rankBefore: number | null
+    rankAfter: number | null
+    rankDelta: number | null
+    isNewToRanking: boolean
+    gapToPrevious: number | null
+  }
+  social: {
+    championDisplayNames: string[]
+    championRoundPoints: number | null
+    participantAveragePoints: number | null
+    playerAhead: {
+      displayName: string
+      points: number
+      gap: number | null
+    } | null
+  }
+  matches: PlayerRoundRecapMatch[]
+  trophies: PlayerRoundRecapTrophy[]
+}
+
+export interface SeasonTimelineRound {
+  roundNumber: number
+  roundPoints: number
+  rank: number | null
+  gapToPrevious: number | null
+}
+
+export interface SeasonTimeline {
+  seasonId: string
+  rounds: SeasonTimelineRound[]
+  bestRound: { roundNumber: number; roundPoints: number } | null
+  bestRank: { roundNumber: number; rank: number } | null
+  trophies: Array<{
+    id: string
+    trophyKey: string
+    name: string
+    description: string
+    icon: string
+    awardedAt: string
+    sourceRoundNumber: number | null
+  }>
 }
 
 export interface RoundParticipationRow {

@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2 } from 'lucide-react'
 import { RaceLeaders } from '../components/Podium'
+import { RoundRecapCard } from '../components/RoundRecapCard'
 import { ScoreInput } from '../components/ScoreInput'
 import { useSession } from '../context/useSession'
+import {
+  celebrationStorageKey,
+  getCelebrationFlag,
+  setCelebrationFlag,
+} from '../lib/celebrations'
 import {
   findLastFinishedMatch,
   findNextOpenMatch,
   getPredictionForMatch,
+  fetchActiveSeason,
+  fetchLiveSeasonRanking,
   fetchMatches,
   fetchMyPredictions,
-  fetchRanking,
+  fetchPlayerRoundRecap,
   upsertPrediction,
   withPredictionStatus,
 } from '../lib/api'
@@ -25,14 +33,22 @@ import {
   venueSecondaryLabel,
 } from '../lib/format'
 import { pointsResultLabel } from '../lib/status'
-import type { Match, Player, Prediction, Score } from '../types'
+import type {
+  Match,
+  Player,
+  PlayerRoundRecap,
+  Prediction,
+  Score,
+} from '../types'
 
 export function HomePage() {
-  const { sessionToken, playerId, activePlayer } = useSession()
+  const { sessionToken, playerId, activePlayer, accessCode } = useSession()
 
   const [matches, setMatches] = useState<Match[]>([])
   const [predictions, setPredictions] = useState<Prediction[]>([])
   const [ranking, setRanking] = useState<Player[]>([])
+  const [recap, setRecap] = useState<PlayerRoundRecap | null>(null)
+  const [showRecap, setShowRecap] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState<Score>({ home: 0, away: 0 })
@@ -62,15 +78,48 @@ export function HomePage() {
       setLoading(true)
       setError(null)
       try {
+        const season = await fetchActiveSeason(sessionToken!)
         const [matchRows, predictionRows, rankingRows] = await Promise.all([
           fetchMatches(sessionToken!),
           fetchMyPredictions(sessionToken!),
-          fetchRanking(sessionToken!),
+          fetchLiveSeasonRanking({
+            sessionToken: sessionToken!,
+            seasonId: season.id,
+          }),
         ])
         if (cancelled) return
         setMatches(matchRows)
         setPredictions(predictionRows)
         setRanking(rankingRows)
+
+        const referenceRound = rankingRows.find(
+          (row) => row.referenceRoundNumber != null,
+        )?.referenceRoundNumber
+        if (referenceRound != null) {
+          const recapPayload = await fetchPlayerRoundRecap({
+            sessionToken: sessionToken!,
+            seasonId: season.id,
+            roundNumber: referenceRound,
+          })
+          if (cancelled) return
+          setRecap(recapPayload)
+
+          const groupId = accessCode ?? 'group'
+          const seenKey = celebrationStorageKey({
+            groupId,
+            playerId: playerId!,
+            seasonId: season.id,
+            eventType: 'day_recap',
+            eventId: `${referenceRound}:${recapPayload.isDefinitive ? 'def' : 'prov'}`,
+          })
+          const alreadySeen = getCelebrationFlag(seenKey)
+          if (recapPayload.isDefinitive && !alreadySeen) {
+            setShowRecap(true)
+            setCelebrationFlag(seenKey)
+          } else if (!recapPayload.isDefinitive) {
+            setShowRecap(true)
+          }
+        }
       } catch (err) {
         if (!cancelled) setError(toUserMessage(err))
       } finally {
@@ -82,7 +131,7 @@ export function HomePage() {
     return () => {
       cancelled = true
     }
-  }, [sessionToken, playerId])
+  }, [sessionToken, playerId, accessCode])
 
   const nextMatch = useMemo(() => {
     const base = findNextOpenMatch(matches, now)
@@ -98,7 +147,9 @@ export function HomePage() {
   }, [lastMatch, predictions, playerId])
 
   const homeRanking = useMemo(() => {
-    const ranks = getCompetitionRanks(ranking)
+    const ranks = ranking.every((player) => player.rank != null)
+      ? ranking.map((player) => player.rank as number)
+      : getCompetitionRanks(ranking)
     return selectHomeRanking(ranking, ranks, activePlayer?.id ?? '')
   }, [ranking, activePlayer?.id])
   const nextMatchId = nextMatch?.id
@@ -167,6 +218,12 @@ export function HomePage() {
           title="Accueil"
           message="Aucun prochain match ouvert aux pronostics pour le moment."
         />
+        {showRecap && recap ? (
+          <RoundRecapCard
+            recap={recap}
+            onDismiss={() => setShowRecap(false)}
+          />
+        ) : null}
         <RaceLeaders
           players={homeRanking.players}
           ranks={homeRanking.ranks}
@@ -175,6 +232,7 @@ export function HomePage() {
           variant="compact"
           awaitingFirstResult={homeRanking.awaitingFirstResult}
           participantCount={homeRanking.participantCount}
+          live
         />
         <LastMatchBlock match={lastMatch} prediction={lastPrediction} />
       </div>
@@ -347,6 +405,13 @@ export function HomePage() {
         </div>
       </section>
 
+      {showRecap && recap ? (
+        <RoundRecapCard
+          recap={recap}
+          onDismiss={() => setShowRecap(false)}
+        />
+      ) : null}
+
       <RaceLeaders
         players={homeRanking.players}
         ranks={homeRanking.ranks}
@@ -355,6 +420,7 @@ export function HomePage() {
         variant="compact"
         awaitingFirstResult={homeRanking.awaitingFirstResult}
         participantCount={homeRanking.participantCount}
+        live
       />
       <LastMatchBlock match={lastMatch} prediction={lastPrediction} />
     </div>

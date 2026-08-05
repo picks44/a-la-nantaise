@@ -6,9 +6,14 @@ import type {
   ParticipationStatus,
   Player,
   PlayerOption,
+  PlayerRoundRecap,
   Prediction,
   RoundParticipationRow,
+  RoundPlayerStatsPayload,
+  RoundStatus,
+  RoundStatusPayload,
   Season,
+  SeasonTimeline,
   TrophyOverview,
 } from '../types'
 import { ApiError, getErrorCode } from './errors'
@@ -728,5 +733,366 @@ export async function getPushSubscriptionStatus(
     active: Boolean(row.active),
     status: row.status,
     playerId: row.player_id,
+  }
+}
+
+interface DbLiveRankingRow {
+  player_id: string
+  display_name: string
+  is_active: boolean
+  points: number | string
+  exact_score_count: number | string
+  correct_outcome_only_count: number | string
+  successful_prediction_count: number | string
+  scored_prediction_count: number | string
+  success_rate: number | string | null
+  rank: number | string
+  previous_rank: number | string | null
+  rank_delta: number | string | null
+  is_new_to_ranking: boolean
+  round_points: number | string
+  reference_round_number: number | string | null
+  reference_round_status: string | null
+  is_ranking_provisional: boolean
+  gap_to_previous: number | string | null
+  gap_to_leader: number | string
+}
+
+function optionalNumber(value: number | string | null | undefined): number | null {
+  if (value == null || value === '') return null
+  return Number(value)
+}
+
+function asRoundStatus(value: unknown): RoundStatus {
+  if (value === 'provisional' || value === 'completed' || value === 'open') {
+    return value
+  }
+  return 'open'
+}
+
+export async function fetchRoundStatus(input: {
+  sessionToken: string
+  seasonId: string
+  roundNumber: number
+}): Promise<RoundStatusPayload> {
+  const data = await rpc<Record<string, unknown>>('get_round_status', {
+    p_session_token: input.sessionToken,
+    p_season_id: input.seasonId,
+    p_round_number: input.roundNumber,
+  })
+  return {
+    seasonId: String(data.seasonId ?? input.seasonId),
+    roundNumber: Number(data.roundNumber ?? input.roundNumber),
+    status: asRoundStatus(data.status),
+    isDefinitive: Boolean(data.isDefinitive),
+    hasStarted: Boolean(data.hasStarted),
+    roundMatchCount: Number(data.roundMatchCount ?? 0),
+    nonCancelledMatchCount: Number(data.nonCancelledMatchCount ?? 0),
+    finishedCount: Number(data.finishedCount ?? 0),
+    cancelledCount: Number(data.cancelledCount ?? 0),
+    postponedCount: Number(data.postponedCount ?? 0),
+    remainingCount: Number(data.remainingCount ?? 0),
+  }
+}
+
+export async function fetchLiveSeasonRanking(input: {
+  sessionToken: string
+  seasonId: string
+}): Promise<Player[]> {
+  const rows = await rpc<DbLiveRankingRow[]>('get_live_season_ranking', {
+    p_session_token: input.sessionToken,
+    p_season_id: input.seasonId,
+  })
+
+  return (rows ?? []).map((row) => ({
+    id: row.player_id,
+    pseudo: row.display_name,
+    isActive: Boolean(row.is_active),
+    points: Number(row.points),
+    exactScores: Number(row.exact_score_count),
+    goodResults: Number(row.correct_outcome_only_count),
+    scoredPredictions: Number(row.scored_prediction_count),
+    successRate:
+      row.success_rate == null || row.success_rate === ''
+        ? null
+        : Number(row.success_rate),
+    gapToLeader: Number(row.gap_to_leader),
+    rank: Number(row.rank),
+    previousRank: optionalNumber(row.previous_rank),
+    rankDelta: optionalNumber(row.rank_delta),
+    isNewToRanking: Boolean(row.is_new_to_ranking),
+    roundPoints: Number(row.round_points),
+    referenceRoundNumber: optionalNumber(row.reference_round_number),
+    referenceRoundStatus:
+      row.reference_round_status === 'provisional' ||
+      row.reference_round_status === 'completed'
+        ? row.reference_round_status
+        : null,
+    isRankingProvisional: Boolean(row.is_ranking_provisional),
+    gapToPrevious: optionalNumber(row.gap_to_previous),
+  }))
+}
+
+export async function fetchRoundPlayerStats(input: {
+  sessionToken: string
+  seasonId: string
+  roundNumber: number
+}): Promise<RoundPlayerStatsPayload> {
+  const data = await rpc<Record<string, unknown>>('get_round_player_stats', {
+    p_session_token: input.sessionToken,
+    p_season_id: input.seasonId,
+    p_round_number: input.roundNumber,
+  })
+  const group = (data.group ?? {}) as Record<string, unknown>
+  const playersRaw = Array.isArray(data.players) ? data.players : []
+
+  return {
+    seasonId: String(data.seasonId ?? input.seasonId),
+    roundNumber: Number(data.roundNumber ?? input.roundNumber),
+    roundStatus: asRoundStatus(data.roundStatus),
+    players: playersRaw.map((raw) => {
+      const row = raw as Record<string, unknown>
+      const status = String(row.participationStatus ?? 'none')
+      return {
+        playerId: String(row.playerId),
+        displayName: String(row.displayName ?? ''),
+        roundPoints: Number(row.roundPoints ?? 0),
+        exactScoreCount: Number(row.exactScoreCount ?? 0),
+        correctOutcomeOnlyCount: Number(row.correctOutcomeOnlyCount ?? 0),
+        successfulPredictionCount: Number(row.successfulPredictionCount ?? 0),
+        scoredPredictionCount: Number(row.scoredPredictionCount ?? 0),
+        predictedMatchCount: Number(row.predictedMatchCount ?? 0),
+        participationMatchCount: Number(row.participationMatchCount ?? 0),
+        missedPredictionCount: Number(row.missedPredictionCount ?? 0),
+        participationStatus:
+          status === 'partial' ||
+          status === 'complete' ||
+          status === 'not_applicable' ||
+          status === 'none'
+            ? status
+            : 'none',
+        rankInRound: optionalNumber(
+          row.rankInRound as number | string | null | undefined,
+        ),
+      }
+    }),
+    group: {
+      participantCount: Number(group.participantCount ?? 0),
+      participantAveragePoints: optionalNumber(
+        group.participantAveragePoints as number | string | null | undefined,
+      ),
+      championPlayerIds: toStringArray(group.championPlayerIds),
+      championRoundPoints: optionalNumber(
+        group.championRoundPoints as number | string | null | undefined,
+      ),
+    },
+  }
+}
+
+export async function fetchPlayerRoundRecap(input: {
+  sessionToken: string
+  seasonId: string
+  roundNumber: number
+}): Promise<PlayerRoundRecap> {
+  const data = await rpc<Record<string, unknown>>('get_player_round_recap', {
+    p_session_token: input.sessionToken,
+    p_season_id: input.seasonId,
+    p_round_number: input.roundNumber,
+  })
+  const summary = (data.summary ?? {}) as Record<string, unknown>
+  const ranking = (data.ranking ?? {}) as Record<string, unknown>
+  const social = (data.social ?? {}) as Record<string, unknown>
+  const playerAheadRaw = social.playerAhead
+  const playerAhead =
+    playerAheadRaw &&
+    typeof playerAheadRaw === 'object' &&
+    !Array.isArray(playerAheadRaw)
+      ? {
+          displayName: String(
+            (playerAheadRaw as Record<string, unknown>).displayName ?? '',
+          ),
+          points: Number((playerAheadRaw as Record<string, unknown>).points ?? 0),
+          gap: optionalNumber(
+            (playerAheadRaw as Record<string, unknown>).gap as
+              | number
+              | string
+              | null
+              | undefined,
+          ),
+        }
+      : null
+
+  const matchesRaw = Array.isArray(data.matches) ? data.matches : []
+  const trophiesRaw = Array.isArray(data.trophies) ? data.trophies : []
+  const messageParamsRaw =
+    data.messageParams &&
+    typeof data.messageParams === 'object' &&
+    !Array.isArray(data.messageParams)
+      ? (data.messageParams as Record<string, unknown>)
+      : {}
+
+  const messageParams: Record<string, string | number> = {}
+  for (const [key, value] of Object.entries(messageParamsRaw)) {
+    if (typeof value === 'string' || typeof value === 'number') {
+      messageParams[key] = value
+    }
+  }
+
+  const messageKey = String(data.messageKey ?? 'tough_day') as PlayerRoundRecap['messageKey']
+
+  return {
+    seasonId: String(data.seasonId ?? input.seasonId),
+    roundNumber: Number(data.roundNumber ?? input.roundNumber),
+    roundStatus: asRoundStatus(data.roundStatus),
+    isDefinitive: Boolean(data.isDefinitive),
+    messageKey,
+    messageParams,
+    summary: {
+      roundPoints: Number(summary.roundPoints ?? 0),
+      exactScoreCount: Number(summary.exactScoreCount ?? 0),
+      correctOutcomeOnlyCount: Number(summary.correctOutcomeOnlyCount ?? 0),
+      successfulPredictionCount: Number(summary.successfulPredictionCount ?? 0),
+      scoredPredictionCount: Number(summary.scoredPredictionCount ?? 0),
+      missedPredictionCount: Number(summary.missedPredictionCount ?? 0),
+      predictedMatchCount: Number(summary.predictedMatchCount ?? 0),
+      participationMatchCount: Number(summary.participationMatchCount ?? 0),
+      participated: Boolean(summary.participated),
+    },
+    ranking: {
+      rankBefore: optionalNumber(
+        ranking.rankBefore as number | string | null | undefined,
+      ),
+      rankAfter: optionalNumber(
+        ranking.rankAfter as number | string | null | undefined,
+      ),
+      rankDelta: optionalNumber(
+        ranking.rankDelta as number | string | null | undefined,
+      ),
+      isNewToRanking: Boolean(ranking.isNewToRanking),
+      gapToPrevious: optionalNumber(
+        ranking.gapToPrevious as number | string | null | undefined,
+      ),
+    },
+    social: {
+      championDisplayNames: toStringArray(social.championDisplayNames),
+      championRoundPoints: optionalNumber(
+        social.championRoundPoints as number | string | null | undefined,
+      ),
+      participantAveragePoints: optionalNumber(
+        social.participantAveragePoints as number | string | null | undefined,
+      ),
+      playerAhead,
+    },
+    matches: matchesRaw.map((raw) => {
+      const row = raw as Record<string, unknown>
+      const homeTeam = String(row.homeTeam ?? row.label ?? '')
+      const awayTeam = String(row.awayTeam ?? '')
+      const label =
+        typeof row.label === 'string' && row.label.length > 0
+          ? row.label
+          : awayTeam
+            ? `${homeTeam} – ${awayTeam}`
+            : homeTeam
+      const homeScore = row.homeScore
+      const awayScore = row.awayScore
+      const predictedHome = row.predictedHomeScore
+      const predictedAway = row.predictedAwayScore
+      const hasFinal =
+        homeScore != null &&
+        awayScore != null &&
+        homeScore !== '' &&
+        awayScore !== ''
+      const hasPrediction =
+        predictedHome != null &&
+        predictedAway != null &&
+        predictedHome !== '' &&
+        predictedAway !== ''
+      return {
+        matchId: String(row.matchId ?? ''),
+        label,
+        status: String(row.status ?? ''),
+        finalScore: hasFinal
+          ? { home: Number(homeScore), away: Number(awayScore) }
+          : null,
+        prediction: hasPrediction
+          ? { home: Number(predictedHome), away: Number(predictedAway) }
+          : null,
+        points: optionalNumber(row.points as number | string | null | undefined),
+        predicted: hasPrediction || Boolean(row.predicted),
+      }
+    }),
+    trophies: trophiesRaw.map((raw) => {
+      const row = raw as Record<string, unknown>
+      return {
+        trophyKey: String(row.trophyKey ?? ''),
+        name: String(row.name ?? ''),
+        icon: String(row.icon ?? ''),
+        sourceMatchId:
+          row.sourceMatchId == null ? null : String(row.sourceMatchId),
+      }
+    }),
+  }
+}
+
+export async function fetchPlayerSeasonTimeline(input: {
+  sessionToken: string
+  seasonId: string
+}): Promise<SeasonTimeline> {
+  const data = await rpc<Record<string, unknown>>('get_player_season_timeline', {
+    p_session_token: input.sessionToken,
+    p_season_id: input.seasonId,
+  })
+  const roundsRaw = Array.isArray(data.rounds) ? data.rounds : []
+  const trophiesRaw = Array.isArray(data.trophies) ? data.trophies : []
+  const bestRound = data.bestRound
+  const bestRank = data.bestRank
+
+  return {
+    seasonId: String(data.seasonId ?? input.seasonId),
+    rounds: roundsRaw.map((raw) => {
+      const row = raw as Record<string, unknown>
+      return {
+        roundNumber: Number(row.roundNumber ?? 0),
+        roundPoints: Number(row.roundPoints ?? 0),
+        rank: optionalNumber(row.rank as number | string | null | undefined),
+        gapToPrevious: optionalNumber(
+          row.gapToPrevious as number | string | null | undefined,
+        ),
+      }
+    }),
+    bestRound:
+      bestRound && typeof bestRound === 'object'
+        ? {
+            roundNumber: Number(
+              (bestRound as Record<string, unknown>).roundNumber ?? 0,
+            ),
+            roundPoints: Number(
+              (bestRound as Record<string, unknown>).roundPoints ?? 0,
+            ),
+          }
+        : null,
+    bestRank:
+      bestRank && typeof bestRank === 'object'
+        ? {
+            roundNumber: Number(
+              (bestRank as Record<string, unknown>).roundNumber ?? 0,
+            ),
+            rank: Number((bestRank as Record<string, unknown>).rank ?? 0),
+          }
+        : null,
+    trophies: trophiesRaw.map((raw) => {
+      const row = raw as Record<string, unknown>
+      return {
+        id: String(row.id ?? ''),
+        trophyKey: String(row.trophyKey ?? ''),
+        name: String(row.name ?? ''),
+        description: String(row.description ?? ''),
+        icon: String(row.icon ?? ''),
+        awardedAt: String(row.awardedAt ?? ''),
+        sourceRoundNumber: optionalNumber(
+          row.sourceRoundNumber as number | string | null | undefined,
+        ),
+      }
+    }),
   }
 }

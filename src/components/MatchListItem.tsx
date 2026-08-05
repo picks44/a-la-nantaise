@@ -19,6 +19,10 @@ interface MatchListItemProps {
   isPredictionTarget?: boolean
   /** Deep link depuis une notification (`?match=`). */
   highlighted?: boolean
+  /** Détails groupe ouverts (contrôlé par le parent, indexé par matchId). */
+  detailsOpen?: boolean
+  onDetailsOpenChange?: (open: boolean) => void
+  onRetryReveal?: () => void
 }
 
 export function MatchListItem({
@@ -30,6 +34,9 @@ export function MatchListItem({
   isNext = false,
   isPredictionTarget = false,
   highlighted = false,
+  detailsOpen = false,
+  onDetailsOpenChange,
+  onRetryReveal,
 }: MatchListItemProps) {
   const isFinished = match.status === 'finished'
   const isPredicted = match.status === 'predicted'
@@ -168,9 +175,7 @@ export function MatchListItem({
           <div className="mt-2.5 rounded-[var(--radius-sm)] border border-border bg-canvas/70 px-3 py-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 flex-1 items-baseline gap-3">
-                <span className="label-caps shrink-0">
-                  Votre pronostic
-                </span>
+                <span className="label-caps shrink-0">Votre pronostic</span>
                 <span className="font-black tabular-nums text-green-dark text-lg">
                   {prediction.homeScore} – {prediction.awayScore}
                 </span>
@@ -212,6 +217,9 @@ export function MatchListItem({
             reveal={reveal}
             loading={revealLoading}
             error={revealError}
+            detailsOpen={detailsOpen}
+            onDetailsOpenChange={onDetailsOpenChange}
+            onRetryReveal={onRetryReveal}
           />
         ) : null}
       </div>
@@ -248,21 +256,32 @@ function RevealSection({
   reveal,
   loading,
   error,
+  detailsOpen,
+  onDetailsOpenChange,
+  onRetryReveal,
 }: {
   match: Match
   reveal?: MatchGroupReveal
   loading: boolean
   error: string | null
+  detailsOpen: boolean
+  onDetailsOpenChange?: (open: boolean) => void
+  onRetryReveal?: () => void
 }) {
   if (match.status === 'to_predict') return null
 
   const isBeforeReveal =
     match.status === 'predicted' || match.status === 'kickoff_unconfirmed'
+  const detailsId = `reveal-details-${match.id}`
+  const isFinishedShell = match.status === 'finished'
+  const borderClass = isFinishedShell ? 'border-white/15' : 'border-border'
+  const titleClass = isFinishedShell ? 'text-white' : 'text-ink'
+  const mutedClass = isFinishedShell ? 'text-white/70' : 'text-muted'
 
   if (isBeforeReveal) {
     return (
-      <div className="mt-3 border-t border-border pt-3 text-sm text-muted">
-        <p className="font-semibold text-ink">Les pronos du groupe</p>
+      <div className={`mt-3 border-t ${borderClass} pt-3 text-sm ${mutedClass}`}>
+        <p className={`font-semibold ${titleClass}`}>Les pronos du groupe</p>
         <p className="mt-1">
           Les pronostics des autres seront reveles automatiquement au coup
           d’envoi.
@@ -271,26 +290,62 @@ function RevealSection({
     )
   }
 
-  if (loading) {
+  function RevealError({ className }: { className?: string }) {
+    if (!error) return null
     return (
-      <div className="mt-3 border-t border-border pt-3 text-sm text-muted transition-all duration-300">
-        Chargement des pronostics du groupe…
+      <div
+        className={[
+          'text-sm',
+          isFinishedShell ? 'text-yellow' : 'text-danger',
+          className,
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        role="alert"
+      >
+        <p>{error}</p>
+        {onRetryReveal ? (
+          <button
+            type="button"
+            className={[
+              'mt-2 text-xs font-extrabold tracking-[0.06em] uppercase underline-offset-2 hover:underline',
+              isFinishedShell ? 'text-yellow' : 'text-green-dark',
+            ].join(' ')}
+            onClick={onRetryReveal}
+          >
+            Réessayer
+          </button>
+        ) : null}
       </div>
     )
   }
 
-  if (error) {
+  if (loading) {
     return (
-      <div className="mt-3 border-t border-border pt-3 text-sm text-danger transition-all duration-300">
-        {error}
+      <div
+        className={`mt-3 space-y-2 border-t ${borderClass} pt-3 text-sm ${mutedClass} transition-all duration-300`}
+      >
+        <RevealError />
+        <p>Chargement des pronostics du groupe…</p>
+      </div>
+    )
+  }
+
+  if (error && !reveal) {
+    return (
+      <div className={`mt-3 border-t ${borderClass} pt-3`}>
+        <RevealError />
       </div>
     )
   }
 
   if (!reveal?.revealed) {
     return (
-      <div className="mt-3 border-t border-border pt-3 text-sm text-muted transition-all duration-300">
-        Pronostics collectifs encore verrouilles.
+      <div
+        className={`mt-3 space-y-2 border-t ${borderClass} pt-3 text-sm ${mutedClass} transition-all duration-300`}
+      >
+        <RevealError />
+        <p>Pronostics collectifs encore verrouilles.</p>
       </div>
     )
   }
@@ -302,13 +357,40 @@ function RevealSection({
   const uniqueScores = reveal.uniqueScores ?? []
   const trophies = reveal.newTrophies ?? []
   const performance = reveal.performanceRanking ?? []
+  const hasExpandableDetails =
+    participants.length > 0 ||
+    (reveal.resultReady && performance.length > 0) ||
+    trophies.length > 0
 
   return (
-    <section className="mt-3 space-y-3 border-t border-border pt-3 transition-all duration-300">
-      <div className="space-y-1">
-        <p className="font-semibold text-ink">Les pronos du groupe</p>
+    <section
+      className={`mt-3 space-y-2 border-t ${borderClass} pt-3 transition-all duration-300`}
+    >
+      <RevealError />
+
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className={`font-semibold ${titleClass}`}>Les pronos du groupe</p>
+          {hasExpandableDetails && onDetailsOpenChange ? (
+            <button
+              type="button"
+              className={[
+                'min-h-9 rounded-[var(--radius-sm)] border px-2.5 text-xs font-extrabold tracking-[0.06em] uppercase',
+                isFinishedShell
+                  ? 'border-white/25 text-yellow'
+                  : 'border-border text-green-dark',
+              ].join(' ')}
+              aria-expanded={detailsOpen}
+              aria-controls={detailsId}
+              onClick={() => onDetailsOpenChange(!detailsOpen)}
+            >
+              {detailsOpen ? 'Masquer' : 'Détails'}
+            </button>
+          ) : null}
+        </div>
+
         {participantCount === 0 ? (
-          <p className="text-sm text-muted">
+          <p className={`text-sm ${mutedClass}`}>
             Aucun autre prono visible pour ce match pour le moment.
           </p>
         ) : (
@@ -316,119 +398,197 @@ function RevealSection({
             <StatChip
               label="Participants"
               value={String(participantCount)}
+              onDark={isFinishedShell}
             />
             <StatChip
               label="Sans prono"
               value={String(nonParticipantCount)}
+              onDark={isFinishedShell}
             />
             <StatChip
               label="Score le plus joue"
               value={mostPlayed.length > 0 ? mostPlayed.join(', ') : '—'}
+              onDark={isFinishedShell}
             />
             <StatChip
               label="Pronos uniques"
               value={uniqueScores.length > 0 ? uniqueScores.join(', ') : 'Aucun'}
+              onDark={isFinishedShell}
             />
           </div>
         )}
+
+        {participantCount > 0 && reveal.percentages ? (
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <StatChip
+              label="Victoire"
+              value={`${reveal.percentages.victory}%`}
+              onDark={isFinishedShell}
+            />
+            <StatChip
+              label="Nul"
+              value={`${reveal.percentages.draw}%`}
+              onDark={isFinishedShell}
+            />
+            <StatChip
+              label="Defaite"
+              value={`${reveal.percentages.defeat}%`}
+              onDark={isFinishedShell}
+            />
+          </div>
+        ) : null}
       </div>
 
-      {participantCount > 0 && reveal.percentages ? (
-        <div className="grid grid-cols-3 gap-2 text-xs">
-          <StatChip
-            label="Victoire"
-            value={`${reveal.percentages.victory}%`}
-          />
-          <StatChip label="Nul" value={`${reveal.percentages.draw}%`} />
-          <StatChip
-            label="Defaite"
-            value={`${reveal.percentages.defeat}%`}
-          />
-        </div>
-      ) : null}
+      {hasExpandableDetails ? (
+        <div
+          id={detailsId}
+          hidden={!detailsOpen}
+          className={detailsOpen ? 'space-y-3' : undefined}
+        >
+          {participants.length > 0 ? (
+            <ul className="space-y-2">
+              {participants.map((participant) => (
+                <li
+                  key={participant.playerId}
+                  className={[
+                    'rounded-[var(--radius-sm)] border px-3 py-2 text-sm',
+                    isFinishedShell
+                      ? 'border-white/15 bg-white/5'
+                      : 'border-border bg-canvas/70',
+                  ].join(' ')}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className={`font-semibold ${titleClass}`}>
+                      {participant.pseudo}
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      <span className="badge">{participant.outcome}</span>
+                      {reveal.resultReady && participant.points != null ? (
+                        <span className="badge border-green bg-success-soft text-green-dark">
+                          {participant.points} pt
+                          {participant.points > 1 ? 's' : ''}
+                        </span>
+                      ) : null}
+                      {reveal.resultReady && participant.exactScore ? (
+                        <span className="badge border-yellow bg-yellow text-ink">
+                          Score exact
+                        </span>
+                      ) : null}
+                      {reveal.resultReady && participant.bestPrediction ? (
+                        <span className="badge border-green-dark bg-green-dark text-yellow">
+                          Meilleur prono
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <p
+                    className={[
+                      'mt-1 text-sm font-black tabular-nums',
+                      titleClass,
+                    ].join(' ')}
+                  >
+                    {participant.homeScore} – {participant.awayScore}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : null}
 
-      {participants.length > 0 ? (
-        <ul className="space-y-2">
-          {participants.map((participant) => (
-            <li
-              key={participant.playerId}
-              className="rounded-[var(--radius-sm)] border border-border bg-canvas/70 px-3 py-2 text-sm"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-semibold text-ink">{participant.pseudo}</p>
-                <div className="flex flex-wrap gap-1">
-                  <span className="badge">{participant.outcome}</span>
-                  {reveal.resultReady && participant.points != null ? (
-                    <span className="badge border-green bg-success-soft text-green-dark">
-                      {participant.points} pt{participant.points > 1 ? 's' : ''}
-                    </span>
-                  ) : null}
-                  {reveal.resultReady && participant.exactScore ? (
-                    <span className="badge border-yellow bg-yellow text-ink">
-                      Score exact
-                    </span>
-                  ) : null}
-                  {reveal.resultReady && participant.bestPrediction ? (
-                    <span className="badge border-green-dark bg-green-dark text-yellow">
-                      Meilleur prono
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-              <p className="mt-1 text-sm font-black tabular-nums text-ink">
-                {participant.homeScore} – {participant.awayScore}
-              </p>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {reveal.resultReady && performance.length > 0 ? (
-        <div className="space-y-2">
-          <p className="text-xs font-bold tracking-[0.08em] text-muted uppercase">
-            Classement du match
-          </p>
-          <ul className="space-y-1 text-sm">
-            {performance.map((row) => (
-              <li
-                key={row.playerId}
-                className="flex items-center justify-between rounded-[var(--radius-sm)] border border-border px-3 py-2"
+          {reveal.resultReady && performance.length > 0 ? (
+            <div className="space-y-2">
+              <p
+                className={[
+                  'text-xs font-bold tracking-[0.08em] uppercase',
+                  mutedClass,
+                ].join(' ')}
               >
-                <span className="font-medium text-ink">
-                  #{row.rank} {row.pseudo}
-                </span>
-                <span className="font-black tabular-nums text-green-dark">
-                  {row.points} pt{row.points > 1 ? 's' : ''}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+                Classement du match
+              </p>
+              <ul className="space-y-1 text-sm">
+                {performance.map((row) => (
+                  <li
+                    key={row.playerId}
+                    className={[
+                      'flex items-center justify-between rounded-[var(--radius-sm)] border px-3 py-2',
+                      isFinishedShell
+                        ? 'border-white/15'
+                        : 'border-border',
+                    ].join(' ')}
+                  >
+                    <span className={`font-medium ${titleClass}`}>
+                      #{row.rank} {row.pseudo}
+                    </span>
+                    <span
+                      className={[
+                        'font-black tabular-nums',
+                        isFinishedShell ? 'text-yellow' : 'text-green-dark',
+                      ].join(' ')}
+                    >
+                      {row.points} pt{row.points > 1 ? 's' : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
-      {trophies.length > 0 ? (
-        <div className="rounded-[var(--radius-sm)] border border-yellow/60 bg-yellow/20 px-3 py-2 text-sm">
-          <p className="font-bold text-ink">Nouveaux trophees sur ce match</p>
-          <ul className="mt-1 space-y-1 text-ink/80">
-            {trophies.map((trophy) => (
-              <li key={`${trophy.playerId}-${trophy.trophyKey}`}>
-                {trophy.pseudo} · {trophy.name}
-              </li>
-            ))}
-          </ul>
+          {trophies.length > 0 ? (
+            <div
+              className={[
+                'rounded-[var(--radius-sm)] border px-3 py-2 text-sm',
+                isFinishedShell
+                  ? 'border-yellow/60 bg-yellow/15 text-white'
+                  : 'border-yellow/60 bg-yellow/20 text-ink',
+              ].join(' ')}
+            >
+              <p className="font-bold">Nouveaux trophees sur ce match</p>
+              <ul className="mt-1 space-y-1 opacity-90">
+                {trophies.map((trophy) => (
+                  <li key={`${trophy.playerId}-${trophy.trophyKey}`}>
+                    {trophy.pseudo} · {trophy.name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </section>
   )
 }
 
-function StatChip({ label, value }: { label: string; value: string }) {
+function StatChip({
+  label,
+  value,
+  onDark = false,
+}: {
+  label: string
+  value: string
+  onDark?: boolean
+}) {
   return (
-    <div className="rounded-[var(--radius-sm)] border border-border bg-canvas/70 px-2.5 py-2">
-      <p className="text-[10px] font-bold tracking-[0.08em] text-muted uppercase">
+    <div
+      className={[
+        'rounded-[var(--radius-sm)] border px-2.5 py-2',
+        onDark ? 'border-white/15 bg-white/5' : 'border-border bg-canvas/70',
+      ].join(' ')}
+    >
+      <p
+        className={[
+          'text-[10px] font-bold tracking-[0.08em] uppercase',
+          onDark ? 'text-white/55' : 'text-muted',
+        ].join(' ')}
+      >
         {label}
       </p>
-      <p className="mt-1 font-black text-ink">{value}</p>
+      <p
+        className={[
+          'mt-1 font-black',
+          onDark ? 'text-white' : 'text-ink',
+        ].join(' ')}
+      >
+        {value}
+      </p>
     </div>
   )
 }

@@ -189,4 +189,24 @@ describe('jump to next match link', () => {
     assert.match(item, /id="prochain-match"/)
     assert.match(item, /scroll-mt-24/)
   })
+
+  it('keeps reveal details open state keyed by matchId with last finished default', () => {
+    const calendar = readFileSync(
+      join(root, 'src/pages/CalendarPage.tsx'),
+      'utf8',
+    )
+    const item = readFileSync(
+      join(root, 'src/components/MatchListItem.tsx'),
+      'utf8',
+    )
+    assert.match(calendar, /findLastFinishedMatch/)
+    assert.match(calendar, /detailsOpenById/)
+    assert.match(calendar, /detailsOpen=\{isDetailsOpen\(match\.id\)\}/)
+    assert.match(calendar, /onDetailsOpenChange/)
+    assert.match(calendar, /onRetryReveal/)
+    assert.match(item, /aria-expanded=\{detailsOpen\}/)
+    assert.match(item, /aria-controls=\{detailsId\}/)
+    assert.match(item, /role="alert"/)
+    assert.match(item, /Réessayer/)
+  })
 })

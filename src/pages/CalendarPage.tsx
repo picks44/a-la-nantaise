@@ -7,6 +7,7 @@ import {
   fetchMatchGroupReveal,
   fetchMatches,
   fetchMyPredictions,
+  findLastFinishedMatch,
   findNextOpenMatch,
   getPredictionForMatch,
   withPredictionStatus,
@@ -35,6 +36,10 @@ export function CalendarPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
+  /** Ouverture des détails indexée par matchId (survit aux refresh). */
+  const [detailsOpenById, setDetailsOpenById] = useState<Record<string, boolean>>(
+    {},
+  )
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 30_000)
@@ -193,6 +198,35 @@ export function CalendarPage() {
     return next?.id ?? null
   }, [matches, now])
 
+  const lastFinishedId = useMemo(
+    () => findLastFinishedMatch(matches)?.id ?? null,
+    [matches],
+  )
+
+  function isDetailsOpen(matchId: string): boolean {
+    if (Object.prototype.hasOwnProperty.call(detailsOpenById, matchId)) {
+      return detailsOpenById[matchId]
+    }
+    return matchId === lastFinishedId
+  }
+
+  // Ouvre automatiquement une carte en erreur de reveal.
+  useEffect(() => {
+    const errorIds = Object.keys(revealErrors)
+    if (errorIds.length === 0) return
+    setDetailsOpenById((current) => {
+      let changed = false
+      const next = { ...current }
+      for (const id of errorIds) {
+        if (next[id] !== true) {
+          next[id] = true
+          changed = true
+        }
+      }
+      return changed ? next : current
+    })
+  }, [revealErrors])
+
   const showJumpToNext = useMemo(
     () =>
       shouldShowJumpToNextMatch(
@@ -252,6 +286,25 @@ export function CalendarPage() {
                 isNext={match.id === nextOpenId}
                 isPredictionTarget={match.id === nextOpenId}
                 highlighted={match.id === highlightMatchId}
+                detailsOpen={isDetailsOpen(match.id)}
+                onDetailsOpenChange={(open) => {
+                  setDetailsOpenById((current) => ({
+                    ...current,
+                    [match.id]: open,
+                  }))
+                }}
+                onRetryReveal={() => {
+                  setRevealErrors((current) => {
+                    const next = { ...current }
+                    delete next[match.id]
+                    return next
+                  })
+                  setReveals((current) => {
+                    const next = { ...current }
+                    delete next[match.id]
+                    return next
+                  })
+                }}
               />
             </li>
           ))}

@@ -121,11 +121,21 @@
   }
 
   .page-stack {
+    @apply space-y-3 md:space-y-5;
+  }
+
+  /* Sous-sections d’une page (densité moyenne). */
+  .section-stack {
     @apply space-y-3;
   }
 
+  /* Listes et métadonnées (densité forte). */
+  .compact-stack {
+    @apply space-y-2;
+  }
+
   .label-caps {
-    @apply text-[11px] font-bold tracking-[0.1em] uppercase text-muted;
+    @apply text-xs font-bold tracking-[0.1em] uppercase text-muted;
   }
 
   .title-display {
@@ -136,8 +146,14 @@
     @apply rounded-[var(--radius-md)] border border-border bg-surface transition-[color,background-color,border-color,box-shadow,opacity] duration-150 ease-out;
   }
 
+  /* Micro-indicateur compact (scores, chips match, etc.). */
   .badge {
     @apply inline-flex shrink-0 items-center rounded-[var(--radius-sm)] border px-2 py-0.5 text-[10px] font-extrabold leading-none tracking-[0.08em] uppercase transition-[color,background-color,border-color,box-shadow,opacity] duration-150 ease-out;
+  }
+
+  /* Badge applicatif lisible (Toi, Nouveau, Provisoire, statuts section…). */
+  .badge-text {
+    @apply inline-flex shrink-0 items-center rounded-[var(--radius-sm)] border px-2 py-0.5 text-xs font-extrabold leading-none tracking-[0.06em] uppercase transition-[color,background-color,border-color,box-shadow,opacity] duration-150 ease-out;
   }
 
   .btn-ink {
@@ -269,6 +285,31 @@
 
   .ui-champion-trophy-highlight {
     animation: ui-champion-trophy-highlight 420ms var(--ease-ui) both;
+  }
+
+  /* Parcours saison — timeline verticale dense. */
+  .season-timeline {
+    @apply relative m-0 list-none p-0;
+  }
+
+  .season-timeline-item {
+    @apply relative flex gap-3 py-1.5 pl-1;
+  }
+
+  .season-timeline-item + .season-timeline-item {
+    @apply border-t border-border/60;
+  }
+
+  .season-timeline-marker {
+    @apply mt-1.5 size-2.5 shrink-0 rounded-full border-2 border-green bg-surface;
+  }
+
+  .season-timeline-item--milestone .season-timeline-marker {
+    @apply border-yellow bg-yellow;
+  }
+
+  .season-timeline-item--milestone {
+    @apply py-2.5;
   }
 
   @media (prefers-reduced-motion: reduce) {

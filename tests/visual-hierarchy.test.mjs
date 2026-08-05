@@ -110,7 +110,7 @@ describe('visual hierarchy polish', () => {
     assert.doesNotMatch(ranking, /isLeader \? 'bg-yellow'/)
     assert.doesNotMatch(podium, /isLeader \? 'bg-yellow'/)
     assert.match(ranking, /border-l-green/)
-    assert.match(podium, /badge border-green bg-green/)
+    assert.match(podium, /badge-text border-green bg-green/)
     assert.match(podium, /h-5 w-1\.5.*bg-green/)
   })
 
@@ -181,6 +181,16 @@ describe('visual hierarchy polish', () => {
     assert.doesNotMatch(settings, /checked \? 'bg-yellow'/)
   })
 
+  it('collapses calendar reveal details behind an accessible toggle', () => {
+    const item = read('src/components/MatchListItem.tsx')
+    assert.match(item, /detailsOpen/)
+    assert.match(item, /onDetailsOpenChange/)
+    assert.match(item, /aria-expanded/)
+    assert.match(item, /aria-controls/)
+    assert.match(item, /hidden=\{!detailsOpen\}/)
+    assert.match(item, /Réessayer/)
+  })
+
   it('uses explicit calendar status labels', () => {
     const status = read('src/lib/status.ts')
     assert.match(status, /Prono enregistré/)
@@ -198,7 +208,7 @@ describe('home group ranking', () => {
     assert.doesNotMatch(podium, /topThree/)
     assert.match(podium, /players\.map\(/)
     assert.match(podium, /Classement du groupe/)
-    assert.match(podium, /badge border-green bg-green/)
+    assert.match(podium, /badge-text border-green bg-green/)
     assert.match(podium, /awaitingFirstResult/)
     assert.match(podium, /premier match/)
     assert.match(home, /title="Classement du groupe"/)
