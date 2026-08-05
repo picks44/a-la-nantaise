@@ -56,7 +56,7 @@ export function ScoreInput({
           onChange(clampScore(next))
         }}
         className={[
-          'text-center font-black tabular-nums transition disabled:cursor-not-allowed disabled:opacity-50',
+          'text-center font-black tabular-nums transition-[color,background-color,border-color,box-shadow] duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-50',
           isBoard
             ? 'mx-auto w-full max-w-[5.5rem] rounded-[var(--radius-sm)] border-2 border-green-dark bg-green-dark py-2.5 text-3xl text-yellow shadow-sm ring-offset-2 hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ink sm:max-w-[6.5rem] sm:py-3 sm:text-4xl'
             : 'w-full max-w-[5.5rem] rounded-[var(--radius-sm)] border border-border bg-surface text-3xl text-ink',

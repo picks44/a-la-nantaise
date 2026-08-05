@@ -210,7 +210,7 @@ export function CalendarPage() {
   }, [loading, highlightMatchId, items])
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="title-display">Calendrier</h1>
@@ -240,7 +240,7 @@ export function CalendarPage() {
           </p>
         </div>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-2.5">
           {items.map(({ match, prediction }) => (
             <li key={match.id}>
               <MatchListItem
