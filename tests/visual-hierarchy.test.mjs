@@ -43,6 +43,9 @@ describe('visual hierarchy polish', () => {
     assert.match(css, /\.btn-ghost/)
     assert.match(css, /\.btn-green/)
     assert.match(css, /\.badge/)
+    assert.match(css, /--duration-ui:\s*150ms/)
+    assert.match(css, /\.ui-motion/)
+    assert.match(css, /\.page-stack/)
     assert.match(css, /outline: 2px solid var\(--color-focus\)/)
   })
 
@@ -52,11 +55,52 @@ describe('visual hierarchy polish', () => {
     assert.match(item, /border-border bg-surface/)
     assert.match(item, /border-ink bg-yellow/)
     assert.match(item, /bg-yellow-soft/)
-    assert.match(item, /Modifier mon prono/)
+    assert.match(item, /Votre pronostic/)
+    assert.match(item, /Modifier/)
     assert.match(item, /Prono enregistré|statusLabel/)
     assert.doesNotMatch(item, /border-l-4 border-l-yellow/)
     assert.doesNotMatch(item, /border-l-4 border-l-green/)
     assert.doesNotMatch(item, /font-black tracking-tight uppercase/)
+  })
+
+  it('removes to_predict CTA and group teaser', () => {
+    const item = read('src/components/MatchListItem.tsx')
+    assert.doesNotMatch(item, /Faire mon prono/)
+    assert.match(
+      item,
+      /function RevealSection[\s\S]*if \(match\.status === 'to_predict'\) return null/,
+    )
+  })
+
+  it('shows Modifier only for predicted + isPredictionTarget', () => {
+    const item = read('src/components/MatchListItem.tsx')
+    assert.match(
+      item,
+      /const canShowModifier[\s\S]*match\.status === 'predicted' && isPredictionTarget/,
+    )
+    assert.match(item, /<Link[\s\S]*>\s*Modifier\s*<\/Link>/)
+  })
+
+  it('renders score + "Votre pronostic" for predicted and locked', () => {
+    const item = read('src/components/MatchListItem.tsx')
+    assert.match(item, /Votre pronostic/)
+    assert.match(
+      item,
+      /\(match\.status === 'predicted' \|\| match\.status === 'locked'\) &&\s*prediction/,
+    )
+    assert.match(
+      item,
+      /prediction\.homeScore\} – \{prediction\.awayScore\}/,
+    )
+  })
+
+  it('never links the card shell except to_predict + isPredictionTarget', () => {
+    const item = read('src/components/MatchListItem.tsx')
+    assert.match(
+      item,
+      /const shouldLinkToPrediction[\s\S]*match\.status === 'to_predict' && isPredictionTarget/,
+    )
+    assert.match(item, /if \(shouldLinkToPrediction\)/)
   })
 
   it('does not paint every rank-1 row yellow in ranking views', () => {

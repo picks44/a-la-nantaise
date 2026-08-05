@@ -15,6 +15,8 @@ interface MatchListItemProps {
   revealError?: string | null
   /** Prochain match ouvert aux pronostics — seul fond jaune dominant. */
   isNext?: boolean
+  /** Match ciblé par le parcours de saisie / édition depuis l'onglet Accueil. */
+  isPredictionTarget?: boolean
   /** Deep link depuis une notification (`?match=`). */
   highlighted?: boolean
 }
@@ -26,13 +28,16 @@ export function MatchListItem({
   revealLoading = false,
   revealError = null,
   isNext = false,
+  isPredictionTarget = false,
   highlighted = false,
 }: MatchListItemProps) {
   const isFinished = match.status === 'finished'
   const isPredicted = match.status === 'predicted'
   const isUnconfirmed = match.status === 'kickoff_unconfirmed'
-  const canEditProno =
-    match.status === 'to_predict' || match.status === 'predicted'
+  const shouldLinkToPrediction =
+    match.status === 'to_predict' && isPredictionTarget
+  const canShowModifier =
+    match.status === 'predicted' && isPredictionTarget && Boolean(prediction)
   const stadium = venueSecondaryLabel(match.venue)
   const resultLabel = pointsResultLabel(prediction?.points)
 
@@ -47,15 +52,13 @@ export function MatchListItem({
           ? 'border-ink bg-yellow'
           : 'border-border bg-surface'
 
-  return (
-    <article
-      id={`match-${match.id}`}
-      data-match-id={match.id}
-      className={[
-        'overflow-hidden rounded-[var(--radius-md)] border scroll-mt-24',
-        shellClass,
-      ].join(' ')}
-    >
+  const cardClassName = [
+    'overflow-hidden rounded-[var(--radius-md)] border scroll-mt-24 ui-motion',
+    shellClass,
+  ].join(' ')
+
+  const cardInner = (
+    <>
       {isNext ? <span id="prochain-match" className="sr-only" /> : null}
       <div
         className={[
@@ -102,7 +105,7 @@ export function MatchListItem({
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
           <p
             className={[
-              'text-right text-sm font-semibold leading-snug text-balance sm:text-base',
+              'text-right text-sm font-semibold leading-snug text-balance sm:text-[0.9375rem]',
               isFinished ? 'text-white' : 'text-ink',
             ].join(' ')}
           >
@@ -130,7 +133,7 @@ export function MatchListItem({
 
           <p
             className={[
-              'text-left text-sm font-semibold leading-snug text-balance sm:text-base',
+              'text-left text-sm font-semibold leading-snug text-balance sm:text-[0.9375rem]',
               isFinished ? 'text-white' : 'text-ink',
             ].join(' ')}
           >
@@ -162,34 +165,26 @@ export function MatchListItem({
 
         {(match.status === 'predicted' || match.status === 'locked') &&
         prediction ? (
-          <p
-            className={[
-              'mt-2 border-t pt-2 text-sm',
-              isNext && !isPredicted
-                ? 'border-ink/15 text-ink/75'
-                : 'border-border text-muted',
-            ].join(' ')}
-          >
-            Pronostic :{' '}
-            <span
-              className={[
-                'font-black tabular-nums',
-                isPredicted ? 'text-green-dark' : 'text-ink',
-              ].join(' ')}
-            >
-              {prediction.homeScore} – {prediction.awayScore}
-            </span>
-          </p>
-        ) : null}
-
-        {canEditProno ? (
-          <div className="mt-2.5">
-            <Link
-              to="/"
-              className="inline-flex min-h-11 items-center text-sm font-bold tracking-[0.04em] text-green-dark underline-offset-2 hover:underline"
-            >
-              {isPredicted ? 'Modifier mon prono' : 'Faire mon prono'}
-            </Link>
+          <div className="mt-2.5 rounded-[var(--radius-sm)] border border-border bg-canvas/70 px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-1 items-baseline gap-3">
+                <span className="label-caps shrink-0">
+                  Votre pronostic
+                </span>
+                <span className="font-black tabular-nums text-green-dark text-lg">
+                  {prediction.homeScore} – {prediction.awayScore}
+                </span>
+              </div>
+              {canShowModifier ? (
+                <Link
+                  to="/"
+                  className="btn-ghost min-h-10 whitespace-nowrap"
+                  aria-label="Modifier votre pronostic"
+                >
+                  Modifier
+                </Link>
+              ) : null}
+            </div>
           </div>
         ) : null}
 
@@ -220,6 +215,30 @@ export function MatchListItem({
           />
         ) : null}
       </div>
+    </>
+  )
+
+  if (shouldLinkToPrediction) {
+    return (
+      <Link
+        to="/"
+        id={`match-${match.id}`}
+        data-match-id={match.id}
+        className={cardClassName}
+        aria-label="Ouvrir la saisie du pronostic"
+      >
+        {cardInner}
+      </Link>
+    )
+  }
+
+  return (
+    <article
+      id={`match-${match.id}`}
+      data-match-id={match.id}
+      className={cardClassName}
+    >
+      {cardInner}
     </article>
   )
 }
@@ -235,10 +254,10 @@ function RevealSection({
   loading: boolean
   error: string | null
 }) {
+  if (match.status === 'to_predict') return null
+
   const isBeforeReveal =
-    match.status === 'to_predict' ||
-    match.status === 'predicted' ||
-    match.status === 'kickoff_unconfirmed'
+    match.status === 'predicted' || match.status === 'kickoff_unconfirmed'
 
   if (isBeforeReveal) {
     return (

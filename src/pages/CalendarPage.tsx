@@ -250,6 +250,7 @@ export function CalendarPage() {
                 revealLoading={Boolean(revealLoadingIds[match.id])}
                 revealError={revealErrors[match.id] ?? null}
                 isNext={match.id === nextOpenId}
+                isPredictionTarget={match.id === nextOpenId}
                 highlighted={match.id === highlightMatchId}
               />
             </li>
