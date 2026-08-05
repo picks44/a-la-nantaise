@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CalendarCheck,
   Crown,
@@ -13,7 +13,15 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { GroupRanking } from '../components/Podium'
+import { ConfettiBurst } from '../components/ConfettiBurst'
 import { useSession } from '../context/useSession'
+import {
+  celebrationStorageKey,
+  getCelebrationNumber,
+  getCelebrationFlag,
+  setCelebrationNumber,
+  setCelebrationFlag,
+} from '../lib/celebrations'
 import {
   acknowledgeTrophyCelebrations,
   fetchActiveSeason,
@@ -46,7 +54,7 @@ import type {
 type RankingTab = 'general' | 'participation' | 'trophies'
 
 export function RankingPage() {
-  const { sessionToken, activePlayer } = useSession()
+  const { sessionToken, activePlayer, accessCode, playerId } = useSession()
   const [tab, setTab] = useState<RankingTab>('general')
   const [ranking, setRanking] = useState<Player[]>([])
   const [matches, setMatches] = useState<Match[]>([])
@@ -184,7 +192,7 @@ export function RankingPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <header>
         <h1 className="title-display">Classement</h1>
         <p className="mt-1 text-sm text-muted">
@@ -333,6 +341,8 @@ export function RankingPage() {
             loading={trophyLoading}
             error={trophyError}
             acknowledging={acknowledging}
+            groupId={accessCode ?? ''}
+            playerId={playerId ?? activePlayer?.id ?? ''}
             onDismissCelebration={() => {
               if (!sessionToken || !season?.id || acknowledging) return
               setAcknowledging(true)
@@ -467,7 +477,7 @@ function TabButton({
       aria-controls={controls}
       tabIndex={selected ? 0 : -1}
       className={[
-        'min-h-11 flex-1 rounded-[var(--radius-sm)] px-3 text-xs font-extrabold tracking-[0.08em] uppercase transition',
+        'min-h-10 flex-1 rounded-[var(--radius-sm)] px-3 text-xs font-extrabold tracking-[0.08em] uppercase transition-[color,background-color] duration-150 ease-out',
         selected
           ? 'bg-green-dark text-yellow'
           : 'text-ink/65 hover:bg-canvas hover:text-ink',
@@ -500,12 +510,24 @@ function StatusCard({
   )
 }
 
+const SIGNIFICANT_CONFETTI_TROPHY_KEYS = new Set<string>([
+  'first_participation',
+  'first_exact_score',
+] )
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+}
+
 function TrophyPanel({
   season,
   overview,
   loading,
   error,
   acknowledging,
+  groupId,
+  playerId,
   onDismissCelebration,
 }: {
   season: Season | null
@@ -513,8 +535,201 @@ function TrophyPanel({
   loading: boolean
   error: string | null
   acknowledging: boolean
+  groupId: string
+  playerId: string
   onDismissCelebration: () => void
 }) {
+  const stats = overview?.stats ?? {
+    currentPredictionStreak: 0,
+    bestPredictionStreak: 0,
+    currentGoodResultStreak: 0,
+    bestGoodResultStreak: 0,
+    currentExactStreak: 0,
+    bestExactStreak: 0,
+    totalExactScores: 0,
+    trophiesCount: 0,
+  }
+  const pending = overview?.pendingCelebrations ?? []
+  const seasonId = overview?.seasonId ?? ''
+
+  const isColdStart =
+    stats.trophiesCount === 0 &&
+    stats.totalExactScores === 0 &&
+    stats.currentPredictionStreak === 0 &&
+    stats.bestPredictionStreak === 0
+
+  const pendingIdsSignature = pending.map((p) => p.id).slice().sort().join('|')
+  const confettiIdsSignature = pending
+    .filter((p) => SIGNIFICANT_CONFETTI_TROPHY_KEYS.has(p.trophyKey))
+    .map((p) => p.id)
+    .slice()
+    .sort()
+    .join('|')
+
+  const [panelAnimatedSignature, setPanelAnimatedSignature] = useState<string | null>(
+    null,
+  )
+  const [confettiActive, setConfettiActive] = useState(false)
+
+  const lastPanelSignatureRef = useRef<string | null>(null)
+  const lastConfettiSignatureRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!groupId || !playerId || !seasonId) return
+
+    if (
+      pendingIdsSignature &&
+      lastPanelSignatureRef.current !== pendingIdsSignature
+    ) {
+      lastPanelSignatureRef.current = pendingIdsSignature
+      const panelKey = celebrationStorageKey({
+        groupId,
+        playerId,
+        seasonId,
+        eventType: 'trophy_pending_panel',
+        eventId: pendingIdsSignature,
+      })
+
+      const shouldAnimatePanel = !getCelebrationFlag(panelKey)
+      if (shouldAnimatePanel) {
+        setPanelAnimatedSignature(pendingIdsSignature)
+        setCelebrationFlag(panelKey)
+      } else {
+        setPanelAnimatedSignature(null)
+      }
+    }
+
+    const reduced = prefersReducedMotion()
+    if (
+      !confettiActive &&
+      confettiIdsSignature &&
+      lastConfettiSignatureRef.current !== confettiIdsSignature
+    ) {
+      lastConfettiSignatureRef.current = confettiIdsSignature
+      const confettiKey = celebrationStorageKey({
+        groupId,
+        playerId,
+        seasonId,
+        eventType: 'trophy_confetti',
+        eventId: confettiIdsSignature,
+      })
+
+      if (!getCelebrationFlag(confettiKey)) {
+        setCelebrationFlag(confettiKey)
+        // Even when animations are neutralized (prefers-reduced-motion),
+        // we still consider the celebration as "seen" to prevent a later replay.
+        if (!reduced) {
+          setConfettiActive(true)
+        }
+      }
+    }
+  }, [
+    groupId,
+    playerId,
+    seasonId,
+    pendingIdsSignature,
+    confettiIdsSignature,
+    confettiActive,
+  ])
+
+  const championPendingIdsSignature = pending
+    .filter((p) => p.trophyKey === 'champion_de_la_journee')
+    .map((p) => p.id)
+    .slice()
+    .sort()
+    .join('|')
+
+  const [championAnimatedSignature, setChampionAnimatedSignature] = useState<
+    string | null
+  >(null)
+  const lastChampionSignatureRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!groupId || !playerId || !seasonId) return
+    if (!championPendingIdsSignature) return
+
+    if (lastChampionSignatureRef.current === championPendingIdsSignature)
+      return
+    lastChampionSignatureRef.current = championPendingIdsSignature
+
+    const key = celebrationStorageKey({
+      groupId,
+      playerId,
+      seasonId,
+      eventType: 'trophy_champion_day_highlight',
+      eventId: championPendingIdsSignature,
+    })
+
+    const shouldAnimate = !getCelebrationFlag(key)
+    if (shouldAnimate) {
+      setChampionAnimatedSignature(championPendingIdsSignature)
+      setCelebrationFlag(key)
+    } else {
+      setChampionAnimatedSignature(null)
+    }
+  }, [groupId, playerId, seasonId, championPendingIdsSignature])
+
+  const recordValueKey = useMemo(() => {
+    return groupId && playerId && seasonId
+      ? celebrationStorageKey({
+          groupId,
+          playerId,
+          seasonId,
+          eventType: 'record_personal_best_prediction_streak',
+          eventId: 'bestPredictionStreak',
+        })
+      : ''
+  }, [groupId, playerId, seasonId])
+
+  const recordBaselineRef = useRef<number | null>(null)
+  const recordPulseTimerRef = useRef<number | null>(null)
+
+  const [recordPulseNonce, setRecordPulseNonce] = useState(0)
+  const [recordPulseActive, setRecordPulseActive] = useState(false)
+
+  useEffect(() => {
+    if (!groupId || !playerId || !seasonId) return
+    if (!recordValueKey) return
+
+    const current = stats.bestPredictionStreak
+
+    if (recordBaselineRef.current == null) {
+      const stored = getCelebrationNumber(recordValueKey)
+      if (stored == null) {
+        setCelebrationNumber(recordValueKey, current)
+        recordBaselineRef.current = current
+        return
+      }
+      recordBaselineRef.current = stored
+    }
+
+    const baseline = recordBaselineRef.current
+    if (current > baseline) {
+      recordBaselineRef.current = current
+      setCelebrationNumber(recordValueKey, current)
+
+      setRecordPulseNonce((n) => n + 1)
+      setRecordPulseActive(true)
+
+      if (recordPulseTimerRef.current != null) {
+        globalThis.clearTimeout(recordPulseTimerRef.current)
+      }
+      recordPulseTimerRef.current = globalThis.setTimeout(
+        () => setRecordPulseActive(false),
+        420,
+      )
+    }
+  }, [groupId, playerId, seasonId, recordValueKey, stats.bestPredictionStreak])
+
+  useEffect(() => {
+    return () => {
+      if (recordPulseTimerRef.current != null) {
+        globalThis.clearTimeout(recordPulseTimerRef.current)
+        recordPulseTimerRef.current = null
+      }
+    }
+  }, [])
+
   if (loading) {
     return <StatusCard message="Chargement des trophées…" />
   }
@@ -525,20 +740,15 @@ function TrophyPanel({
 
   if (!overview) {
     return (
-      <StatusCard message="Statistiques temporairement indisponibles." tone="error" />
+      <StatusCard
+        message="Statistiques temporairement indisponibles."
+        tone="error"
+      />
     )
   }
 
-  const stats = overview.stats
-  const pending = overview.pendingCelebrations
-  const isColdStart =
-    stats.trophiesCount === 0 &&
-    stats.totalExactScores === 0 &&
-    stats.currentPredictionStreak === 0 &&
-    stats.bestPredictionStreak === 0
-
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-black text-ink">Trophées & séries</h2>
         {season ? (
@@ -550,9 +760,20 @@ function TrophyPanel({
 
       {pending.length > 0 ? (
         <section
-          className="overflow-hidden rounded-[var(--radius-md)] border border-ink bg-yellow"
+          className={[
+            'relative overflow-hidden rounded-[var(--radius-md)] border border-ink bg-yellow',
+            panelAnimatedSignature === pendingIdsSignature
+              ? 'ui-trophy-panel-reveal'
+              : '',
+          ].join(' ')}
           aria-live="polite"
         >
+          {confettiActive ? (
+            <ConfettiBurst
+              reducedMotion={prefersReducedMotion()}
+              onDone={() => setConfettiActive(false)}
+            />
+          ) : null}
           <div className="flex flex-wrap items-start justify-between gap-3 p-4">
             <div className="flex items-start gap-3">
               <span className="flex size-11 items-center justify-center rounded-[var(--radius-sm)] border border-ink bg-green-dark text-yellow">
@@ -579,15 +800,31 @@ function TrophyPanel({
             </button>
           </div>
           <ul className="divide-y divide-ink/15 border-t border-ink/20">
-            {pending.map((item) => (
-              <li key={item.id} className="flex items-start gap-3 px-4 py-3">
+            {pending.map((item, index) => {
+              const panelShouldAnimate = panelAnimatedSignature === pendingIdsSignature
+              const stagger = panelShouldAnimate && index < 3
+              const championHighlight =
+                !stagger &&
+                championAnimatedSignature === championPendingIdsSignature &&
+                item.trophyKey === 'champion_de_la_journee'
+              return (
+                <li
+                  key={item.id}
+                  className={[
+                    'flex items-start gap-3 px-4 py-3',
+                    stagger ? 'ui-trophy-item-reveal' : '',
+                    championHighlight ? 'ui-champion-trophy-highlight' : '',
+                  ].join(' ')}
+                  style={stagger ? { animationDelay: `${index * 120}ms` } : undefined}
+                >
                 <TrophyIcon name={item.icon} unlocked />
                 <div>
                   <p className="font-bold text-ink">{item.name}</p>
                   <p className="mt-0.5 text-sm text-ink/75">{item.description}</p>
                 </div>
-              </li>
-            ))}
+                </li>
+              )
+            })}
           </ul>
         </section>
       ) : null}
@@ -600,13 +837,18 @@ function TrophyPanel({
             value={String(stats.currentPredictionStreak)}
             hint="participations d’affilée"
           />
-          <HeroStat
-            icon={Crown}
-            label="Record"
-            value={String(stats.bestPredictionStreak)}
-            hint="meilleure série"
-            bordered
-          />
+          <div
+            key={recordPulseNonce}
+            className={recordPulseActive ? 'ui-record-highlight' : undefined}
+          >
+            <HeroStat
+              icon={Crown}
+              label="Record"
+              value={String(stats.bestPredictionStreak)}
+              hint="meilleure série"
+              bordered
+            />
+          </div>
           <HeroStat
             icon={Trophy}
             label="Trophées obtenus"

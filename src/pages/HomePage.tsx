@@ -162,7 +162,7 @@ export function HomePage() {
 
   if (!nextMatch) {
     return (
-      <div className="space-y-4">
+      <div className="page-stack">
         <StateCard
           title="Accueil"
           message="Aucun prochain match ouvert aux pronostics pour le moment."
@@ -188,12 +188,12 @@ export function HomePage() {
   const stadium = venueSecondaryLabel(nextMatch.venue)
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <section
         aria-labelledby="next-match-title"
         className="overflow-hidden rounded-[var(--radius-md)] border border-ink bg-yellow"
       >
-        <div className="flex items-start justify-between gap-3 border-b border-ink/15 px-4 py-3 sm:px-5">
+        <div className="flex items-start justify-between gap-3 border-b border-ink/15 px-4 py-2.5 sm:px-5">
           <div className="min-w-0">
             <p className="text-[11px] font-bold tracking-[0.1em] text-ink/70 uppercase">
               Journée {nextMatch.matchday} · Ligue 2
@@ -246,7 +246,7 @@ export function HomePage() {
           </div>
 
           <form
-            className="mt-3 flex flex-col gap-4"
+            className="mt-3 flex flex-col gap-3"
             onSubmit={(event) => {
               event.preventDefault()
               void handleSave()
@@ -307,7 +307,7 @@ export function HomePage() {
             <p
               role="status"
               aria-live="polite"
-              className="mt-3 text-center text-sm font-semibold text-success"
+              className="ui-success-pop mt-3 rounded-[var(--radius-sm)] border border-green/30 bg-success-soft px-3 py-2 text-center text-sm font-semibold text-success"
             >
               <CheckCircle2
                 aria-hidden="true"
@@ -319,7 +319,7 @@ export function HomePage() {
               </span>
             </p>
           ) : saved && !saveError ? (
-            <p className="mt-3 text-center text-sm font-medium text-green-dark">
+            <p className="mt-3 text-center text-sm font-medium text-green-dark/90">
               Pronostic actuel :{' '}
               <span className="font-black tabular-nums">
                 {draft.home} – {draft.away}
@@ -328,7 +328,7 @@ export function HomePage() {
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-1 bg-green-dark px-4 py-3 text-white sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex flex-col gap-1.5 bg-green-dark px-4 py-2.5 text-white sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <p className="text-[11px] font-bold tracking-[0.1em] text-yellow/90 uppercase">
             {isUnconfirmed
               ? 'Pronostics'
@@ -336,10 +336,10 @@ export function HomePage() {
                 ? 'Pronostics verrouillés'
                 : 'Verrouillage dans'}
           </p>
-          <p className="font-black tracking-wide text-yellow tabular-nums sm:text-lg">
+          <p className="text-lg font-black tracking-wide text-yellow tabular-nums">
             {isUnconfirmed ? 'Bientôt disponible' : formatCountdown(countdown)}
           </p>
-          <p className="text-xs text-white/80 sm:text-right">
+          <p className="text-xs text-white/85 sm:text-right">
             {isUnconfirmed
               ? 'L’horaire officiel n’est pas encore confirmé.'
               : 'Jusqu’au coup d’envoi (heure serveur)'}

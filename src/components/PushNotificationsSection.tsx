@@ -29,6 +29,10 @@ export function PushNotificationsSection({
 }: PushNotificationsSectionProps) {
   const [uiState, setUiState] = useState<PushUiState>(() => resolvePushGateState())
   const [message, setMessage] = useState<string | null>(null)
+  const [messageNonce, setMessageNonce] = useState(0)
+  const [messageKind, setMessageKind] = useState<'success' | 'error' | null>(
+    null,
+  )
   const [busy, setBusy] = useState(false)
 
   const refresh = useCallback(async () => {
@@ -75,7 +79,9 @@ export function PushNotificationsSection({
 
   async function handleEnable() {
     setMessage(null)
+    setMessageKind(null)
     if (!isBrowserOnline()) {
+      setMessageKind('error')
       setMessage('Connexion indisponible. Réessaie une fois reconnecté.')
       return
     }
@@ -94,8 +100,11 @@ export function PushNotificationsSection({
         userAgent: navigator.userAgent,
       })
       setUiState('active')
+      setMessageKind('success')
+      setMessageNonce((n) => n + 1)
       setMessage(`Rappels activés pour ${playerPseudo}.`)
     } catch (error) {
+      setMessageKind('error')
       if (Notification.permission === 'denied') {
         setUiState('denied')
       } else {
@@ -109,6 +118,7 @@ export function PushNotificationsSection({
 
   async function handleDisable() {
     setMessage(null)
+    setMessageKind(null)
     setBusy(true)
     try {
       const subscription = await getExistingPushSubscription()
@@ -119,8 +129,11 @@ export function PushNotificationsSection({
       setUiState(
         Notification.permission === 'granted' ? 'granted_inactive' : 'default',
       )
+      setMessageKind('success')
+      setMessageNonce((n) => n + 1)
       setMessage('Rappels désactivés sur cet appareil.')
     } catch (error) {
+      setMessageKind('error')
       setMessage(toUserMessage(error))
       await refresh()
     } finally {
@@ -227,7 +240,16 @@ export function PushNotificationsSection({
       ) : null}
 
       {message ? (
-        <p role="status" aria-live="polite" className="mt-3 text-sm text-muted">
+        <p
+          key={messageNonce}
+          role="status"
+          aria-live="polite"
+          className={
+            messageKind === 'success'
+              ? 'ui-message-pop mt-3 text-sm text-muted'
+              : 'mt-3 text-sm text-muted'
+          }
+        >
           {message}
         </p>
       ) : null}

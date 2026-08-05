@@ -27,6 +27,7 @@ export function SettingsPage() {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [messageNonce, setMessageNonce] = useState(0)
 
   async function handleLogout() {
     setError(null)
@@ -59,6 +60,7 @@ export function SettingsPage() {
       setOldPin('')
       setNewPin('')
       setConfirmPin('')
+      setMessageNonce((n) => n + 1)
       setMessage('PIN mis à jour.')
     } catch (err) {
       logDevError(err)
@@ -69,7 +71,7 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div className="page-stack mx-auto max-w-3xl">
       <header>
         <h1 className="title-display">Paramètres</h1>
         <p className="mt-1 text-sm text-muted">
@@ -83,7 +85,11 @@ export function SettingsPage() {
         </p>
       ) : null}
       {message ? (
-        <p role="status" className="text-sm font-semibold text-green-dark">
+        <p
+          key={messageNonce}
+          role="status"
+          className="ui-message-pop text-sm font-semibold text-green-dark"
+        >
           {message}
         </p>
       ) : null}

@@ -48,6 +48,8 @@
   --radius-lg: 10px;
 
   --shadow-none: 0 0 #0000;
+  --duration-ui: 150ms;
+  --ease-ui: ease-out;
 }
 
 @layer base {
@@ -112,24 +114,34 @@
 }
 
 @layer components {
+  .ui-motion {
+    transition-property: color, background-color, border-color, box-shadow, opacity;
+    transition-duration: var(--duration-ui);
+    transition-timing-function: var(--ease-ui);
+  }
+
+  .page-stack {
+    @apply space-y-3;
+  }
+
   .label-caps {
     @apply text-[11px] font-bold tracking-[0.1em] uppercase text-muted;
   }
 
   .title-display {
-    @apply font-sans text-2xl font-black tracking-tight uppercase sm:text-[1.75rem];
+    @apply font-sans text-xl font-black tracking-tight uppercase sm:text-2xl;
   }
 
   .panel {
-    @apply rounded-[var(--radius-md)] border border-border bg-surface;
+    @apply rounded-[var(--radius-md)] border border-border bg-surface transition-[color,background-color,border-color,box-shadow,opacity] duration-150 ease-out;
   }
 
   .badge {
-    @apply inline-flex shrink-0 items-center border px-2 py-0.5 text-[10px] font-black tracking-[0.08em] uppercase;
+    @apply inline-flex shrink-0 items-center rounded-[var(--radius-sm)] border px-2 py-0.5 text-[10px] font-extrabold leading-none tracking-[0.08em] uppercase transition-[color,background-color,border-color,box-shadow,opacity] duration-150 ease-out;
   }
 
   .btn-ink {
-    @apply inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-green-dark bg-green-dark px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-yellow uppercase transition hover:bg-green active:brightness-95 disabled:cursor-not-allowed disabled:border-disabled disabled:bg-disabled disabled:text-on-green disabled:opacity-100 sm:w-auto sm:min-w-[12rem];
+    @apply inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-green-dark bg-green-dark px-4 py-2.5 text-sm font-extrabold tracking-[0.06em] text-yellow uppercase transition-[color,background-color,border-color,box-shadow,opacity] duration-150 ease-out hover:bg-green active:brightness-95 disabled:cursor-not-allowed disabled:border-disabled disabled:bg-disabled disabled:text-on-green disabled:opacity-100 sm:w-auto sm:min-w-[12rem];
   }
 
   .btn-ink:focus-visible {
@@ -138,7 +150,7 @@
   }
 
   .btn-green {
-    @apply inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-green-dark bg-green px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-on-green uppercase transition hover:bg-green-dark active:brightness-95 disabled:cursor-not-allowed disabled:border-disabled disabled:bg-disabled disabled:text-on-green disabled:opacity-100 sm:w-auto sm:min-w-[12rem];
+    @apply inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-green-dark bg-green px-4 py-2.5 text-sm font-extrabold tracking-[0.06em] text-on-green uppercase transition-[color,background-color,border-color,box-shadow,opacity] duration-150 ease-out hover:bg-green-dark active:brightness-95 disabled:cursor-not-allowed disabled:border-disabled disabled:bg-disabled disabled:text-on-green disabled:opacity-100 sm:w-auto sm:min-w-[12rem];
   }
 
   .btn-green:focus-visible {
@@ -147,23 +159,128 @@
   }
 
   .btn-secondary {
-    @apply inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-ink bg-surface px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-ink uppercase transition hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto;
+    @apply inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-ink bg-surface px-4 py-2.5 text-sm font-extrabold tracking-[0.06em] text-ink uppercase transition-[color,background-color,border-color,box-shadow,opacity] duration-150 ease-out hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto;
   }
 
   .btn-ghost {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-transparent px-3 py-2 text-sm font-bold tracking-[0.06em] text-ink uppercase transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-transparent px-3 py-2 text-sm font-bold tracking-[0.06em] text-ink uppercase transition-[color,background-color,border-color,box-shadow,opacity] duration-150 ease-out hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-danger {
-    @apply inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-danger bg-danger-soft px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-danger uppercase transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto;
+    @apply inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-danger bg-danger-soft px-4 py-2.5 text-sm font-extrabold tracking-[0.06em] text-danger uppercase transition-[color,background-color,border-color,box-shadow,opacity] duration-150 ease-out hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto;
   }
 
   /* Accent jaune — texte encre pour contraste AA (jamais jaune sur blanc). */
   .btn-yellow {
-    @apply inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-ink bg-yellow px-4 py-3 text-sm font-extrabold tracking-[0.06em] text-on-yellow uppercase transition hover:brightness-95 active:brightness-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto;
+    @apply inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-ink bg-yellow px-4 py-2.5 text-sm font-extrabold tracking-[0.06em] text-on-yellow uppercase transition-[color,background-color,border-color,box-shadow,opacity] duration-150 ease-out hover:brightness-95 active:brightness-90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto;
   }
 
   .field-input {
-    @apply w-full rounded-[var(--radius-sm)] border border-ink bg-canvas px-3 py-2.5 font-semibold text-ink;
+    @apply w-full rounded-[var(--radius-sm)] border border-ink bg-canvas px-3 py-2 text-sm font-semibold text-ink transition-[color,background-color,border-color,box-shadow,opacity] duration-150 ease-out focus:border-green-dark focus:bg-surface;
+  }
+
+  @keyframes ui-success-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes ui-message-pop {
+    from {
+      opacity: 0;
+      transform: translateY(2px) scale(0.99);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .ui-success-pop {
+    animation: ui-success-pop var(--duration-ui) var(--ease-ui) both;
+  }
+
+  .ui-message-pop {
+    animation: ui-message-pop var(--duration-ui) var(--ease-ui) both;
+  }
+
+  @keyframes ui-trophy-panel-reveal {
+    from {
+      opacity: 0;
+      transform: translateY(4px) scale(0.995);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes ui-trophy-item-reveal {
+    from {
+      opacity: 0;
+      transform: translateY(3px) scale(0.99);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .ui-trophy-panel-reveal {
+    animation: ui-trophy-panel-reveal 260ms var(--ease-ui) both;
+  }
+
+  .ui-trophy-item-reveal {
+    animation: ui-trophy-item-reveal 220ms var(--ease-ui) both;
+  }
+
+  @keyframes ui-record-highlight {
+    0% {
+      transform: scale(0.995);
+    }
+    40% {
+      transform: scale(1.03);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  .ui-record-highlight {
+    animation: ui-record-highlight 380ms var(--ease-ui) both;
+  }
+
+  @keyframes ui-champion-trophy-highlight {
+    0% {
+      transform: scale(0.998);
+    }
+    45% {
+      transform: scale(1.02);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  .ui-champion-trophy-highlight {
+    animation: ui-champion-trophy-highlight 420ms var(--ease-ui) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ui-success-pop,
+    .ui-message-pop,
+    .ui-trophy-panel-reveal,
+    .ui-trophy-item-reveal,
+    .ui-record-highlight,
+    .ui-champion-trophy-highlight {
+      animation: none !important;
+      transform: none !important;
+      opacity: 1 !important;
+    }
   }
 }
