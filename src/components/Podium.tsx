@@ -1,10 +1,9 @@
 import { Link } from 'react-router-dom'
 import {
-  formatGapToLeader,
-  formatGapToPrevious,
-  formatSuccessRate,
+  formatLiveRankDeltaLabel,
+  formatLiveRankingSecondaryLine,
+  formatLiveRoundPointsLabel,
 } from '../lib/rankingDisplay'
-import { formatRankDeltaLabel } from '../lib/recapMessages'
 import type { Player } from '../types'
 
 interface GroupRankingProps {
@@ -39,20 +38,19 @@ function RankingRow({
   live: boolean
 }) {
   const isLeaderMark = rank === 1
-  const hasScoredResults = player.scoredPredictions > 0
-  const deltaLabel = formatRankDeltaLabel(player.rankDelta)
+  const deltaLabel = live ? formatLiveRankDeltaLabel(player.rankDelta) : null
+  const roundPointsLabel = live
+    ? formatLiveRoundPointsLabel(player.roundPoints)
+    : null
+  const secondaryLine = live
+    ? formatLiveRankingSecondaryLine({
+        isNewToRanking: player.isNewToRanking,
+        rankDelta: player.rankDelta,
+        roundPoints: player.roundPoints,
+      })
+    : null
   const deltaPositive = (player.rankDelta ?? 0) > 0
   const deltaNegative = (player.rankDelta ?? 0) < 0
-  const roundPts =
-    live && player.roundPoints != null ? player.roundPoints : null
-  const roundLabel =
-    roundPts != null
-      ? `${roundPts} pt${roundPts > 1 ? 's' : ''}${
-          player.referenceRoundNumber != null
-            ? ` J${player.referenceRoundNumber}`
-            : ''
-        }`
-      : null
 
   const rankAria = [
     `${rank}e place`,
@@ -63,22 +61,12 @@ function RankingRow({
     .filter(Boolean)
     .join(', ')
 
-  const secondaryCompact = [
-    hasScoredResults
-      ? `${player.exactScores} exact${player.exactScores > 1 ? 's' : ''}`
-      : null,
-    hasScoredResults ? formatSuccessRate(player.successRate) : null,
-    roundLabel,
-  ]
-    .filter(Boolean)
-    .join(' · ')
-
   return (
     <li
       className={[
         'flex items-start gap-3 bg-surface px-4',
-        variant === 'full' ? 'py-3' : 'py-2.5',
-        isActive ? 'border-l-4 border-l-green bg-success-soft/60' : '',
+        variant === 'full' ? 'py-4' : 'py-2.5',
+        isActive ? 'border-l-2 border-l-green bg-success-soft/35' : '',
       ].join(' ')}
     >
       <span
@@ -88,7 +76,7 @@ function RankingRow({
         <span
           className={[
             'font-black leading-none tabular-nums',
-            variant === 'full' ? 'text-2xl' : 'text-xl sm:text-2xl',
+            variant === 'full' ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl',
           ].join(' ')}
         >
           {rank}
@@ -99,17 +87,16 @@ function RankingRow({
             className="mt-1 h-1 w-5 rounded-sm bg-yellow sm:w-6"
           />
         ) : null}
-        {isTie ? (
-          <span className="mt-0.5 text-[10px] font-semibold tracking-wide text-ink/55">
-            ex æquo
-          </span>
-        ) : null}
       </span>
 
       <div className="min-w-0 flex-1">
-        {/* Niveau principal */}
         <div className="flex flex-wrap items-center gap-2">
-          <p className="truncate text-sm font-semibold sm:text-base">
+          <p
+            className={[
+              'truncate font-semibold',
+              variant === 'full' ? 'text-base sm:text-lg' : 'text-sm sm:text-base',
+            ].join(' ')}
+          >
             {player.pseudo}
           </p>
           {isActive ? (
@@ -123,32 +110,50 @@ function RankingRow({
             </span>
           ) : null}
           {live && player.isNewToRanking ? (
-            <span className="badge-text border-border bg-canvas text-muted">
+            <span className="inline-flex shrink-0 items-center rounded-[var(--radius-sm)] border border-ink/10 px-1.5 py-0.5 text-[10px] font-bold tracking-[0.06em] text-ink/45 uppercase">
               Nouveau
             </span>
           ) : null}
         </div>
 
-        {live && (deltaLabel || roundLabel) ? (
-          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs font-semibold">
-            {deltaLabel ? (
-              <span
-                className={[
-                  'tabular-nums',
-                  deltaPositive
-                    ? 'text-green'
-                    : deltaNegative
-                      ? 'text-warning'
-                      : 'text-ink/55',
-                ].join(' ')}
-              >
-                {deltaLabel}
-              </span>
-            ) : null}
-            {roundLabel ? (
-              <span className="tabular-nums text-ink/70">{roundLabel}</span>
-            ) : null}
-          </p>
+        {/* Classement full+live : une seule ligne secondaire (delta · pts journée). */}
+        {variant === 'full' && live ? (
+          secondaryLine ? (
+            player.isNewToRanking ? (
+              <p className="mt-1.5 text-xs font-medium text-ink/55">
+                {secondaryLine}
+              </p>
+            ) : (
+              <p className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 text-xs font-medium text-ink/55">
+                {deltaLabel ? (
+                  <span
+                    className={[
+                      'tabular-nums',
+                      deltaPositive
+                        ? 'text-green-dark'
+                        : deltaNegative
+                          ? 'text-warning'
+                          : 'text-ink/55',
+                    ].join(' ')}
+                  >
+                    {deltaLabel}
+                  </span>
+                ) : null}
+                {deltaLabel && roundPointsLabel ? (
+                  <span aria-hidden="true">·</span>
+                ) : null}
+                {roundPointsLabel ? (
+                  <span className="tabular-nums text-ink/55">
+                    {roundPointsLabel}
+                  </span>
+                ) : null}
+              </p>
+            )
+          ) : (
+            <p className="mt-1.5 text-xs font-medium text-ink/55">
+              Aucun résultat noté
+            </p>
+          )
         ) : null}
 
         {variant === 'compact' ? (
@@ -156,63 +161,18 @@ function RankingRow({
             {`${player.exactScores} score${player.exactScores > 1 ? 's' : ''} exact${player.exactScores > 1 ? 's' : ''}`}
           </p>
         ) : null}
-
-        {/* Niveau secondaire — desktop détaillé, mobile condensé */}
-        {variant === 'full' ? (
-          hasScoredResults ? (
-            <>
-              <p className="mt-1 text-xs font-medium text-ink/70 md:hidden">
-                {secondaryCompact || 'Aucun résultat noté'}
-              </p>
-              <div className="mt-1.5 hidden space-y-0.5 text-xs font-medium text-ink/70 md:block">
-                <p className="flex flex-wrap gap-x-3 gap-y-0.5">
-                  <span>
-                    {`${player.exactScores} exact${player.exactScores > 1 ? 's' : ''}`}
-                  </span>
-                  <span>
-                    {`${player.goodResults} bon${player.goodResults > 1 ? 's' : ''} résultat${player.goodResults > 1 ? 's' : ''}`}
-                  </span>
-                  <span>
-                    {`${player.scoredPredictions} noté${player.scoredPredictions > 1 ? 's' : ''}`}
-                  </span>
-                </p>
-                <p className="flex flex-wrap gap-x-3 gap-y-0.5">
-                  <span>Réussite {formatSuccessRate(player.successRate)}</span>
-                  <span>
-                    Écart leader{' '}
-                    {formatGapToLeader(
-                      player.gapToLeader,
-                      player.gapToLeader === 0,
-                    )}
-                  </span>
-                  {live ? (
-                    <span>
-                      Écart pts {formatGapToPrevious(player.gapToPrevious)}
-                    </span>
-                  ) : null}
-                </p>
-              </div>
-            </>
-          ) : (
-            <p className="mt-1 text-xs font-medium text-ink/70">
-              {live && player.isNewToRanking
-                ? 'Nouveau au classement'
-                : 'Aucun résultat noté'}
-            </p>
-          )
-        ) : null}
       </div>
 
       <div className="shrink-0 text-right">
         <p
           className={[
-            'font-black tabular-nums',
-            variant === 'full' ? 'text-xl' : 'text-base sm:text-lg',
+            'font-black tabular-nums leading-none',
+            variant === 'full' ? 'text-2xl' : 'text-base sm:text-lg',
           ].join(' ')}
         >
           {player.points}
         </p>
-        <p className="text-xs font-semibold tracking-wider uppercase opacity-70">
+        <p className="mt-0.5 text-xs font-semibold tracking-wider uppercase text-ink/55">
           pts
         </p>
       </div>
@@ -270,14 +230,8 @@ export function GroupRanking({
   participantCount = 0,
   live = false,
 }: GroupRankingProps) {
-  const provisional = players.some((player) => player.isRankingProvisional)
-  const badge = live
-    ? provisional
-      ? 'Provisoire'
-      : players.some((player) => player.referenceRoundNumber != null)
-        ? 'Définitif'
-        : null
-    : null
+  // Statut provisoire/définitif : un seul contexte (récap ou chrome RankingPage), pas de badge header.
+  const badge = null
 
   if (awaitingFirstResult) {
     const count = participantCount > 0 ? participantCount : players.length

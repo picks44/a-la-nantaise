@@ -14,6 +14,9 @@ import {
 } from '../src/lib/ranking.ts'
 import {
   formatGapToLeader,
+  formatLiveRankDeltaLabel,
+  formatLiveRankingSecondaryLine,
+  formatLiveRoundPointsLabel,
   formatSuccessRate,
   participationLabel,
 } from '../src/lib/rankingDisplay.ts'
@@ -199,6 +202,50 @@ describe('ranking display helpers', () => {
     assert.equal(participationLabel('missing'), 'À pronostiquer')
     assert.equal(participationLabel('not_applicable'), 'Non applicable')
   })
+
+  it('formats live ranking secondary line cases', () => {
+    assert.equal(formatLiveRankDeltaLabel(0), 'Stable')
+    assert.equal(formatLiveRankDeltaLabel(1), '+1 place')
+    assert.equal(formatLiveRankDeltaLabel(2), '+2 places')
+    assert.equal(formatLiveRankDeltaLabel(-1), '−1 place')
+    assert.equal(formatLiveRankDeltaLabel(-3), '−3 places')
+    assert.equal(formatLiveRankDeltaLabel(null), null)
+
+    assert.equal(formatLiveRoundPointsLabel(0), '0 pt sur la journée')
+    assert.equal(formatLiveRoundPointsLabel(1), '+1 pt sur la journée')
+    assert.equal(formatLiveRoundPointsLabel(3), '+3 pts sur la journée')
+    assert.equal(formatLiveRoundPointsLabel(null), null)
+
+    assert.equal(
+      formatLiveRankingSecondaryLine({
+        rankDelta: 0,
+        roundPoints: 3,
+      }),
+      'Stable · +3 pts sur la journée',
+    )
+    assert.equal(
+      formatLiveRankingSecondaryLine({
+        rankDelta: 2,
+        roundPoints: 1,
+      }),
+      '+2 places · +1 pt sur la journée',
+    )
+    assert.equal(
+      formatLiveRankingSecondaryLine({
+        rankDelta: -1,
+        roundPoints: 0,
+      }),
+      '−1 place · 0 pt sur la journée',
+    )
+    assert.equal(
+      formatLiveRankingSecondaryLine({
+        isNewToRanking: true,
+        rankDelta: 2,
+        roundPoints: 3,
+      }),
+      'Nouveau au classement',
+    )
+  })
 })
 
 describe('default round selection', () => {
@@ -321,6 +368,19 @@ describe('ranking migration and UI wiring', () => {
     assert.match(podium, /Aucun résultat noté/)
     assert.match(podium, /awaitingFirstResult/)
     assert.match(podium, /premier match/)
+    assert.match(podium, /formatLiveRankingSecondaryLine/)
+    assert.match(podium, /Inactif/)
+    assert.match(podium, /ex æquo/)
+    assert.match(podium, /Nouveau/)
+    assert.doesNotMatch(podium, /Écart leader/)
+    assert.doesNotMatch(podium, /bons résultat/)
+    assert.doesNotMatch(podium, /formatSuccessRate/)
+    assert.doesNotMatch(podium, /formatGapToLeader/)
+    assert.doesNotMatch(podium, /md:hidden/)
+    assert.doesNotMatch(podium, /'Provisoire'/)
+    assert.doesNotMatch(podium, /'Définitif'/)
+    assert.doesNotMatch(podium, />\s*ex æquo\s*</)
+    assert.match(rankingPage, /referenceRound != null && !recap/)
   })
 
   it('loads participation in a single RPC per selected round', () => {

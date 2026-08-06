@@ -254,35 +254,15 @@ export function MatchListItem({
           </div>
         ) : null}
 
-        {isUnconfirmed ? (
-          <p className="mt-2.5 border-t border-border pt-2.5 text-sm text-muted">
-            Horaire à confirmer — les pronostics ouvriront bientôt.
-          </p>
-        ) : null}
-
-        {match.status === 'postponed' ? (
-          <p className="mt-2.5 border-t border-border pt-2.5 text-sm text-muted">
-            Match reporté — nouveau créneau à venir.
-          </p>
-        ) : null}
-
-        {match.status === 'cancelled' ? (
-          <p className="mt-2.5 border-t border-border pt-2.5 text-sm text-muted">
-            Match annulé — aucun point attribué.
-          </p>
-        ) : null}
-
-        {match.status !== 'cancelled' && match.status !== 'postponed' ? (
-          <RevealSection
-            match={match}
-            reveal={reveal}
-            loading={revealLoading}
-            error={revealError}
-            detailsOpen={detailsOpen}
-            onDetailsOpenChange={onDetailsOpenChange}
-            onRetryReveal={onRetryReveal}
-          />
-        ) : null}
+        <RevealSection
+          match={match}
+          reveal={reveal}
+          loading={revealLoading}
+          error={revealError}
+          detailsOpen={detailsOpen}
+          onDetailsOpenChange={onDetailsOpenChange}
+          onRetryReveal={onRetryReveal}
+        />
       </div>
     </>
   )
@@ -382,7 +362,7 @@ function RevealSection({
     )
   }
 
-  if (loading) {
+  if (loading && !reveal) {
     return (
       <div
         className={`mt-3 space-y-2 border-t ${borderClass} pt-3 text-sm ${mutedClass} transition-all duration-300`}

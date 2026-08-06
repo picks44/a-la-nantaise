@@ -62,7 +62,7 @@ export function formatRankDelta(delta: number | null | undefined): string | null
   return String(delta)
 }
 
-/** Libellé explicite pour le classement (évite +2 ambigu). */
+/** Libellé explicite pour le classement vivant (S1) — pas utilisé dans le récap. */
 export function formatRankDeltaLabel(
   delta: number | null | undefined,
 ): string | null {
@@ -71,4 +71,61 @@ export function formatRankDeltaLabel(
   if (delta > 0) return `+${delta} place${delta > 1 ? 's' : ''}`
   const n = Math.abs(delta)
   return `−${n} place${n > 1 ? 's' : ''}`
+}
+
+/** Points de la journée pour le récap éditorial. */
+export function formatRecapRoundPoints(points: number): string {
+  if (points === 0 || points === 1) return `${points} pt`
+  return `${points} pts`
+}
+
+const groupAverageFormatter = new Intl.NumberFormat('fr-FR', {
+  maximumFractionDigits: 1,
+})
+
+/** Moyenne du groupe — virgule FR, pluriel selon la valeur numérique. */
+export function formatGroupAverageLabel(average: number): string {
+  const formatted = groupAverageFormatter.format(average)
+  const unit = average === 1 ? 'pt' : 'pts'
+  return `Moyenne du groupe : ${formatted} ${unit}`
+}
+
+function formatExactScoresLabel(count: number): string {
+  return count === 1 ? '1 score exact' : `${count} scores exacts`
+}
+
+function formatMissedMatchesLabel(count: number): string {
+  return count === 1 ? '1 match manqué' : `${count} matchs manqués`
+}
+
+function formatGoodResultsLabel(count: number): string {
+  return count === 1 ? '1 bon résultat' : `${count} bons résultats`
+}
+
+/**
+ * Jusqu’à 3 indicateurs non nuls / utiles.
+ * Priorité : exacts → manqués → moyenne → bons. Liste vide si rien à montrer.
+ */
+export function selectRecapIndicators(input: {
+  exactScoreCount: number
+  missedPredictionCount: number
+  participantAveragePoints: number | null | undefined
+  correctOutcomeOnlyCount: number
+}): string[] {
+  const indicators: string[] = []
+
+  if (input.exactScoreCount > 0) {
+    indicators.push(formatExactScoresLabel(input.exactScoreCount))
+  }
+  if (input.missedPredictionCount > 0) {
+    indicators.push(formatMissedMatchesLabel(input.missedPredictionCount))
+  }
+  if (input.participantAveragePoints != null) {
+    indicators.push(formatGroupAverageLabel(input.participantAveragePoints))
+  }
+  if (input.correctOutcomeOnlyCount > 0) {
+    indicators.push(formatGoodResultsLabel(input.correctOutcomeOnlyCount))
+  }
+
+  return indicators.slice(0, 3)
 }

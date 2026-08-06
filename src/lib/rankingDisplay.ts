@@ -69,9 +69,46 @@ export function formatPlacesDelta(delta: number): string {
   return `${n} place${n > 1 ? 's' : ''}`
 }
 
+/** Évolution de rang pour la ligne secondaire du classement vivant. */
+export function formatLiveRankDeltaLabel(
+  delta: number | null | undefined,
+): string | null {
+  if (delta == null) return null
+  if (delta === 0) return 'Stable'
+  if (delta > 0) return `+${delta} place${delta > 1 ? 's' : ''}`
+  const n = Math.abs(delta)
+  return `−${n} place${n > 1 ? 's' : ''}`
+}
+
+/** Points de la journée de référence (libellé distinct du delta de rang). */
+export function formatLiveRoundPointsLabel(
+  points: number | null | undefined,
+): string | null {
+  if (points == null) return null
+  if (points === 0) return '0 pt sur la journée'
+  return `+${points} pt${points > 1 ? 's' : ''} sur la journée`
+}
+
 /**
- * Formulation humaine du mouvement de rang.
- * S’appuie sur les nombres, pas sur une chaîne déjà formatée.
+ * Une seule ligne secondaire classement vivant.
+ * Nouveau joueur → phrase seule (pas de delta / pts redondants).
+ */
+export function formatLiveRankingSecondaryLine(input: {
+  isNewToRanking?: boolean
+  rankDelta?: number | null
+  roundPoints?: number | null
+}): string | null {
+  if (input.isNewToRanking) return 'Nouveau au classement'
+  const parts = [
+    formatLiveRankDeltaLabel(input.rankDelta),
+    formatLiveRoundPointsLabel(input.roundPoints),
+  ].filter(Boolean)
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
+/**
+ * Formulation humaine du mouvement de rang (récap éditorial).
+ * S’appuie sur les nombres — jamais « Stable », jamais null traité comme 0.
  */
 export function formatRankChangeHuman(input: {
   rankBefore: number | null
@@ -80,33 +117,38 @@ export function formatRankChangeHuman(input: {
   isNewToRanking: boolean
   isLeader?: boolean
 }): string {
-  const { rankBefore, rankAfter, rankDelta, isNewToRanking, isLeader } = input
+  const { rankAfter, rankDelta, isNewToRanking, isLeader } = input
 
   if (isNewToRanking) {
     if (rankAfter != null) {
-      return `Nouveau au classement · ${formatRankOrdinal(rankAfter)} place`
+      return `Tu entres au classement à la ${formatRankOrdinal(rankAfter)} place`
     }
-    return 'Nouveau au classement'
+    return 'Classement indisponible'
   }
 
   if (rankAfter == null) {
     return 'Classement indisponible'
   }
 
-  if (rankBefore == null) {
-    return `Tu es ${formatRankOrdinal(rankAfter)}`
+  const afterLabel = formatRankOrdinal(rankAfter)
+
+  // rankBefore null + pas nouveau → neutre, pas d’« entrée »
+  if (input.rankBefore == null || rankDelta === null) {
+    return `Tu es ${afterLabel}`
   }
 
-  if (rankDelta == null || rankDelta === 0) {
+  if (rankDelta === 0) {
     if (isLeader || rankAfter === 1) {
       return `Tu conserves la ${formatRankOrdinal(1)} place`
     }
-    return `Tu conserves la ${formatRankOrdinal(rankAfter)} place`
+    return `Tu restes ${afterLabel}`
   }
 
   if (rankDelta > 0) {
-    return `Tu gagnes ${formatPlacesDelta(rankDelta)} · ${formatRankOrdinal(rankAfter)}`
+    return `Tu gagnes ${formatPlacesDelta(rankDelta)} et passes ${afterLabel}`
   }
 
-  return `Tu recules de ${formatPlacesDelta(rankDelta)} · ${formatRankOrdinal(rankAfter)}`
+  const n = Math.abs(rankDelta)
+  const retreat = n === 1 ? 'd’une place' : `de ${n} places`
+  return `Tu recules ${retreat} et passes ${afterLabel}`
 }

@@ -42,7 +42,7 @@ import {
 import { toUserMessage } from '../lib/errors'
 import {
   formatProvisionalBadge,
-  formatGapToPreviousHuman,
+  formatRankOrdinal,
   participationClassName,
   participationLabel,
 } from '../lib/rankingDisplay'
@@ -220,6 +220,12 @@ export function RankingPage() {
   }, [sessionToken, selectedRound, tab])
 
   useEffect(() => {
+    document
+      .getElementById(`tab-${tab}`)
+      ?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
+  }, [tab])
+
+  useEffect(() => {
     if (!sessionToken || !season?.id || tab !== 'parcours') return
     const stableSessionToken = sessionToken
     const stableSeasonId = season.id
@@ -283,7 +289,7 @@ export function RankingPage() {
   }
 
   return (
-    <div className="page-stack">
+    <div className="page-stack min-w-0">
       <header>
         <h1 className="title-display">Classement</h1>
         <p className="mt-1 text-sm text-muted">
@@ -294,7 +300,7 @@ export function RankingPage() {
       <div
         role="tablist"
         aria-label="Vues du classement"
-        className="flex rounded-[var(--radius-sm)] border border-ink bg-surface p-1"
+        className="ranking-tablist flex rounded-[var(--radius-sm)] border border-ink bg-surface p-1"
         onKeyDown={(event) => {
           if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return
           event.preventDefault()
@@ -364,10 +370,9 @@ export function RankingPage() {
           aria-labelledby="tab-general"
           className="space-y-4"
         >
-          {referenceRound != null ? (
-            <p className="text-xs font-semibold text-muted">
-              Référence journée {referenceRound} ·{' '}
-              {formatProvisionalBadge(isProvisional)}
+          {referenceRound != null && !recap ? (
+            <p className="text-[11px] font-medium tracking-wide text-ink/50">
+              Journée {referenceRound} · {formatProvisionalBadge(isProvisional)}
             </p>
           ) : null}
           {recapLoading ? (
@@ -503,7 +508,7 @@ export function RankingPage() {
             <div className="panel border-dashed p-6 text-center">
               <p className="font-bold text-ink">Parcours en construction</p>
               <p className="mt-1 text-sm text-muted">
-                Les jalons apparaîtront dès qu’une journée sera terminée.
+                Ton parcours commencera après la première journée terminée.
               </p>
             </div>
           ) : (
@@ -515,6 +520,42 @@ export function RankingPage() {
   )
 }
 
+/** Helpers présentation Parcours — pures, sans recalcul métier. */
+export function formatTimelinePoints(points: number): string {
+  if (points <= 1) return `${points} pt`
+  return `${points} pts`
+}
+
+export function formatTimelineRoundLine(input: {
+  roundNumber: number
+  roundPoints: number
+  rank: number | null
+}): string {
+  const rankLabel =
+    input.rank == null ? '—' : `${formatRankOrdinal(input.rank)} place`
+  return `J${input.roundNumber} · ${formatTimelinePoints(input.roundPoints)} · ${rankLabel}`
+}
+
+export function isTimelineMilestone(input: {
+  isBestRound: boolean
+  isBestRank: boolean
+  trophyCount: number
+}): boolean {
+  return input.isBestRound || input.isBestRank || input.trophyCount > 0
+}
+
+export function buildRoundAnnotations(input: {
+  isBestRound: boolean
+  isBestRank: boolean
+  trophyNames: string[]
+}): string[] {
+  const annotations: string[] = []
+  if (input.isBestRound) annotations.push('Meilleure journée')
+  if (input.isBestRank) annotations.push('Meilleure position')
+  for (const name of input.trophyNames) annotations.push(name)
+  return annotations
+}
+
 function SeasonTimelinePanel({ timeline }: { timeline: SeasonTimeline }) {
   const trophiesByRound = new Map<number, typeof timeline.trophies>()
   for (const trophy of timeline.trophies) {
@@ -524,35 +565,39 @@ function SeasonTimelinePanel({ timeline }: { timeline: SeasonTimeline }) {
     trophiesByRound.set(trophy.sourceRoundNumber, list)
   }
 
+  const finishedCount = timeline.rounds.length
+  const finishedLabel =
+    finishedCount <= 1
+      ? `${finishedCount} journée`
+      : `${finishedCount} journées`
+
   return (
     <section
-      className="panel section-stack overflow-hidden p-4"
+      className="panel section-stack overflow-hidden p-3 pb-3 sm:p-4"
       aria-label="Parcours de saison"
     >
-      <div className="grid gap-2 sm:grid-cols-3">
-        <div className="rounded-[var(--radius-sm)] border border-border bg-canvas/50 px-3 py-2">
+      <div className="grid grid-cols-1 gap-1.5 min-[360px]:grid-cols-2 sm:grid-cols-3 sm:gap-2">
+        <div className="px-1 py-0.5 sm:px-2 sm:py-1">
           <p className="label-caps">Journées terminées</p>
-          <p className="mt-1 text-2xl font-black tabular-nums">
-            {timeline.rounds.length}
+          <p className="mt-0.5 text-base font-black tabular-nums sm:mt-1 sm:text-xl">
+            {finishedLabel}
           </p>
         </div>
         {timeline.bestRound ? (
-          <div className="rounded-[var(--radius-sm)] border border-border bg-canvas/50 px-3 py-2">
+          <div className="px-1 py-0.5 sm:px-2 sm:py-1">
             <p className="label-caps">Meilleure journée</p>
-            <p className="mt-1 font-black">
-              J{timeline.bestRound.roundNumber} · {timeline.bestRound.roundPoints}{' '}
-              pts
+            <p className="mt-0.5 text-base font-black sm:mt-1 sm:text-xl">
+              J{timeline.bestRound.roundNumber} ·{' '}
+              {formatTimelinePoints(timeline.bestRound.roundPoints)}
             </p>
           </div>
         ) : null}
         {timeline.bestRank ? (
-          <div className="rounded-[var(--radius-sm)] border border-border bg-canvas/50 px-3 py-2">
+          <div className="px-1 py-0.5 sm:px-2 sm:py-1">
             <p className="label-caps">Meilleure position</p>
-            <p className="mt-1 font-black">
-              {timeline.bestRank.rank === 1
-                ? '1re'
-                : `${timeline.bestRank.rank}e`}{' '}
-              · J{timeline.bestRank.roundNumber}
+            <p className="mt-0.5 text-base font-black sm:mt-1 sm:text-xl">
+              {formatRankOrdinal(timeline.bestRank.rank)} · J
+              {timeline.bestRank.roundNumber}
             </p>
           </div>
         ) : null}
@@ -565,10 +610,20 @@ function SeasonTimelinePanel({ timeline }: { timeline: SeasonTimeline }) {
           const isBestRank =
             timeline.bestRank?.roundNumber === round.roundNumber
           const roundTrophies = trophiesByRound.get(round.roundNumber) ?? []
-          const isMilestone =
-            isBestRound || isBestRank || roundTrophies.length > 0
-          const gapHuman = formatGapToPreviousHuman(round.gapToPrevious, {
-            isLeader: round.rank === 1,
+          const milestone = isTimelineMilestone({
+            isBestRound,
+            isBestRank,
+            trophyCount: roundTrophies.length,
+          })
+          const annotations = buildRoundAnnotations({
+            isBestRound,
+            isBestRank,
+            trophyNames: roundTrophies.map((trophy) => trophy.name),
+          })
+          const line = formatTimelineRoundLine({
+            roundNumber: round.roundNumber,
+            roundPoints: round.roundPoints,
+            rank: round.rank,
           })
 
           return (
@@ -576,48 +631,20 @@ function SeasonTimelinePanel({ timeline }: { timeline: SeasonTimeline }) {
               key={round.roundNumber}
               className={[
                 'season-timeline-item',
-                isMilestone ? 'season-timeline-item--milestone' : '',
+                milestone ? 'season-timeline-item--milestone' : '',
               ]
                 .filter(Boolean)
                 .join(' ')}
             >
               <div className="season-timeline-marker" aria-hidden="true" />
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="text-sm font-bold">Journée {round.roundNumber}</p>
-                  <p className="text-sm tabular-nums text-muted">
-                    {round.rank != null
-                      ? round.rank === 1
-                        ? '1re'
-                        : `${round.rank}e`
-                      : '—'}{' '}
-                    · {round.roundPoints} pts
+                <p className="text-sm font-semibold tabular-nums text-ink">
+                  {line}
+                </p>
+                {annotations.length > 0 ? (
+                  <p className="mt-1 text-xs font-medium leading-relaxed text-ink/60">
+                    {annotations.join(' · ')}
                   </p>
-                </div>
-                {isMilestone ? (
-                  <ul className="mt-1.5 flex flex-wrap gap-1.5">
-                    {isBestRound ? (
-                      <li className="badge-text border-yellow bg-yellow text-ink">
-                        Meilleure journée
-                      </li>
-                    ) : null}
-                    {isBestRank ? (
-                      <li className="badge-text border-green bg-success-soft text-green-dark">
-                        Meilleure position
-                      </li>
-                    ) : null}
-                    {roundTrophies.map((trophy) => (
-                      <li
-                        key={trophy.id}
-                        className="badge-text border-green/30 bg-success-soft text-green-dark"
-                      >
-                        {trophy.name}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-                {gapHuman && isMilestone ? (
-                  <p className="mt-1 text-xs text-muted">{gapHuman}</p>
                 ) : null}
               </div>
             </li>
@@ -626,20 +653,14 @@ function SeasonTimelinePanel({ timeline }: { timeline: SeasonTimeline }) {
       </ol>
 
       {timeline.trophies.some((t) => t.sourceRoundNumber == null) ? (
-        <div>
-          <p className="label-caps mb-2">Autres trophées</p>
-          <ul className="flex flex-wrap gap-2">
+        <div className="border-t border-border/60 pt-3">
+          <p className="label-caps mb-2">Autres moments de la saison</p>
+          <p className="text-xs font-medium leading-relaxed text-ink/65">
             {timeline.trophies
               .filter((t) => t.sourceRoundNumber == null)
-              .map((trophy) => (
-                <li
-                  key={trophy.id}
-                  className="badge-text border-green/30 bg-success-soft text-green-dark"
-                >
-                  {trophy.name}
-                </li>
-              ))}
-          </ul>
+              .map((trophy) => trophy.name)
+              .join(' · ')}
+          </p>
         </div>
       ) : null}
     </section>
@@ -749,7 +770,7 @@ function TabButton({
       aria-controls={controls}
       tabIndex={selected ? 0 : -1}
       className={[
-        'min-h-10 flex-1 rounded-[var(--radius-sm)] px-3 text-xs font-extrabold tracking-[0.08em] uppercase transition-[color,background-color] duration-150 ease-out',
+        'ranking-tab min-h-11 shrink-0 whitespace-nowrap rounded-[var(--radius-sm)] px-3 text-xs font-extrabold tracking-[0.08em] uppercase transition-[color,background-color] duration-150 ease-out sm:min-w-0 sm:flex-1 sm:px-2',
         selected
           ? 'bg-green-dark text-yellow'
           : 'text-ink/65 hover:bg-canvas hover:text-ink',

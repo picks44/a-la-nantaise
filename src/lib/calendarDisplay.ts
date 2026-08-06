@@ -1,5 +1,5 @@
 import type { MatchGroupReveal, MatchUiStatus } from '../types'
-import { formatMatchDateShort, formatMatchTime } from './format'
+import { formatMatchDateShort, formatMatchTime } from './format.ts'
 
 /** Points calendrier : `0 pt` / `1 pt` / `N pts`. */
 export function formatCalendarPoints(points: number): string {

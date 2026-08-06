@@ -1,18 +1,11 @@
-import { formatRecapMessage } from '../lib/recapMessages'
 import {
-  formatGapToPreviousHuman,
-  formatRankChangeHuman,
-} from '../lib/rankingDisplay'
+  formatRecapMessage,
+  formatRecapRoundPoints,
+  selectRecapIndicators,
+} from '../lib/recapMessages'
+import { formatRankChangeHuman } from '../lib/rankingDisplay'
 import { pointsResultLabel } from '../lib/status'
-import type { PlayerRoundRecap, RecapMessageKey } from '../types'
-
-/** Messages déjà centrés sur le classement : ne pas redire la même chose en niveau 2. */
-const RANK_FOCUSED_KEYS: RecapMessageKey[] = [
-  'champion_of_round',
-  'personal_best_rank',
-  'strong_rise',
-  'no_participation',
-]
+import type { PlayerRoundRecap } from '../types'
 
 export function RoundRecapCard({
   recap,
@@ -40,131 +33,103 @@ export function RoundRecapCard({
     recap.isDefinitive,
   )
 
-  const isLeader = recap.ranking.rankAfter === 1
   const rankSentence = formatRankChangeHuman({
     rankBefore: recap.ranking.rankBefore,
     rankAfter: recap.ranking.rankAfter,
     rankDelta: recap.ranking.rankDelta,
     isNewToRanking: recap.ranking.isNewToRanking,
-    isLeader,
+    isLeader: recap.ranking.rankAfter === 1,
   })
-  const gapSentence = formatGapToPreviousHuman(recap.ranking.gapToPrevious, {
-    isLeader,
+
+  const indicators = selectRecapIndicators({
+    exactScoreCount: recap.summary.exactScoreCount,
+    missedPredictionCount: recap.summary.missedPredictionCount,
+    participantAveragePoints: recap.social.participantAveragePoints,
+    correctOutcomeOnlyCount: recap.summary.correctOutcomeOnlyCount,
   })
-  const skipRankNarrative = RANK_FOCUSED_KEYS.includes(recap.messageKey)
+
+  const statusLabel = recap.isDefinitive ? 'Définitif' : 'Provisoire'
+  const pointsLabel = formatRecapRoundPoints(recap.summary.roundPoints)
+  const showMatches =
+    recap.summary.participated && recap.matches.length > 0
 
   return (
     <section
       className="panel section-stack overflow-hidden p-4 sm:p-5"
       aria-label="Récap de journée"
     >
-      {/* Niveau 1 — résultat principal */}
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="label-caps">Journée {recap.roundNumber}</p>
-          <h2 className="mt-1.5 text-xl font-black leading-snug text-ink sm:text-2xl">
-            {message}
-          </h2>
-          <p className="mt-2 text-3xl font-black tabular-nums text-green-dark">
-            {recap.summary.roundPoints}
-            <span className="ml-1.5 text-sm font-bold tracking-wide text-muted uppercase">
-              pts
-            </span>
+      <header className="space-y-3">
+        <p className="text-[11px] font-semibold tracking-[0.12em] text-ink/50 uppercase">
+          Journée {recap.roundNumber}
+          <span className="mx-1.5 opacity-40" aria-hidden="true">
+            ·
+          </span>
+          {statusLabel}
+        </p>
+
+        <h2 className="text-xl font-black leading-snug text-ink sm:text-2xl">
+          {message}
+        </h2>
+
+        <p className="pt-1 pb-1 text-5xl font-black tabular-nums leading-none text-green-dark sm:text-6xl">
+          {recap.summary.roundPoints}
+          <span className="ml-2 align-baseline text-sm font-semibold tracking-wide text-ink/45">
+            {recap.summary.roundPoints <= 1 ? 'pt' : 'pts'}
+          </span>
+          <span className="sr-only"> ({pointsLabel})</span>
+        </p>
+
+        <p className="text-base font-semibold text-ink sm:text-lg">
+          {rankSentence}
+        </p>
+
+        {indicators.length > 0 ? (
+          <p className="text-sm font-medium leading-relaxed text-ink/65">
+            {indicators.join(' · ')}
           </p>
-        </div>
-        <span className="badge-text border-border bg-surface-muted text-muted">
-          {recap.isDefinitive ? 'Définitif' : 'Provisoire'}
-        </span>
+        ) : null}
       </header>
 
-      {/* Niveau 2 — évolution classement */}
-      <div className="rounded-[var(--radius-sm)] border border-border bg-canvas/70 px-3 py-3 text-sm">
-        {skipRankNarrative ? (
-          <p className="font-semibold text-ink">
-            {recap.ranking.isNewToRanking
-              ? 'Nouveau au classement'
-              : recap.ranking.rankAfter != null
-                ? `Classement : ${recap.ranking.rankAfter === 1 ? '1re' : `${recap.ranking.rankAfter}e`} place`
-                : null}
-          </p>
-        ) : (
-          <p className="font-semibold text-ink">{rankSentence}</p>
-        )}
-        {gapSentence ? (
-          <p className="mt-1 text-xs text-muted sm:text-sm">{gapSentence}</p>
-        ) : null}
-      </div>
+      {showMatches ? (
+        <ul className="space-y-3 border-t border-border/70 pt-4">
+          {recap.matches.map((match) => (
+            <li
+              key={match.matchId}
+              className="flex items-start justify-between gap-3 py-0.5 text-sm"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-bold text-ink">{match.label}</p>
+                <p className="mt-0.5 text-xs font-medium text-ink/60">
+                  {match.finalScore
+                    ? `Score ${match.finalScore.home}–${match.finalScore.away}`
+                    : match.status}
+                  {match.prediction
+                    ? ` · Prono ${match.prediction.home}–${match.prediction.away}`
+                    : ' · Non pronostiqué'}
+                </p>
+              </div>
+              <span className="shrink-0 pt-0.5 text-xs font-extrabold text-ink">
+                {match.predicted
+                  ? (pointsResultLabel(match.points ?? 0) ?? '—')
+                  : '—'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
-      {/* Niveau 3 — détail journée */}
-      <div className="compact-stack">
-        <dl className="grid grid-cols-3 gap-3">
-          <Stat
-            label="Exacts"
-            value={String(recap.summary.exactScoreCount)}
-          />
-          <Stat
-            label="Bons résultats"
-            value={String(recap.summary.correctOutcomeOnlyCount)}
-          />
-          <Stat
-            label="Sans prono"
-            value={String(recap.summary.missedPredictionCount)}
-          />
-        </dl>
-
-        {recap.summary.participated && recap.matches.length > 0 ? (
-          <ul className="compact-stack border-t border-border pt-3">
-            {recap.matches.map((match) => (
-              <li
-                key={match.matchId}
-                className="flex items-start justify-between gap-3 text-sm"
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-semibold">{match.label}</p>
-                  <p className="text-xs text-muted">
-                    {match.finalScore
-                      ? `Score ${match.finalScore.home}-${match.finalScore.away}`
-                      : match.status}
-                    {match.prediction
-                      ? ` · Prono ${match.prediction.home}-${match.prediction.away}`
-                      : ' · Non pronostiqué'}
-                  </p>
-                </div>
-                <span className="shrink-0 text-xs font-bold">
-                  {match.predicted
-                    ? (pointsResultLabel(match.points ?? 0) ?? '—')
-                    : '—'}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-
-        {(recap.social.championDisplayNames.length > 0 ||
-          recap.social.participantAveragePoints != null) && (
-          <p className="border-t border-border pt-3 text-xs text-muted sm:text-sm">
-            {recap.social.championDisplayNames.length > 0
-              ? `Champion${recap.social.championDisplayNames.length > 1 ? 's' : ''} : ${recap.social.championDisplayNames.join(', ')}`
-              : null}
-            {recap.social.participantAveragePoints != null
-              ? `${recap.social.championDisplayNames.length > 0 ? ' · ' : ''}Moyenne : ${recap.social.participantAveragePoints} pts`
-              : null}
-          </p>
-        )}
-
-        {recap.trophies.length > 0 ? (
-          <ul className="flex flex-wrap gap-2 pt-1">
-            {recap.trophies.map((trophy) => (
-              <li
-                key={`${trophy.trophyKey}-${trophy.sourceMatchId ?? 'x'}`}
-                className="badge-text border-green/30 bg-success-soft text-green-dark"
-              >
-                {trophy.name}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
+      {recap.trophies.length > 0 ? (
+        <ul className="flex flex-wrap gap-2 border-t border-border/70 pt-3">
+          {recap.trophies.map((trophy) => (
+            <li
+              key={`${trophy.trophyKey}-${trophy.sourceMatchId ?? 'x'}`}
+              className="badge-text border-green/30 bg-success-soft text-green-dark"
+            >
+              {trophy.name}
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
       {onDismiss ? (
         <button
@@ -176,16 +141,5 @@ export function RoundRecapCard({
         </button>
       ) : null}
     </section>
-  )
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-xs font-semibold tracking-wide text-muted uppercase">
-        {label}
-      </dt>
-      <dd className="mt-0.5 text-lg font-black tabular-nums">{value}</dd>
-    </div>
   )
 }

@@ -287,29 +287,47 @@
     animation: ui-champion-trophy-highlight 420ms var(--ease-ui) both;
   }
 
-  /* Parcours saison — timeline verticale dense. */
+  /* Onglets Classement — scroll horizontal interne mobile uniquement. */
+  .ranking-tablist {
+    @apply overflow-x-auto overscroll-x-contain;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .ranking-tablist::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (min-width: 640px) {
+    .ranking-tablist {
+      @apply overflow-x-visible;
+    }
+  }
+
+  /* Parcours saison — timeline verticale compacte. */
   .season-timeline {
-    @apply relative m-0 list-none p-0;
+    @apply relative m-0 list-none p-0 pl-1.5;
+  }
+
+  .season-timeline::before {
+    content: '';
+    @apply pointer-events-none absolute top-2 bottom-2 left-[0.85rem] w-px bg-border/80;
   }
 
   .season-timeline-item {
-    @apply relative flex gap-3 py-1.5 pl-1;
-  }
-
-  .season-timeline-item + .season-timeline-item {
-    @apply border-t border-border/60;
-  }
-
-  .season-timeline-marker {
-    @apply mt-1.5 size-2.5 shrink-0 rounded-full border-2 border-green bg-surface;
-  }
-
-  .season-timeline-item--milestone .season-timeline-marker {
-    @apply border-yellow bg-yellow;
+    @apply relative flex gap-3.5 py-1.5;
   }
 
   .season-timeline-item--milestone {
     @apply py-2.5;
+  }
+
+  .season-timeline-marker {
+    @apply relative z-[1] mt-1.5 size-2.5 shrink-0 rounded-full border-2 border-green bg-surface;
+  }
+
+  .season-timeline-item--milestone .season-timeline-marker {
+    @apply border-yellow bg-yellow;
   }
 
   /* Calendrier — détail ouvert clair sous le résumé vert (matchs terminés). */
@@ -319,6 +337,11 @@
 
   .match-reveal-trophies {
     @apply mt-2 rounded-[var(--radius-sm)] border border-border/80 bg-canvas px-2.5 py-2;
+  }
+
+  /* Calendrier — lignes compactes des matchs futurs (hors prochain). */
+  .future-match-row {
+    @apply px-3 py-2;
   }
 
   @media (prefers-reduced-motion: reduce) {

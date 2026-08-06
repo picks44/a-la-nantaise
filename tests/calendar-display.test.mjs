@@ -344,7 +344,10 @@ describe('MatchListItem group teaser visibility (future cards)', () => {
   const beforeRevealBlock = revealBody.slice(0, beforeRevealEnd)
 
   it('keeps unconfirmed status copy without group teaser or reveal phrase', () => {
-    assert.match(item, /Horaire à confirmer — les pronostics ouvriront bientôt\./)
+    assert.doesNotMatch(
+      item,
+      /Horaire à confirmer — les pronostics ouvriront bientôt\./,
+    )
     assert.match(
       revealBody,
       /match\.status === 'to_predict' \|\| match\.status === 'kickoff_unconfirmed'[\s\S]*return null/,
