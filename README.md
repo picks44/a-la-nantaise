@@ -167,6 +167,24 @@ supabase db reset
 
 Cette commande cible uniquement la stack **locale** (ports `54xxx`). Elle efface les données manuelles de la base de dev. Ne jamais utiliser `supabase db reset --linked` sans avoir vérifié explicitement le projet distant.
 
+**Contrat seed :** les scénarios temporels (calendrier, reveal, verrouillage) ne sont garantis qu’après un `supabase db reset` sur la stack **dev**. Le fichier n’est pas conçu pour rafraîchir des dates relatives sur une base déjà seedée (`ON CONFLICT DO NOTHING`).
+
+**Données protégées :** la section joueurs / codes d’accès / PIN du seed est figée — ne pas la modifier. Les identifiants de smoke restent documentés uniquement dans l’en-tête de `supabase/seed.sql` (ne pas les recopier ailleurs).
+
+**Scénarios disponibles après reset (dev) :** calendrier (victoire / nul / défaite / verrouillé / prochain ouvert / futur confirmé / TBC), pronostics (exact / issue / raté / absences / scores populaires), classement avec ex æquo `1,1,3,3,5,5,7,7`, reveal J1–J3, stats / trophées via `recalculate_season_achievements`.
+
+**Vérifier les invariants** (après reset validé, lecture seule, sans afficher de secrets) :
+
+```bash
+psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+  -v ON_ERROR_STOP=1 \
+  -f supabase/maintenance/verify_seed_invariants.sql
+```
+
+Adapter l’URL si votre Postgres local diffère. Succès attendu : notice `SEED_INVARIANTS_OK`.
+
+**Stacks :** le seed est chargé uniquement sur la stack **dev** (`[db.seed]` → `seed.sql`). La stack **test** utilise `sql_paths = []` et `db reset --local --no-seed` (`npm run test:sql:local`) — elle n’applique jamais ce seed.
+
 ## Deux stacks Supabase locales
 
 Le dépôt maintient **deux** environnements Docker distincts :
