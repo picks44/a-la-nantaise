@@ -1,4 +1,5 @@
 import type { RecapMessageKey } from '../types'
+import { formatPoints } from './formatPoints.ts'
 import { formatPlacesDelta, formatRankOrdinal } from './rankingDisplay.ts'
 
 /** Textes FR stables — map dépendante du statut définitif / provisoire. */
@@ -75,8 +76,7 @@ export function formatRankDeltaLabel(
 
 /** Points de la journée pour le récap éditorial. */
 export function formatRecapRoundPoints(points: number): string {
-  if (points === 0 || points === 1) return `${points} pt`
-  return `${points} pts`
+  return formatPoints(points)
 }
 
 const groupAverageFormatter = new Intl.NumberFormat('fr-FR', {

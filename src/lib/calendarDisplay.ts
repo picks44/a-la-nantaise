@@ -1,10 +1,10 @@
 import type { MatchGroupReveal, MatchUiStatus } from '../types'
 import { formatMatchDateShort, formatMatchTime } from './format.ts'
+import { formatPoints } from './formatPoints.ts'
 
 /** Points calendrier : `0 pt` / `1 pt` / `N pts`. */
 export function formatCalendarPoints(points: number): string {
-  if (points <= 1) return `${points} pt`
-  return `${points} pts`
+  return formatPoints(points)
 }
 
 /**
@@ -29,7 +29,7 @@ export function formatCalendarPersonalPrediction(
   const pointsLabel =
     prediction.points === 0
       ? formatCalendarPoints(0)
-      : `+${formatCalendarPoints(prediction.points)}`
+      : formatPoints(prediction.points, { signed: true })
   return `Ton prono : ${score} · ${pointsLabel}`
 }
 
@@ -127,7 +127,7 @@ export function formatParticipantPointsLabel(
 ): string | null {
   if (!resultReady || points == null) return null
   if (points === 0) return formatCalendarPoints(0)
-  return `+${formatCalendarPoints(points)}`
+  return formatPoints(points, { signed: true })
 }
 
 /**

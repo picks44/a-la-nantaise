@@ -9,9 +9,7 @@ import type {
   PlayerRoundRecap,
   Prediction,
   RoundParticipationRow,
-  RoundPlayerStatsPayload,
   RoundStatus,
-  RoundStatusPayload,
   Season,
   SeasonTimeline,
   TrophyOverview,
@@ -25,14 +23,6 @@ import {
 } from './matchOrder'
 
 export { findLastFinishedMatch, findNextOpenMatch, sortMatchesForList }
-export { compareMatchesForList } from './matchOrder'
-export {
-  getCompetitionRanks,
-  getDenseRanks,
-  listRoundNumbers,
-  selectDefaultRoundNumber,
-  selectHomeRanking,
-} from './ranking'
 
 export const TRACKED_TEAM = 'FC Nantes'
 
@@ -70,18 +60,6 @@ interface DbPredictionRow {
   updated_at: string
 }
 
-interface DbRankingRow {
-  id: string
-  display_name: string
-  is_active: boolean
-  points: number | string
-  exact_scores: number | string
-  good_results: number | string
-  scored_predictions: number | string
-  success_rate: number | string | null
-  gap_to_leader: number | string
-}
-
 interface DbParticipationRow {
   player_id: string
   display_name: string
@@ -107,7 +85,11 @@ async function rpc<T>(
   const { data, error } = await getSupabase().rpc(fn, args)
   if (error) {
     const code = getErrorCode(error) ?? 'RPC_ERROR'
-    if (code === 'INVALID_ACCESS_CODE' || code === 'INVALID_SESSION') {
+    if (
+      code === 'INVALID_ACCESS_CODE' ||
+      code === 'INVALID_SESSION' ||
+      code === 'SESSION_EXPIRED'
+    ) {
       notifySessionInvalidation(code)
     }
     throw new ApiError(code, error.message)
@@ -131,15 +113,13 @@ function notifySessionInvalidation(code: string): void {
 }
 
 export async function verifyAccessCode(accessCode: string): Promise<boolean> {
-  try {
-    const result = await rpc<boolean>('verify_access_code', {
-      p_access_code: accessCode,
-    })
-    return Boolean(result)
-  } catch (error) {
-    if (getErrorCode(error) === 'ACCESS_CODE_NOT_CONFIGURED') throw error
-    return false
-  }
+  // Invalid codes resolve to false from the RPC.
+  // Configuration and transport failures must propagate — callers must not
+  // treat them as an incorrect access code.
+  const result = await rpc<boolean>('verify_access_code', {
+    p_access_code: accessCode,
+  })
+  return Boolean(result)
 }
 
 export async function fetchActivePlayers(
@@ -254,16 +234,6 @@ export async function fetchMyPredictions(
   return (rows ?? []).map(mapPrediction)
 }
 
-export async function fetchVisiblePredictions(
-  sessionToken: string,
-): Promise<Prediction[]> {
-  const rows = await rpc<DbPredictionRow[]>('get_visible_predictions', {
-    p_session_token: sessionToken,
-  })
-
-  return (rows ?? []).map(mapPrediction)
-}
-
 export async function upsertPrediction(input: {
   sessionToken: string
   matchId: string
@@ -283,27 +253,6 @@ export async function upsertPrediction(input: {
   }
 
   return mapPrediction(row)
-}
-
-export async function fetchRanking(sessionToken: string): Promise<Player[]> {
-  const rows = await rpc<DbRankingRow[]>('get_ranking', {
-    p_session_token: sessionToken,
-  })
-
-  return (rows ?? []).map((row) => ({
-    id: row.id,
-    pseudo: row.display_name,
-    isActive: Boolean(row.is_active),
-    points: Number(row.points),
-    exactScores: Number(row.exact_scores),
-    goodResults: Number(row.good_results),
-    scoredPredictions: Number(row.scored_predictions),
-    successRate:
-      row.success_rate == null || row.success_rate === ''
-        ? null
-        : Number(row.success_rate),
-    gapToLeader: Number(row.gap_to_leader),
-  }))
 }
 
 export async function fetchRoundParticipation(
@@ -554,20 +503,6 @@ export async function acknowledgeTrophyCelebrations(input: {
   return Number(result ?? 0)
 }
 
-export async function recalculateMatchPoints(
-  accessCode: string,
-  matchId: string,
-): Promise<number> {
-  const rows = await rpc<Array<{ updated_count: number }>>(
-    'recalculate_match_points',
-    {
-      p_access_code: accessCode,
-      p_match_id: matchId,
-    },
-  )
-  return Number(rows?.[0]?.updated_count ?? 0)
-}
-
 export function mapMatch(row: DbMatchRow, now = new Date()): Match {
   const venue: Match['venue'] =
     row.home_team === TRACKED_TEAM ? 'home' : 'away'
@@ -770,31 +705,6 @@ function asRoundStatus(value: unknown): RoundStatus {
   return 'open'
 }
 
-export async function fetchRoundStatus(input: {
-  sessionToken: string
-  seasonId: string
-  roundNumber: number
-}): Promise<RoundStatusPayload> {
-  const data = await rpc<Record<string, unknown>>('get_round_status', {
-    p_session_token: input.sessionToken,
-    p_season_id: input.seasonId,
-    p_round_number: input.roundNumber,
-  })
-  return {
-    seasonId: String(data.seasonId ?? input.seasonId),
-    roundNumber: Number(data.roundNumber ?? input.roundNumber),
-    status: asRoundStatus(data.status),
-    isDefinitive: Boolean(data.isDefinitive),
-    hasStarted: Boolean(data.hasStarted),
-    roundMatchCount: Number(data.roundMatchCount ?? 0),
-    nonCancelledMatchCount: Number(data.nonCancelledMatchCount ?? 0),
-    finishedCount: Number(data.finishedCount ?? 0),
-    cancelledCount: Number(data.cancelledCount ?? 0),
-    postponedCount: Number(data.postponedCount ?? 0),
-    remainingCount: Number(data.remainingCount ?? 0),
-  }
-}
-
 export async function fetchLiveSeasonRanking(input: {
   sessionToken: string
   seasonId: string
@@ -831,62 +741,6 @@ export async function fetchLiveSeasonRanking(input: {
     isRankingProvisional: Boolean(row.is_ranking_provisional),
     gapToPrevious: optionalNumber(row.gap_to_previous),
   }))
-}
-
-export async function fetchRoundPlayerStats(input: {
-  sessionToken: string
-  seasonId: string
-  roundNumber: number
-}): Promise<RoundPlayerStatsPayload> {
-  const data = await rpc<Record<string, unknown>>('get_round_player_stats', {
-    p_session_token: input.sessionToken,
-    p_season_id: input.seasonId,
-    p_round_number: input.roundNumber,
-  })
-  const group = (data.group ?? {}) as Record<string, unknown>
-  const playersRaw = Array.isArray(data.players) ? data.players : []
-
-  return {
-    seasonId: String(data.seasonId ?? input.seasonId),
-    roundNumber: Number(data.roundNumber ?? input.roundNumber),
-    roundStatus: asRoundStatus(data.roundStatus),
-    players: playersRaw.map((raw) => {
-      const row = raw as Record<string, unknown>
-      const status = String(row.participationStatus ?? 'none')
-      return {
-        playerId: String(row.playerId),
-        displayName: String(row.displayName ?? ''),
-        roundPoints: Number(row.roundPoints ?? 0),
-        exactScoreCount: Number(row.exactScoreCount ?? 0),
-        correctOutcomeOnlyCount: Number(row.correctOutcomeOnlyCount ?? 0),
-        successfulPredictionCount: Number(row.successfulPredictionCount ?? 0),
-        scoredPredictionCount: Number(row.scoredPredictionCount ?? 0),
-        predictedMatchCount: Number(row.predictedMatchCount ?? 0),
-        participationMatchCount: Number(row.participationMatchCount ?? 0),
-        missedPredictionCount: Number(row.missedPredictionCount ?? 0),
-        participationStatus:
-          status === 'partial' ||
-          status === 'complete' ||
-          status === 'not_applicable' ||
-          status === 'none'
-            ? status
-            : 'none',
-        rankInRound: optionalNumber(
-          row.rankInRound as number | string | null | undefined,
-        ),
-      }
-    }),
-    group: {
-      participantCount: Number(group.participantCount ?? 0),
-      participantAveragePoints: optionalNumber(
-        group.participantAveragePoints as number | string | null | undefined,
-      ),
-      championPlayerIds: toStringArray(group.championPlayerIds),
-      championRoundPoints: optionalNumber(
-        group.championRoundPoints as number | string | null | undefined,
-      ),
-    },
-  }
 }
 
 export async function fetchPlayerRoundRecap(input: {

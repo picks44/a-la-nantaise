@@ -102,19 +102,6 @@ export function revealReducer(
   }
 }
 
-/** Whether reducer `begin` would transition this match into loading. */
-export function canBeginReveal(
-  states: RevealStateByMatchId,
-  matchId: string,
-  options?: { force?: boolean },
-): boolean {
-  const current = getRevealState(states, matchId)
-  if (options?.force) {
-    return current.status !== 'loading'
-  }
-  return current.status === 'idle'
-}
-
 /**
  * Race `promise` against a timeout. Always clears the timer on settle
  * so abandoned timers do not linger.

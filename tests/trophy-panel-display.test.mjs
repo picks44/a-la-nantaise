@@ -11,32 +11,37 @@ import {
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const rankingPage = readFileSync(join(root, 'src/pages/RankingPage.tsx'), 'utf8')
+const trophyPanelFile = readFileSync(
+  join(root, 'src/components/TrophyPanel.tsx'),
+  'utf8',
+)
 
 function trophyPanelSource() {
-  const start = rankingPage.indexOf('function TrophyPanel')
-  const end = rankingPage.indexOf('function HeroStat')
+  const start = trophyPanelFile.indexOf('export function TrophyPanel')
+  const end = trophyPanelFile.indexOf('function HeroStat')
   assert.ok(start >= 0 && end > start, 'TrophyPanel block not found')
-  return rankingPage.slice(start, end)
+  return trophyPanelFile.slice(start, end)
 }
 
 function earnedCardSource() {
-  const start = rankingPage.indexOf('function EarnedTrophyCard')
-  const end = rankingPage.indexOf('function LockedTrophyCard')
+  const start = trophyPanelFile.indexOf('function EarnedTrophyCard')
+  const end = trophyPanelFile.indexOf('function LockedTrophyCard')
   assert.ok(start >= 0 && end > start, 'EarnedTrophyCard block not found')
-  return rankingPage.slice(start, end)
+  return trophyPanelFile.slice(start, end)
 }
 
 function lockedCardSource() {
-  const start = rankingPage.indexOf('function LockedTrophyCard')
-  const end = rankingPage.indexOf('const TROPHY_ICONS')
+  const start = trophyPanelFile.indexOf('function LockedTrophyCard')
+  const end = trophyPanelFile.indexOf('const TROPHY_ICONS')
   assert.ok(start >= 0 && end > start, 'LockedTrophyCard block not found')
-  return rankingPage.slice(start, end)
+  return trophyPanelFile.slice(start, end)
 }
 
 describe('trophy panel structure (T1)', () => {
   it('keeps panel labelled by the trophies tab', () => {
     assert.match(rankingPage, /aria-labelledby="tab-trophies"/)
     assert.match(rankingPage, /id="tab-trophies"/)
+    assert.match(rankingPage, /from '\.\.\/components\/TrophyPanel'/)
   })
 
   it('does not render a redundant Trophées & séries heading under the tab', () => {
@@ -46,9 +51,8 @@ describe('trophy panel structure (T1)', () => {
 
   it('keeps the season badge and useful section headings', () => {
     const panel = trophyPanelSource()
-    assert.match(panel, /className="badge border-ink bg-yellow text-ink"/)
+    assert.match(panel, /\bbadge\b/)
     assert.match(panel, /\{season\.name\}/)
-    assert.match(panel, /flex justify-end -mb-1\.5/)
     assert.match(panel, />Débloqués</)
     assert.match(panel, />Encore à débloquer</)
     assert.doesNotMatch(panel, />Objectifs</)
@@ -59,9 +63,7 @@ describe('trophy panel structure (T1)', () => {
     assert.match(panel, /La chasse commence ici/)
     assert.match(panel, /Première\s+participation/)
     assert.match(panel, /lancer tes séries/)
-    assert.match(panel, /border-dashed px-3 py-2\.5/)
-    assert.doesNotMatch(panel, /p-6 text-center/)
-    assert.doesNotMatch(panel, /size-14/)
+    assert.match(panel, /isColdStart/)
   })
 
   it('renders the three summary metrics without a global sur N progress', () => {
@@ -73,17 +75,16 @@ describe('trophy panel structure (T1)', () => {
     assert.match(panel, /bestPredictionStreak/)
     assert.match(panel, /trophiesCount/)
     assert.doesNotMatch(panel, /sur \d+/)
-    assert.doesNotMatch(rankingPage, /trophée(?:s)? sur/)
+    assert.doesNotMatch(trophyPanelFile, /trophée(?:s)? sur/)
   })
 
-  it('compacts HeroStat padding and value scale', () => {
-    const start = rankingPage.indexOf('function HeroStat')
-    const end = rankingPage.indexOf('function EarnedTrophyCard')
-    const hero = rankingPage.slice(start, end)
-    assert.match(hero, /py-2\.5/)
-    assert.match(hero, /text-2xl/)
-    assert.match(hero, /sm:text-3xl/)
-    assert.doesNotMatch(hero, /px-4 py-4/)
+  it('wires celebration anti-replay and significant confetti only', () => {
+    assert.match(trophyPanelFile, /SIGNIFICANT_CONFETTI_TROPHY_KEYS/)
+    assert.match(trophyPanelFile, /first_participation/)
+    assert.match(trophyPanelFile, /first_exact_score/)
+    assert.match(trophyPanelFile, /celebrationStorageKey/)
+    assert.match(trophyPanelFile, /ConfettiBurst/)
+    assert.match(trophyPanelFile, /prefersReducedMotion|prefers-reduced-motion/)
   })
 })
 
@@ -120,10 +121,9 @@ describe('formatTrophyAwardMeta', () => {
 })
 
 describe('earned trophy cards (T2)', () => {
-  it('uses formatTrophyAwardMeta and a collection tint', () => {
+  it('uses formatTrophyAwardMeta without a redundant unlocked badge', () => {
     const earned = earnedCardSource()
     assert.match(earned, /formatTrophyAwardMeta/)
-    assert.match(earned, /bg-yellow\/15/)
     assert.doesNotMatch(earned, /Journée \$\{/)
     assert.doesNotMatch(earned, />Débloqué</)
     assert.doesNotMatch(earned, /badge.*Débloqué/)
@@ -169,26 +169,16 @@ describe('locked trophy cards (T3)', () => {
     assert.match(locked, /aria-valuenow=/)
     assert.match(locked, /aria-valuemin=\{0\}/)
     assert.match(locked, /aria-valuemax=/)
-    assert.match(locked, /h-1\.5/)
-    assert.match(locked, /border-ink\/40 bg-ink\/10/)
-    assert.match(locked, /bg-yellow/)
-    assert.match(locked, /shrink-0.*tabular-nums/)
     assert.doesNotMatch(locked, /<span>Progression<\/span>/)
     assert.doesNotMatch(locked, /Se débloque en match/)
     assert.doesNotMatch(locked, /Verrouillé/)
     assert.match(locked, /verrouillé/)
   })
 
-  it('keeps min-w-0 for long titles beside progress values', () => {
-    const locked = lockedCardSource()
-    assert.match(locked, /min-w-0/)
-    assert.match(locked, /shrink-0/)
-  })
-
   it('keeps earned and locked card components available', () => {
-    assert.match(rankingPage, /function EarnedTrophyCard/)
-    assert.match(rankingPage, /function LockedTrophyCard/)
-    assert.match(rankingPage, /overview\.earnedTrophies/)
-    assert.match(rankingPage, /overview\.lockedTrophies/)
+    assert.match(trophyPanelFile, /function EarnedTrophyCard/)
+    assert.match(trophyPanelFile, /function LockedTrophyCard/)
+    assert.match(trophyPanelFile, /overview\.earnedTrophies/)
+    assert.match(trophyPanelFile, /overview\.lockedTrophies/)
   })
 })

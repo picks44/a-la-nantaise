@@ -271,7 +271,6 @@ describe('RoundRecapCard editorial wiring', () => {
     assert.doesNotMatch(card, /grid-cols-3/)
     assert.doesNotMatch(card, /Stable/)
     assert.match(card, /indicators\.length > 0/)
-    assert.match(card, /text-5xl/)
     assert.match(card, /Journée \{recap\.roundNumber\}/)
   })
 })

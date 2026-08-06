@@ -60,12 +60,15 @@ const KNOWN_CODES = [
   'PUSH_MISCONFIGURED',
   'PUSH_PERMISSION_DENIED',
   'PUSH_SUBSCRIPTION_INVALID',
+  'LOAD_TIMEOUT',
 ] as const
 
 const UNKNOWN_USER_MESSAGE =
   'Une erreur est survenue. Réessaie dans quelques instants.'
 const NETWORK_USER_MESSAGE =
   'Connexion impossible. Vérifie ta connexion internet et réessaie.'
+
+export { UNKNOWN_USER_MESSAGE, NETWORK_USER_MESSAGE }
 
 export function getErrorCode(error: unknown): string | null {
   if (error instanceof ApiError) return error.code
@@ -220,6 +223,8 @@ export function toUserMessage(error: unknown): string {
       return 'Permission de notification refusée.'
     case 'PUSH_SUBSCRIPTION_INVALID':
       return 'Abonnement push incomplet. Réessaie.'
+    case 'LOAD_TIMEOUT':
+      return 'Délai dépassé. Vérifie ta connexion et réessaie.'
     default:
       return UNKNOWN_USER_MESSAGE
   }

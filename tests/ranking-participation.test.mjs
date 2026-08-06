@@ -380,7 +380,12 @@ describe('ranking migration and UI wiring', () => {
     assert.doesNotMatch(podium, /'Provisoire'/)
     assert.doesNotMatch(podium, /'Définitif'/)
     assert.doesNotMatch(podium, />\s*ex æquo\s*</)
-    assert.match(rankingPage, /referenceRound != null && !recap/)
+    assert.match(
+      rankingPage,
+      /referenceRound != null && recapView\.status !== 'success'/,
+    )
+    assert.match(rankingPage, /resolveRecapViewState/)
+    assert.match(rankingPage, /recapError/)
   })
 
   it('loads participation in a single RPC per selected round', () => {

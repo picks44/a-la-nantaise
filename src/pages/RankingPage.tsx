@@ -1,27 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  CalendarCheck,
-  Crown,
-  Eye,
-  Flame,
-  Medal,
-  Shield,
-  Sparkles,
-  Target,
-  Trophy,
-  type LucideIcon,
-} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { GroupRanking } from '../components/Podium'
-import { ConfettiBurst } from '../components/ConfettiBurst'
 import { RoundRecapCard } from '../components/RoundRecapCard'
+import { SeasonTimelinePanel } from '../components/SeasonTimelinePanel'
+import { TrophyPanel } from '../components/TrophyPanel'
 import { useSession } from '../context/useSession'
-import {
-  celebrationStorageKey,
-  getCelebrationNumber,
-  getCelebrationFlag,
-  setCelebrationNumber,
-  setCelebrationFlag,
-} from '../lib/celebrations'
 import {
   acknowledgeTrophyCelebrations,
   fetchActiveSeason,
@@ -39,18 +21,18 @@ import {
   selectDefaultRoundNumber,
   summarizeParticipation,
 } from '../lib/ranking'
-import { toUserMessage } from '../lib/errors'
+import { toUserMessage, UNKNOWN_USER_MESSAGE } from '../lib/errors'
+import {
+  createInFlightGuard,
+  loadRankingBundle,
+  resolveRecapViewState,
+} from '../lib/pageLoad'
+import { withPageLoadTimeout } from '../lib/pageLoadTimeout'
 import {
   formatProvisionalBadge,
-  formatRankOrdinal,
   participationClassName,
   participationLabel,
 } from '../lib/rankingDisplay'
-import {
-  formatLockedTrophyProgress,
-  formatTrophyAwardMeta,
-  hasLockedTrophyProgress,
-} from '../lib/trophyDisplay'
 import type {
   Match,
   Player,
@@ -58,7 +40,6 @@ import type {
   RoundParticipationRow,
   Season,
   SeasonTimeline,
-  TrophyAward,
   TrophyOverview,
 } from '../types'
 
@@ -83,30 +64,33 @@ export function RankingPage() {
   const [timelineLoading, setTimelineLoading] = useState(false)
   const [recapLoading, setRecapLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [recapError, setRecapError] = useState<string | null>(null)
   const [participationError, setParticipationError] = useState<string | null>(
     null,
   )
   const [trophyError, setTrophyError] = useState<string | null>(null)
   const [timelineError, setTimelineError] = useState<string | null>(null)
   const [acknowledging, setAcknowledging] = useState(false)
+  const loadGuardRef = useRef(createInFlightGuard())
+  const loadGenerationRef = useRef(0)
 
-  useEffect(() => {
+  const loadPage = useCallback(async () => {
     if (!sessionToken) return
-    let cancelled = false
-
-    async function load() {
+    await loadGuardRef.current.run(async () => {
+      const generation = ++loadGenerationRef.current
       setLoading(true)
       setError(null)
       try {
-        const seasonRow = await fetchActiveSeason(sessionToken!)
-        const [rankingRows, matchRows] = await Promise.all([
-          fetchLiveSeasonRanking({
-            sessionToken: sessionToken!,
-            seasonId: seasonRow.id,
-          }),
-          fetchMatches(sessionToken!),
-        ])
-        if (cancelled) return
+        const bundle = await loadRankingBundle({
+          sessionToken,
+          fetchActiveSeason,
+          fetchLiveSeasonRanking,
+          fetchMatches,
+        })
+        if (generation !== loadGenerationRef.current) return
+        const seasonRow = bundle.season as Season
+        const rankingRows = bundle.ranking as Player[]
+        const matchRows = bundle.matches as Match[]
         setSeason(seasonRow)
         setRanking(rankingRows)
         setMatches(matchRows)
@@ -114,48 +98,74 @@ export function RankingPage() {
           current ?? selectDefaultRoundNumber(matchRows),
         )
       } catch (err) {
-        if (!cancelled) setError(toUserMessage(err))
+        if (generation === loadGenerationRef.current) {
+          setError(toUserMessage(err))
+        }
       } finally {
-        if (!cancelled) setLoading(false)
+        if (generation === loadGenerationRef.current) {
+          setLoading(false)
+        }
       }
-    }
-
-    void load()
-    return () => {
-      cancelled = true
-    }
+    })
   }, [sessionToken])
 
   useEffect(() => {
-    if (!sessionToken || !season?.id) return
-    const referenceRound =
-      ranking.find((row) => row.referenceRoundNumber != null)
-        ?.referenceRoundNumber ?? null
-    if (referenceRound == null) {
+    const generationRef = loadGenerationRef
+    const guard = loadGuardRef.current
+    void loadPage()
+    return () => {
+      generationRef.current += 1
+      guard.reset()
+    }
+  }, [loadPage])
+
+  const referenceRoundNumber =
+    ranking.find((row) => row.referenceRoundNumber != null)
+      ?.referenceRoundNumber ?? null
+  const [recapRetryKey, setRecapRetryKey] = useState(0)
+
+  useEffect(() => {
+    if (!sessionToken || !season?.id || referenceRoundNumber == null) {
       setRecap(null)
+      setRecapError(null)
+      setRecapLoading(false)
       return
     }
+    const stableSessionToken = sessionToken
+    const stableSeasonId = season.id
+    const stableRound = referenceRoundNumber
     let cancelled = false
+
     async function loadRecap() {
       setRecapLoading(true)
+      setRecapError(null)
       try {
-        const payload = await fetchPlayerRoundRecap({
-          sessionToken: sessionToken!,
-          seasonId: season!.id,
-          roundNumber: referenceRound!,
-        })
-        if (!cancelled) setRecap(payload)
-      } catch {
-        if (!cancelled) setRecap(null)
+        const payload = await withPageLoadTimeout(
+          fetchPlayerRoundRecap({
+            sessionToken: stableSessionToken,
+            seasonId: stableSeasonId,
+            roundNumber: stableRound,
+          }),
+        )
+        if (!cancelled) {
+          setRecap(payload)
+          setRecapError(null)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setRecap(null)
+          setRecapError(toUserMessage(err))
+        }
       } finally {
         if (!cancelled) setRecapLoading(false)
       }
     }
+
     void loadRecap()
     return () => {
       cancelled = true
     }
-  }, [sessionToken, season?.id, ranking])
+  }, [sessionToken, season?.id, referenceRoundNumber, recapRetryKey])
 
   useEffect(() => {
     if (!sessionToken || !season?.id || tab !== 'trophies') {
@@ -262,30 +272,20 @@ export function RankingPage() {
   )
   const roundNumbers = useMemo(() => listRoundNumbers(matches), [matches])
   const isProvisional = ranking.some((player) => player.isRankingProvisional)
-  const referenceRound = ranking.find(
-    (player) => player.referenceRoundNumber != null,
-  )?.referenceRoundNumber
+  const referenceRound = referenceRoundNumber
+  const recapView = resolveRecapViewState({
+    loading: recapLoading,
+    error: recapError,
+    recap,
+    hasReferenceRound: referenceRound != null,
+  })
 
   function retry() {
-    if (!sessionToken || !season?.id) return
-    setLoading(true)
-    setError(null)
-    void Promise.all([
-      fetchLiveSeasonRanking({
-        sessionToken,
-        seasonId: season.id,
-      }),
-      fetchMatches(sessionToken),
-    ])
-      .then(([rankingRows, matchRows]) => {
-        setRanking(rankingRows)
-        setMatches(matchRows)
-        setSelectedRound((current) =>
-          current ?? selectDefaultRoundNumber(matchRows),
-        )
-      })
-      .catch((err) => setError(toUserMessage(err)))
-      .finally(() => setLoading(false))
+    void loadPage()
+  }
+
+  function retryRecap() {
+    setRecapRetryKey((key) => key + 1)
   }
 
   return (
@@ -370,15 +370,26 @@ export function RankingPage() {
           aria-labelledby="tab-general"
           className="space-y-4"
         >
-          {referenceRound != null && !recap ? (
+          {referenceRound != null && recapView.status !== 'success' ? (
             <p className="text-[11px] font-medium tracking-wide text-ink/50">
               Journée {referenceRound} · {formatProvisionalBadge(isProvisional)}
             </p>
           ) : null}
-          {recapLoading ? (
+          {recapView.status === 'loading' ? (
             <StatusCard message="Chargement du récap…" />
-          ) : recap ? (
-            <RoundRecapCard recap={recap} />
+          ) : recapView.status === 'error' ? (
+            <div className="space-y-2">
+              <StatusCard message={recapView.message} tone="error" />
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={retryRecap}
+              >
+                Réessayer le récap
+              </button>
+            </div>
+          ) : recapView.status === 'success' ? (
+            <RoundRecapCard recap={recapView.recap as PlayerRoundRecap} />
           ) : null}
           {ranking.length === 0 ? (
             <div className="panel border-dashed p-6 text-center">
@@ -520,153 +531,6 @@ export function RankingPage() {
   )
 }
 
-/** Helpers présentation Parcours — pures, sans recalcul métier. */
-export function formatTimelinePoints(points: number): string {
-  if (points <= 1) return `${points} pt`
-  return `${points} pts`
-}
-
-export function formatTimelineRoundLine(input: {
-  roundNumber: number
-  roundPoints: number
-  rank: number | null
-}): string {
-  const rankLabel =
-    input.rank == null ? '—' : `${formatRankOrdinal(input.rank)} place`
-  return `J${input.roundNumber} · ${formatTimelinePoints(input.roundPoints)} · ${rankLabel}`
-}
-
-export function isTimelineMilestone(input: {
-  isBestRound: boolean
-  isBestRank: boolean
-  trophyCount: number
-}): boolean {
-  return input.isBestRound || input.isBestRank || input.trophyCount > 0
-}
-
-export function buildRoundAnnotations(input: {
-  isBestRound: boolean
-  isBestRank: boolean
-  trophyNames: string[]
-}): string[] {
-  const annotations: string[] = []
-  if (input.isBestRound) annotations.push('Meilleure journée')
-  if (input.isBestRank) annotations.push('Meilleure position')
-  for (const name of input.trophyNames) annotations.push(name)
-  return annotations
-}
-
-function SeasonTimelinePanel({ timeline }: { timeline: SeasonTimeline }) {
-  const trophiesByRound = new Map<number, typeof timeline.trophies>()
-  for (const trophy of timeline.trophies) {
-    if (trophy.sourceRoundNumber == null) continue
-    const list = trophiesByRound.get(trophy.sourceRoundNumber) ?? []
-    list.push(trophy)
-    trophiesByRound.set(trophy.sourceRoundNumber, list)
-  }
-
-  const finishedCount = timeline.rounds.length
-  const finishedLabel =
-    finishedCount <= 1
-      ? `${finishedCount} journée`
-      : `${finishedCount} journées`
-
-  return (
-    <section
-      className="panel section-stack overflow-hidden p-3 pb-3 sm:p-4"
-      aria-label="Parcours de saison"
-    >
-      <div className="grid grid-cols-1 gap-1.5 min-[360px]:grid-cols-2 sm:grid-cols-3 sm:gap-2">
-        <div className="px-1 py-0.5 sm:px-2 sm:py-1">
-          <p className="label-caps">Journées terminées</p>
-          <p className="mt-0.5 text-base font-black tabular-nums sm:mt-1 sm:text-xl">
-            {finishedLabel}
-          </p>
-        </div>
-        {timeline.bestRound ? (
-          <div className="px-1 py-0.5 sm:px-2 sm:py-1">
-            <p className="label-caps">Meilleure journée</p>
-            <p className="mt-0.5 text-base font-black sm:mt-1 sm:text-xl">
-              J{timeline.bestRound.roundNumber} ·{' '}
-              {formatTimelinePoints(timeline.bestRound.roundPoints)}
-            </p>
-          </div>
-        ) : null}
-        {timeline.bestRank ? (
-          <div className="px-1 py-0.5 sm:px-2 sm:py-1">
-            <p className="label-caps">Meilleure position</p>
-            <p className="mt-0.5 text-base font-black sm:mt-1 sm:text-xl">
-              {formatRankOrdinal(timeline.bestRank.rank)} · J
-              {timeline.bestRank.roundNumber}
-            </p>
-          </div>
-        ) : null}
-      </div>
-
-      <ol className="season-timeline">
-        {timeline.rounds.map((round) => {
-          const isBestRound =
-            timeline.bestRound?.roundNumber === round.roundNumber
-          const isBestRank =
-            timeline.bestRank?.roundNumber === round.roundNumber
-          const roundTrophies = trophiesByRound.get(round.roundNumber) ?? []
-          const milestone = isTimelineMilestone({
-            isBestRound,
-            isBestRank,
-            trophyCount: roundTrophies.length,
-          })
-          const annotations = buildRoundAnnotations({
-            isBestRound,
-            isBestRank,
-            trophyNames: roundTrophies.map((trophy) => trophy.name),
-          })
-          const line = formatTimelineRoundLine({
-            roundNumber: round.roundNumber,
-            roundPoints: round.roundPoints,
-            rank: round.rank,
-          })
-
-          return (
-            <li
-              key={round.roundNumber}
-              className={[
-                'season-timeline-item',
-                milestone ? 'season-timeline-item--milestone' : '',
-              ]
-                .filter(Boolean)
-                .join(' ')}
-            >
-              <div className="season-timeline-marker" aria-hidden="true" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold tabular-nums text-ink">
-                  {line}
-                </p>
-                {annotations.length > 0 ? (
-                  <p className="mt-1 text-xs font-medium leading-relaxed text-ink/60">
-                    {annotations.join(' · ')}
-                  </p>
-                ) : null}
-              </div>
-            </li>
-          )
-        })}
-      </ol>
-
-      {timeline.trophies.some((t) => t.sourceRoundNumber == null) ? (
-        <div className="border-t border-border/60 pt-3">
-          <p className="label-caps mb-2">Autres moments de la saison</p>
-          <p className="text-xs font-medium leading-relaxed text-ink/65">
-            {timeline.trophies
-              .filter((t) => t.sourceRoundNumber == null)
-              .map((trophy) => trophy.name)
-              .join(' · ')}
-          </p>
-        </div>
-      ) : null}
-    </section>
-  )
-}
-
 function ParticipationList({
   rows,
   activePlayerId,
@@ -803,553 +667,10 @@ function StatusCard({
   )
 }
 
-const SIGNIFICANT_CONFETTI_TROPHY_KEYS = new Set<string>([
-  'first_participation',
-  'first_exact_score',
-] )
-
-function prefersReducedMotion(): boolean {
-  if (typeof window === 'undefined') return false
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-}
-
-function TrophyPanel({
-  season,
-  overview,
-  loading,
-  error,
-  acknowledging,
-  groupId,
-  playerId,
-  onDismissCelebration,
-}: {
-  season: Season | null
-  overview: TrophyOverview | null
-  loading: boolean
-  error: string | null
-  acknowledging: boolean
-  groupId: string
-  playerId: string
-  onDismissCelebration: () => void
-}) {
-  const stats = overview?.stats ?? {
-    currentPredictionStreak: 0,
-    bestPredictionStreak: 0,
-    currentGoodResultStreak: 0,
-    bestGoodResultStreak: 0,
-    currentExactStreak: 0,
-    bestExactStreak: 0,
-    totalExactScores: 0,
-    trophiesCount: 0,
-  }
-  const pending = overview?.pendingCelebrations ?? []
-  const seasonId = overview?.seasonId ?? ''
-
-  const isColdStart =
-    stats.trophiesCount === 0 &&
-    stats.totalExactScores === 0 &&
-    stats.currentPredictionStreak === 0 &&
-    stats.bestPredictionStreak === 0
-
-  const pendingIdsSignature = pending.map((p) => p.id).slice().sort().join('|')
-  const confettiIdsSignature = pending
-    .filter((p) => SIGNIFICANT_CONFETTI_TROPHY_KEYS.has(p.trophyKey))
-    .map((p) => p.id)
-    .slice()
-    .sort()
-    .join('|')
-
-  const [panelAnimatedSignature, setPanelAnimatedSignature] = useState<string | null>(
-    null,
-  )
-  const [confettiActive, setConfettiActive] = useState(false)
-
-  const lastPanelSignatureRef = useRef<string | null>(null)
-  const lastConfettiSignatureRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (!groupId || !playerId || !seasonId) return
-
-    if (
-      pendingIdsSignature &&
-      lastPanelSignatureRef.current !== pendingIdsSignature
-    ) {
-      lastPanelSignatureRef.current = pendingIdsSignature
-      const panelKey = celebrationStorageKey({
-        groupId,
-        playerId,
-        seasonId,
-        eventType: 'trophy_pending_panel',
-        eventId: pendingIdsSignature,
-      })
-
-      const shouldAnimatePanel = !getCelebrationFlag(panelKey)
-      if (shouldAnimatePanel) {
-        setPanelAnimatedSignature(pendingIdsSignature)
-        setCelebrationFlag(panelKey)
-      } else {
-        setPanelAnimatedSignature(null)
-      }
-    }
-
-    const reduced = prefersReducedMotion()
-    if (
-      !confettiActive &&
-      confettiIdsSignature &&
-      lastConfettiSignatureRef.current !== confettiIdsSignature
-    ) {
-      lastConfettiSignatureRef.current = confettiIdsSignature
-      const confettiKey = celebrationStorageKey({
-        groupId,
-        playerId,
-        seasonId,
-        eventType: 'trophy_confetti',
-        eventId: confettiIdsSignature,
-      })
-
-      if (!getCelebrationFlag(confettiKey)) {
-        setCelebrationFlag(confettiKey)
-        // Even when animations are neutralized (prefers-reduced-motion),
-        // we still consider the celebration as "seen" to prevent a later replay.
-        if (!reduced) {
-          setConfettiActive(true)
-        }
-      }
-    }
-  }, [
-    groupId,
-    playerId,
-    seasonId,
-    pendingIdsSignature,
-    confettiIdsSignature,
-    confettiActive,
-  ])
-
-  const championPendingIdsSignature = pending
-    .filter((p) => p.trophyKey === 'champion_de_la_journee')
-    .map((p) => p.id)
-    .slice()
-    .sort()
-    .join('|')
-
-  const [championAnimatedSignature, setChampionAnimatedSignature] = useState<
-    string | null
-  >(null)
-  const lastChampionSignatureRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (!groupId || !playerId || !seasonId) return
-    if (!championPendingIdsSignature) return
-
-    if (lastChampionSignatureRef.current === championPendingIdsSignature)
-      return
-    lastChampionSignatureRef.current = championPendingIdsSignature
-
-    const key = celebrationStorageKey({
-      groupId,
-      playerId,
-      seasonId,
-      eventType: 'trophy_champion_day_highlight',
-      eventId: championPendingIdsSignature,
-    })
-
-    const shouldAnimate = !getCelebrationFlag(key)
-    if (shouldAnimate) {
-      setChampionAnimatedSignature(championPendingIdsSignature)
-      setCelebrationFlag(key)
-    } else {
-      setChampionAnimatedSignature(null)
-    }
-  }, [groupId, playerId, seasonId, championPendingIdsSignature])
-
-  const recordValueKey = useMemo(() => {
-    return groupId && playerId && seasonId
-      ? celebrationStorageKey({
-          groupId,
-          playerId,
-          seasonId,
-          eventType: 'record_personal_best_prediction_streak',
-          eventId: 'bestPredictionStreak',
-        })
-      : ''
-  }, [groupId, playerId, seasonId])
-
-  const recordBaselineRef = useRef<number | null>(null)
-  const recordPulseTimerRef = useRef<number | null>(null)
-
-  const [recordPulseNonce, setRecordPulseNonce] = useState(0)
-  const [recordPulseActive, setRecordPulseActive] = useState(false)
-
-  useEffect(() => {
-    if (!groupId || !playerId || !seasonId) return
-    if (!recordValueKey) return
-
-    const current = stats.bestPredictionStreak
-
-    if (recordBaselineRef.current == null) {
-      const stored = getCelebrationNumber(recordValueKey)
-      if (stored == null) {
-        setCelebrationNumber(recordValueKey, current)
-        recordBaselineRef.current = current
-        return
-      }
-      recordBaselineRef.current = stored
-    }
-
-    const baseline = recordBaselineRef.current
-    if (current > baseline) {
-      recordBaselineRef.current = current
-      setCelebrationNumber(recordValueKey, current)
-
-      setRecordPulseNonce((n) => n + 1)
-      setRecordPulseActive(true)
-
-      if (recordPulseTimerRef.current != null) {
-        globalThis.clearTimeout(recordPulseTimerRef.current)
-      }
-      recordPulseTimerRef.current = globalThis.setTimeout(
-        () => setRecordPulseActive(false),
-        420,
-      )
-    }
-  }, [groupId, playerId, seasonId, recordValueKey, stats.bestPredictionStreak])
-
-  useEffect(() => {
-    return () => {
-      if (recordPulseTimerRef.current != null) {
-        globalThis.clearTimeout(recordPulseTimerRef.current)
-        recordPulseTimerRef.current = null
-      }
-    }
-  }, [])
-
-  if (loading) {
-    return <StatusCard message="Chargement des trophées…" />
-  }
-
-  if (error) {
-    return <StatusCard message={error} tone="error" />
-  }
-
-  if (!overview) {
-    return (
-      <StatusCard
-        message="Statistiques temporairement indisponibles."
-        tone="error"
-      />
-    )
-  }
-
-  return (
-    <div className="page-stack">
-      {season ? (
-        <div className="flex justify-end -mb-1.5">
-          <span className="badge border-ink bg-yellow text-ink">
-            {season.name}
-          </span>
-        </div>
-      ) : null}
-
-      {pending.length > 0 ? (
-        <section
-          className={[
-            'relative overflow-hidden rounded-[var(--radius-md)] border border-ink bg-yellow',
-            panelAnimatedSignature === pendingIdsSignature
-              ? 'ui-trophy-panel-reveal'
-              : '',
-          ].join(' ')}
-          aria-live="polite"
-        >
-          {confettiActive ? (
-            <ConfettiBurst
-              reducedMotion={prefersReducedMotion()}
-              onDone={() => setConfettiActive(false)}
-            />
-          ) : null}
-          <div className="flex flex-wrap items-start justify-between gap-3 p-4">
-            <div className="flex items-start gap-3">
-              <span className="flex size-11 items-center justify-center rounded-[var(--radius-sm)] border border-ink bg-green-dark text-yellow">
-                <Trophy className="size-5" aria-hidden />
-              </span>
-              <div>
-                <p className="text-sm font-black tracking-[0.08em] uppercase text-ink">
-                  Nouveau trophée
-                </p>
-                <p className="mt-1 text-sm text-ink/80">
-                  {pending.length > 1
-                    ? `${pending.length} nouveaux trophées ont été débloqués.`
-                    : `${pending[0]?.name ?? 'Un trophée'} a été débloqué.`}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              className="btn-ink min-h-11 sm:w-auto"
-              onClick={onDismissCelebration}
-              disabled={acknowledging}
-            >
-              {acknowledging ? 'Validation…' : 'Fermer'}
-            </button>
-          </div>
-          <ul className="divide-y divide-ink/15 border-t border-ink/20">
-            {pending.map((item, index) => {
-              const panelShouldAnimate = panelAnimatedSignature === pendingIdsSignature
-              const stagger = panelShouldAnimate && index < 3
-              const championHighlight =
-                !stagger &&
-                championAnimatedSignature === championPendingIdsSignature &&
-                item.trophyKey === 'champion_de_la_journee'
-              return (
-                <li
-                  key={item.id}
-                  className={[
-                    'flex items-start gap-3 px-4 py-3',
-                    stagger ? 'ui-trophy-item-reveal' : '',
-                    championHighlight ? 'ui-champion-trophy-highlight' : '',
-                  ].join(' ')}
-                  style={stagger ? { animationDelay: `${index * 120}ms` } : undefined}
-                >
-                <TrophyIcon name={item.icon} unlocked />
-                <div>
-                  <p className="font-bold text-ink">{item.name}</p>
-                  <p className="mt-0.5 text-sm text-ink/75">{item.description}</p>
-                </div>
-                </li>
-              )
-            })}
-          </ul>
-        </section>
-      ) : null}
-
-      <section className="overflow-hidden rounded-[var(--radius-md)] border border-green-dark bg-green-dark text-yellow">
-        <div className="grid gap-0 sm:grid-cols-3">
-          <HeroStat
-            icon={Flame}
-            label="Série actuelle"
-            value={String(stats.currentPredictionStreak)}
-            hint="participations d’affilée"
-          />
-          <div
-            key={recordPulseNonce}
-            className={recordPulseActive ? 'ui-record-highlight' : undefined}
-          >
-            <HeroStat
-              icon={Crown}
-              label="Record"
-              value={String(stats.bestPredictionStreak)}
-              hint="meilleure série"
-              bordered
-            />
-          </div>
-          <HeroStat
-            icon={Trophy}
-            label="Trophées obtenus"
-            value={String(stats.trophiesCount)}
-            hint={
-              stats.totalExactScores > 0
-                ? `${stats.totalExactScores} score${stats.totalExactScores > 1 ? 's' : ''} exact${stats.totalExactScores > 1 ? 's' : ''}`
-                : 'cette saison'
-            }
-            bordered
-          />
-        </div>
-      </section>
-
-      {isColdStart ? (
-        <section className="panel border-dashed px-3 py-2.5 sm:px-4">
-          <div className="flex items-start gap-3 sm:items-center">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-ink bg-yellow text-ink">
-              <Sparkles className="size-4" aria-hidden />
-            </span>
-            <div className="min-w-0">
-              <p className="font-black text-ink">La chasse commence ici</p>
-              <p className="mt-0.5 text-sm text-muted">
-                Pronostique ton prochain match pour débloquer « Première
-                participation » et lancer tes séries.
-              </p>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      {overview.earnedTrophies.length > 0 ? (
-        <section className="space-y-2">
-          <h3 className="label-caps">Débloqués</h3>
-          <ul className="space-y-1.5">
-            {overview.earnedTrophies.map((item) => (
-              <li key={item.id}>
-                <EarnedTrophyCard trophy={item} />
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {overview.lockedTrophies.length > 0 ? (
-        <section className="space-y-2">
-          <h3 className="label-caps">Encore à débloquer</h3>
-          <ul className="space-y-1.5">
-            {overview.lockedTrophies.map((item) => (
-              <li key={item.trophyKey}>
-                <LockedTrophyCard trophy={item} />
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-    </div>
-  )
-}
-
-function HeroStat({
-  icon: Icon,
-  label,
-  value,
-  hint,
-  bordered = false,
-}: {
-  icon: LucideIcon
-  label: string
-  value: string
-  hint: string
-  bordered?: boolean
-}) {
-  return (
-    <div
-      className={[
-        'px-3 py-2.5 sm:px-4 sm:py-3',
-        bordered ? 'border-t border-yellow/25 sm:border-t-0 sm:border-l' : '',
-      ].join(' ')}
-    >
-      <div className="flex items-center gap-1.5 text-yellow/80">
-        <Icon className="size-3.5 shrink-0" aria-hidden />
-        <p className="text-[11px] font-bold tracking-[0.08em] uppercase leading-snug">
-          {label}
-        </p>
-      </div>
-      <p className="mt-1 text-2xl font-black tabular-nums text-yellow sm:text-3xl">
-        {value}
-      </p>
-      <p className="mt-0.5 text-[11px] leading-snug text-yellow/65">{hint}</p>
-    </div>
-  )
-}
-
-function EarnedTrophyCard({ trophy }: { trophy: TrophyAward }) {
-  const meta = formatTrophyAwardMeta({
-    awardedAt: trophy.awardedAt,
-    sourceRoundNumber: trophy.sourceRoundNumber,
-    sourceMatchLabel: trophy.sourceMatchLabel,
-  })
-
-  return (
-    <article className="panel overflow-hidden border-green-dark/40 bg-yellow/15">
-      <div className="flex items-start gap-3 px-3 py-2 sm:px-4 sm:py-2.5">
-        <TrophyIcon name={trophy.icon} unlocked />
-        <div className="min-w-0 flex-1">
-          <p className="font-black text-ink">{trophy.name}</p>
-          <p className="mt-0.5 text-sm text-muted">{trophy.description}</p>
-          {meta ? (
-            <p className="mt-1 text-xs text-muted">{meta}</p>
-          ) : null}
-        </div>
-      </div>
-    </article>
-  )
-}
-
-function LockedTrophyCard({
-  trophy,
-}: {
-  trophy: TrophyOverview['lockedTrophies'][number]
-}) {
-  const hasProgress = hasLockedTrophyProgress(trophy)
-  const ratio = hasProgress
-    ? Math.min(1, trophy.progressCurrent! / trophy.progressTarget!)
-    : 0
-  const nearComplete = hasProgress && ratio >= 0.5
-
-  return (
-    <article
-      className={[
-        'panel overflow-hidden',
-        nearComplete ? 'border-yellow bg-yellow/10' : 'opacity-90',
-      ].join(' ')}
-      aria-label={`${trophy.name}, verrouillé`}
-    >
-      <div className="flex items-start gap-2.5 px-3 py-2 sm:px-3.5 sm:py-2">
-        <TrophyIcon name={trophy.icon} unlocked={false} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <p className="min-w-0 font-semibold text-ink">{trophy.name}</p>
-            {hasProgress ? (
-              <span className="shrink-0 text-xs font-bold tabular-nums text-ink">
-                {formatLockedTrophyProgress(
-                  trophy.progressCurrent!,
-                  trophy.progressTarget!,
-                )}
-              </span>
-            ) : null}
-          </div>
-          <p className="mt-0.5 text-sm text-muted">{trophy.description}</p>
-          {hasProgress ? (
-            <div
-              className="mt-1.5 h-1.5 overflow-hidden rounded-full border border-ink/40 bg-ink/10"
-              role="progressbar"
-              aria-valuenow={trophy.progressCurrent!}
-              aria-valuemin={0}
-              aria-valuemax={trophy.progressTarget!}
-              aria-label={`Progression ${trophy.name}`}
-            >
-              <div
-                className="h-full bg-yellow transition-[width]"
-                style={{ width: `${Math.round(ratio * 100)}%` }}
-              />
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </article>
-  )
-}
-
-const TROPHY_ICONS: Record<string, LucideIcon> = {
-  sparkles: Sparkles,
-  target: Target,
-  medal: Medal,
-  eye: Eye,
-  'calendar-check': CalendarCheck,
-  crown: Crown,
-  trophy: Trophy,
-  shield: Shield,
-}
-
-function TrophyIcon({
-  name,
-  unlocked,
-}: {
-  name: string
-  unlocked: boolean
-}) {
-  const Icon = TROPHY_ICONS[name] ?? Trophy
-  return (
-    <span
-      className={[
-        'flex shrink-0 items-center justify-center rounded-[var(--radius-sm)] border',
-        unlocked
-          ? 'size-12 border-ink bg-yellow text-ink'
-          : 'size-9 border-ink/25 bg-surface-muted text-ink/55',
-      ].join(' ')}
-      aria-hidden
-    >
-      <Icon className={unlocked ? 'size-5' : 'size-4'} />
-    </span>
-  )
-}
 
 function getFriendlyStatsMessage(error: unknown, fallback: string): string {
   const message = toUserMessage(error)
-  if (message === 'Une erreur est survenue. Réessaie dans quelques instants.') {
+  if (message === UNKNOWN_USER_MESSAGE) {
     return fallback
   }
   return message

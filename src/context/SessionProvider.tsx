@@ -22,6 +22,7 @@ import {
   saveAccessCode,
   saveSessionToken,
 } from '../lib/session'
+import { resolveAfterSessionInvalidation } from '../lib/sessionRecovery'
 import { isSupabaseConfigured } from '../lib/supabase'
 import type { PlayerOption } from '../types'
 import { SessionContext, type SessionPhase } from './session-context'
@@ -52,22 +53,52 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setMustChangePin(false)
   }, [])
 
+  const clearPlayerSessionOnly = useCallback(() => {
+    clearSessionToken()
+    setSessionToken(null)
+    setPlayerId(null)
+    setPendingPlayerId(null)
+    setForcedChangeOldPin(null)
+    setActivePseudo(null)
+    setMustChangePin(false)
+  }, [])
+
   const invalidatePlayerSession = useCallback(
     (code: string) => {
       const previousToken = sessionToken
+      const preservedCode = accessCode
       void bestEffortDeactivateRemotePush(
         previousToken,
         deactivatePushSubscription,
       )
-      clearAuthState()
-      setBootstrapError(
-        code === 'INVALID_SESSION' || code === 'SESSION_EXPIRED'
-          ? toUserMessage(new Error(code))
-          : 'Le code d’accès du groupe a changé. Saisis le nouveau code pour continuer.',
-      )
-      setPhase('needs_code')
+
+      clearPlayerSessionOnly()
+
+      void resolveAfterSessionInvalidation({
+        code,
+        accessCode: preservedCode,
+        verifyAccessCode,
+        fetchActivePlayers,
+      }).then((recovery) => {
+        if (recovery.outcome === 'needs_player') {
+          setAccessCode(recovery.accessCode)
+          setPlayers(recovery.players)
+          setBootstrapError(recovery.message)
+          setPhase('needs_player')
+          return
+        }
+        if (recovery.outcome === 'needs_player_degraded') {
+          setAccessCode(recovery.accessCode)
+          setBootstrapError(recovery.message)
+          setPhase('needs_player')
+          return
+        }
+        clearAuthState()
+        setBootstrapError(recovery.message)
+        setPhase('needs_code')
+      })
     },
-    [clearAuthState, sessionToken],
+    [accessCode, clearAuthState, clearPlayerSessionOnly, sessionToken],
   )
 
   useEffect(() => {
@@ -93,13 +124,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (!sessionPlayer) {
           clearSessionToken()
           if (local.accessCode) {
-            const valid = await verifyAccessCode(local.accessCode)
-            if (valid) {
-              const activePlayers = await fetchActivePlayers(local.accessCode)
+            try {
+              const valid = await verifyAccessCode(local.accessCode)
+              if (valid) {
+                const activePlayers = await fetchActivePlayers(local.accessCode)
+                setAccessCode(local.accessCode)
+                setPlayers(activePlayers)
+                setSessionToken(null)
+                setPlayerId(null)
+                setPhase('needs_player')
+                return
+              }
+            } catch (error) {
+              // Keep the access code on transient failures.
               setAccessCode(local.accessCode)
-              setPlayers(activePlayers)
               setSessionToken(null)
               setPlayerId(null)
+              setBootstrapError(toUserMessage(error))
               setPhase('needs_player')
               return
             }
@@ -140,6 +181,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         )
         return
       } catch (error) {
+        clearSessionToken()
+        if (local.accessCode) {
+          setAccessCode(local.accessCode)
+          setSessionToken(null)
+          setPlayerId(null)
+          setBootstrapError(toUserMessage(error))
+          setPhase('needs_player')
+          return
+        }
         setBootstrapError(toUserMessage(error))
         clearAuthState()
         setPhase('needs_code')
@@ -171,6 +221,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setPlayerId(null)
       setPhase('needs_player')
     } catch (error) {
+      // Keep the stored access code; show a recoverable error.
+      setAccessCode(local.accessCode)
       setBootstrapError(toUserMessage(error))
       setPhase('needs_code')
     }

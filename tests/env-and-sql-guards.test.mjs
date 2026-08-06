@@ -421,3 +421,16 @@ describe('isolated SQL test guards', () => {
     rmSync(lockDir, { recursive: true, force: true })
   })
 })
+
+describe('SQL regression suites remain a local gate (A5)', () => {
+  it('keeps npm test on Node source suites and SQL behind test:sql:local', () => {
+    const pkg = JSON.parse(readFileSync(join(rootDir, 'package.json'), 'utf8'))
+    assert.match(pkg.scripts.test, /tests\/\*\*\/\*\.test\.mjs/)
+    assert.doesNotMatch(pkg.scripts.test, /supabase\/tests/)
+    assert.equal(pkg.scripts['test:sql:local'], 'node scripts/run-supabase-sql-tests.mjs')
+    assert.equal(
+      pkg.scripts['test:sql:isolation'],
+      'node scripts/run-supabase-sql-isolation.mjs',
+    )
+  })
+})

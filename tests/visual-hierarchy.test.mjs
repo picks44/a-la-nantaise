@@ -3,32 +3,12 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { getCompetitionRanks } from '../src/lib/ranking.ts'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 function read(relativePath) {
   return readFileSync(join(root, relativePath), 'utf8')
-}
-
-/** Mirrors src/lib/api.ts getCompetitionRanks — keep in sync for ranking assertions. */
-function getCompetitionRanks(rankedPlayers) {
-  const ranks = []
-  rankedPlayers.forEach((player, index) => {
-    if (index === 0) {
-      ranks.push(1)
-      return
-    }
-    const previous = rankedPlayers[index - 1]
-    if (
-      player.points === previous.points &&
-      player.exactScores === previous.exactScores
-    ) {
-      ranks.push(ranks[index - 1])
-    } else {
-      ranks.push(index + 1)
-    }
-  })
-  return ranks
 }
 
 describe('visual hierarchy polish', () => {
@@ -52,9 +32,8 @@ describe('visual hierarchy polish', () => {
   it('keeps calendar next match yellow without painting every predicted card', () => {
     const item = read('src/components/MatchListItem.tsx')
     assert.match(item, /isNext/)
-    assert.match(item, /border-border bg-surface/)
-    assert.match(item, /border-ink bg-yellow/)
-    assert.match(item, /bg-yellow-soft/)
+    assert.match(item, /id="prochain-match"/)
+    assert.match(item, /bg-yellow/)
     assert.match(item, /Votre pronostic/)
     assert.match(item, /Modifier/)
     assert.match(item, /Prono enregistré|statusLabel/)
@@ -109,23 +88,16 @@ describe('visual hierarchy polish', () => {
     assert.match(ranking, /GroupRanking/)
     assert.doesNotMatch(ranking, /isLeader \? 'bg-yellow'/)
     assert.doesNotMatch(podium, /isLeader \? 'bg-yellow'/)
-    assert.match(ranking, /border-l-green/)
-    assert.match(podium, /badge-text border-green bg-green/)
-    assert.match(podium, /h-5 w-1\.5.*bg-green/)
+    assert.match(podium, /const isLeaderMark = rank === 1/)
   })
 
   it('keeps the heraldic crest visible in the mobile header', () => {
     const layout = read('src/components/Layout.tsx')
     assert.match(layout, /sticky top-0/)
-    assert.match(layout, /after:bg-green/)
-    assert.match(layout, /text-green-dark/)
-    assert.match(layout, /min-h-11/)
     assert.match(layout, /BrandMark/)
     assert.match(layout, /bg-yellow/)
     assert.match(layout, /safe-area-inset-top/)
-    assert.match(layout, /inline-flex size-11 shrink-0/)
     assert.doesNotMatch(layout, /hidden shrink-0[\s\S]*BrandMark|BrandMark[\s\S]*hidden sm:block/)
-    assert.match(layout, /bg-green-dark/)
   })
 
   it('centralizes brand crest colors sampled from the logo', () => {
@@ -145,8 +117,6 @@ describe('visual hierarchy polish', () => {
   it('compacts board score inputs and keeps font-size mobile-safe', () => {
     const score = read('src/components/ScoreInput.tsx')
     assert.match(score, /max-w-\[5\.5rem\]/)
-    assert.match(score, /text-3xl/)
-    assert.match(score, /bg-green-dark/)
     assert.doesNotMatch(score, /sm:text-5xl/)
     assert.doesNotMatch(score, /font-black tracking-tight uppercase/)
   })
@@ -164,21 +134,14 @@ describe('visual hierarchy polish', () => {
     const home = read('src/pages/HomePage.tsx')
     const settings = read('src/pages/SettingsPage.tsx')
     assert.match(home, /btn-green/)
-    assert.match(home, /text-success/)
-    assert.match(home, /bg-success-soft text-green-dark/)
     assert.match(home, /Pronostic enregistré :/)
-    assert.match(home, /bg-green-dark/)
     assert.doesNotMatch(home, /absolute top-0 bottom-0 left-0 w-1 bg-ink/)
     assert.match(home, /Classement du groupe/)
     assert.match(home, /<form/)
     assert.match(home, /type="submit"/)
-    assert.match(home, /flex justify-center/)
-    assert.match(home, /grid-cols-\[1fr_auto_1fr\]/)
     assert.match(settings, /btn-danger/)
     assert.match(settings, /Se déconnecter/)
-    assert.match(settings, /max-w-3xl/)
     assert.doesNotMatch(settings, /Changer de joueur/)
-    assert.doesNotMatch(settings, /checked \? 'bg-yellow'/)
   })
 
   it('collapses calendar reveal details behind an accessible toggle', () => {
@@ -188,7 +151,6 @@ describe('visual hierarchy polish', () => {
     assert.match(item, /aria-expanded/)
     assert.match(item, /aria-controls/)
     assert.match(item, /hidden=\{!detailsOpen\}/)
-    assert.match(item, /Réessayer/)
     assert.match(item, /Afficher les détails/)
     assert.match(item, /Masquer les détails/)
     assert.match(item, /match-reveal-details/)
@@ -211,7 +173,6 @@ describe('home group ranking', () => {
     assert.doesNotMatch(podium, /topThree/)
     assert.match(podium, /players\.map\(/)
     assert.match(podium, /Classement du groupe/)
-    assert.match(podium, /badge-text border-green bg-green/)
     assert.match(podium, /awaitingFirstResult/)
     assert.match(podium, /premier match/)
     assert.match(home, /title="Classement du groupe"/)

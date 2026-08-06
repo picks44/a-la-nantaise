@@ -1,8 +1,21 @@
 # À la Nantaise
 
-Application web de pronostics amicaux sur les matchs du FC Nantes.
+Application web de pronostics amicaux sur les matchs du FC Nantes, pour un groupe privé.
 
-Le frontend est une SPA React/Vite. L’application n’utilise pas **Supabase Auth**, mais une authentification **applicative** : code d’accès de groupe, PIN joueur, sessions opaques côté base, et session admin séparée.
+Le frontend est une SPA React/Vite. L’application n’utilise pas **Supabase Auth**, mais une authentification **applicative** : code d’accès de groupe, PIN joueur, sessions opaques côté base, et session admin séparée. La source de vérité métier (scores, points, reveal, trophées, classement) reste **Postgres / RPC SQL**.
+
+## Fonctionnalités
+
+- **Accès groupe** : code d’accès partagé, puis sélection joueur + PIN
+- **Pronostic du prochain match** (Home) avec feedback de succès
+- **Calendrier** : prochain match mis en avant, lignes compactes pour le futur, matchs terminés avec détails repliables
+- **Reveal groupe** : pronostics du groupe visibles après verrouillage / fin de match, chargés à la demande avec timeout et annulation
+- **Classement** : général (compétition, ex æquo), participation par journée, récapitulatif de journée
+- **Trophées & séries** : progression, célébrations anti-replay, confetti ciblé
+- **Parcours de saison** (timeline) : journées, jalons, trophées
+- **PWA** : installable, bannières hors-ligne / mise à jour
+- **Notifications push** (optionnelles) : rappels de pronostic si VAPID + Edge Function configurés
+- **Admin** : joueurs, matchs / résultats, sync fixtures, code d’accès, session admin opaque
 
 ## Stack
 
@@ -249,10 +262,10 @@ Le repo ne permet pas d’identifier seul si la cible distante correspond à la 
 
 ## Migrations Supabase
 
-Le dépôt contient actuellement toutes les migrations de :
+Le dépôt contient actuellement les migrations de :
 
 - `20260803100000_init.sql`
-- à `20260804160000_drop_admin_code_auth_compat.sql`
+- à `20260806100000_push_register_limit_after_endpoint_lookup.sql`
 
 La source de vérité est le dossier `supabase/migrations/`, pas une liste manuelle copiée dans ce README.
 
@@ -286,33 +299,75 @@ npm run test:sql:isolation
 - aucune commande courante du dépôt ne doit viser silencieusement la production ;
 - ne jamais copier `supabase/.temp/` (fichiers de liaison) vers `supabase-test/`.
 
-## Commandes utiles
+## Scripts (`package.json`)
 
 ```bash
-npm run dev
-npm run build
+npm run dev                     # Vite uniquement
+npm run build                   # tsc -b && vite build
 npm run preview
-npm run lint
-npm run typecheck
-npm test
+npm run lint                    # oxlint
+npm run typecheck               # tsc -b
+npm test                        # tests Node (tests/**/*.test.mjs) — n’exécute pas le SQL
+npm run env:frontend:default
+npm run env:frontend:local
+npm run env:frontend:effective
 npm run supabase:test:start
 npm run supabase:test:status
 npm run supabase:test:stop
-npm run test:sql:local
+npm run test:sql:local          # gate SQL manuelle / locale sur stack test
 npm run test:sql:isolation
 ```
-## Architecture courte
 
-- `src/lib/supabase.ts` : client Supabase frontend
-- `src/lib/api.ts` : RPC joueur (code d’accès, PIN, sessions, pronostics, classement)
-- `src/lib/adminApi.ts` : RPC admin et appel Edge Function de synchronisation
-- `src/context/SessionProvider.tsx` : bootstrap et cycle de session frontend
-- `src/pages/AccessPage.tsx` : entrée groupe + PIN
-- `src/pages/AdminPage.tsx` : administration
-- `supabase/migrations/` : schéma, RPC et sécurité SQL
-- `supabase/tests/` : suites SQL exécutées sur la stack test isolée
+## Architecture
+
+### Frontend
+
+| Zone | Rôle |
+|---|---|
+| `src/pages/` | `AccessPage`, `HomePage`, `CalendarPage`, `RankingPage`, `SettingsPage`, `AdminPage` (lazy) |
+| `src/components/` | UI partagée (`MatchListItem`, `Podium`, `RoundRecapCard`, `TrophyPanel`, `SeasonTimelinePanel`, PWA, etc.) |
+| `src/context/` | `SessionProvider` : bootstrap, invalidation, récupération d’accès |
+| `src/lib/api.ts` | wrappers RPC joueur |
+| `src/lib/adminApi.ts` | wrappers RPC admin + sync fixtures |
+| `src/lib/pageLoad.ts` / `pageLoadTimeout.ts` | bundles de chargement page + timeout |
+| `src/lib/calendarRefresh.ts` | soft refresh calendrier (génération + coalescing) |
+| `src/lib/matchGroupRevealState.ts` | loader reveal (in-flight, timeout, requestId) |
+| `src/lib/sessionRecovery.ts` | invalidation session vs code d’accès |
+| `src/lib/*Display.ts`, `formatPoints.ts`, `seasonTimeline.ts`, `ranking.ts` | helpers purs de présentation / règles UI |
+| `src/lib/supabase.ts` | client Supabase frontend |
+
+### Backend
+
+- `supabase/migrations/` : schéma, RPC, sécurité SQL
+- `supabase/tests/` : suites SQL (14 fichiers) exécutées **uniquement** via `npm run test:sql:local`
 - `supabase-test/` : workdir CLI de la stack test (ports 55xxx, symlink vers les migrations)
 - `supabase/functions/` : Edge Functions `sync-fc-nantes` et `send-prediction-reminders`
+- `supabase/seed.sql` : seed de développement uniquement
+
+### Tests frontend
+
+- `tests/*.test.mjs` : helpers unitaires, garde-fous env/SQL, scans de câblage ciblés
+- CI exécute `npm test`, `npm run lint`, `npm run build` — **pas** les suites SQL Docker
+
+## Flux sensibles
+
+- **Source de vérité** : Postgres / RPC ; le client ne recalcule pas les points ni le reveal.
+- **Verrouillage des pronostics** : au coup d’envoi confirmé (côté SQL) ; le frontend affiche les états dérivés (`to_predict`, `predicted`, `locked`, etc.).
+- **Reveal groupe** : chargé à l’ouverture des détails ; `matchGroupRevealState` évite les courses et applique un timeout.
+- **Retry & timeouts** : Home / Ranking / Calendar partagent des bundles de chargement, un garde anti double-clic, et un timeout de page (~20s) hors reveal.
+- **Refresh calendrier** : soft refresh au focus (génération + coalescing) pour ne pas vider la liste.
+- **Classement compétition** : rangs partagés sur points + scores exacts (`getCompetitionRanks`).
+- **Trophées** : overview + ack côté RPC ; célébrations anti-replay en `localStorage` (clés scopées groupe/joueur/saison).
+- **Session joueur** : token opaque en `localStorage` ; expiration de session peut conserver le code d’accès valide (`needs_player`) ; code d’accès invalide force un clear complet.
+- **Deep-link** `?match=` : ouverture des détails pour matchs terminés / verrouillés ; scroll pour prochain / compact.
+
+## Tests — attentes avant merge
+
+1. `npm run typecheck`
+2. `npm run lint`
+3. `npm test`
+4. `npm run build`
+5. Si le diff touche SQL / migrations / RPC : `npm run test:sql:local` sur la stack test (gate manuelle, hors CI)
 
 ## Déploiement
 
@@ -334,3 +389,13 @@ En pratique :
 - ne jamais exposer une clé complète dans un log, un README ou un ticket ;
 - ne jamais placer un secret serveur dans `.env.example` ;
 - ne jamais présumer qu’un projet Supabase distant est “de dev” ou “de prod” sans vérification explicite de son hostname et de son contexte de déploiement.
+
+## Dette acceptée (pour l’instant)
+
+- `AdminPage` monolithique (split ultérieur)
+- pas de React Query / cache global saison
+- pas d’E2E Playwright
+- session joueur en `localStorage` (modèle actuel)
+- `strict: true` TypeScript non poussé au maximum (chantier séparé)
+- source-scans de garde-fous sécurité / env conservés volontairement
+- suites SQL hors CI Docker (gate locale volontaire)

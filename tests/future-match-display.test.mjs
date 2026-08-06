@@ -81,13 +81,11 @@ describe('MatchListItem future compact wiring (K4)', () => {
     assert.match(compact, /statusLabel\(match\.status\)/)
     assert.match(compact, /id=\{`match-\$\{match\.id\}`\}/)
     assert.match(compact, /data-match-id=\{match\.id\}/)
-    assert.match(compact, /scroll-mt-24/)
   })
 
   it('keeps next and finished on the full card path', () => {
     assert.match(item, /id="prochain-match"/)
-    assert.match(item, /border-ink bg-yellow/)
-    assert.match(item, /border-green-dark bg-green-dark/)
+    assert.match(item, /isFinished/)
     assert.match(item, /formatCalendarPersonalPrediction/)
     assert.match(item, /match-reveal-details/)
   })

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2 } from 'lucide-react'
 import { RaceLeaders } from '../components/Podium'
 import { RoundRecapCard } from '../components/RoundRecapCard'
@@ -23,6 +23,11 @@ import {
 } from '../lib/api'
 import { getCompetitionRanks, selectHomeRanking } from '../lib/ranking'
 import { toUserMessage } from '../lib/errors'
+import {
+  createInFlightGuard,
+  loadHomeBundle,
+} from '../lib/pageLoad'
+import { withPageLoadTimeout } from '../lib/pageLoadTimeout'
 import { isBrowserOnline, OFFLINE_USER_MESSAGE } from '../lib/pwa'
 import {
   formatCountdown,
@@ -39,6 +44,7 @@ import type {
   PlayerRoundRecap,
   Prediction,
   Score,
+  Season,
 } from '../types'
 
 export function HomePage() {
@@ -57,6 +63,8 @@ export function HomePage() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
+  const loadGuardRef = useRef(createInFlightGuard())
+  const loadGenerationRef = useRef(0)
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 1000)
@@ -69,25 +77,26 @@ export function HomePage() {
     return () => window.clearTimeout(timer)
   }, [justSaved])
 
-  useEffect(() => {
+  const loadPage = useCallback(async () => {
     if (!sessionToken || !playerId) return
-
-    let cancelled = false
-
-    async function load() {
+    await loadGuardRef.current.run(async () => {
+      const generation = ++loadGenerationRef.current
       setLoading(true)
       setError(null)
       try {
-        const season = await fetchActiveSeason(sessionToken!)
-        const [matchRows, predictionRows, rankingRows] = await Promise.all([
-          fetchMatches(sessionToken!),
-          fetchMyPredictions(sessionToken!),
-          fetchLiveSeasonRanking({
-            sessionToken: sessionToken!,
-            seasonId: season.id,
-          }),
-        ])
-        if (cancelled) return
+        const bundle = await loadHomeBundle({
+          sessionToken,
+          fetchActiveSeason,
+          fetchMatches,
+          fetchMyPredictions,
+          fetchLiveSeasonRanking,
+        })
+        if (generation !== loadGenerationRef.current) return
+
+        const season = bundle.season as Season
+        const matchRows = bundle.matches as Match[]
+        const predictionRows = bundle.predictions as Prediction[]
+        const rankingRows = bundle.ranking as Player[]
         setMatches(matchRows)
         setPredictions(predictionRows)
         setRanking(rankingRows)
@@ -96,42 +105,63 @@ export function HomePage() {
           (row) => row.referenceRoundNumber != null,
         )?.referenceRoundNumber
         if (referenceRound != null) {
-          const recapPayload = await fetchPlayerRoundRecap({
-            sessionToken: sessionToken!,
-            seasonId: season.id,
-            roundNumber: referenceRound,
-          })
-          if (cancelled) return
-          setRecap(recapPayload)
+          try {
+            const recapPayload = await withPageLoadTimeout(
+              fetchPlayerRoundRecap({
+                sessionToken,
+                seasonId: season.id,
+                roundNumber: referenceRound,
+              }),
+            )
+            if (generation !== loadGenerationRef.current) return
+            setRecap(recapPayload)
 
-          const groupId = accessCode ?? 'group'
-          const seenKey = celebrationStorageKey({
-            groupId,
-            playerId: playerId!,
-            seasonId: season.id,
-            eventType: 'day_recap',
-            eventId: `${referenceRound}:${recapPayload.isDefinitive ? 'def' : 'prov'}`,
-          })
-          const alreadySeen = getCelebrationFlag(seenKey)
-          if (recapPayload.isDefinitive && !alreadySeen) {
-            setShowRecap(true)
-            setCelebrationFlag(seenKey)
-          } else if (!recapPayload.isDefinitive) {
-            setShowRecap(true)
+            const groupId = accessCode ?? 'group'
+            const seenKey = celebrationStorageKey({
+              groupId,
+              playerId,
+              seasonId: season.id,
+              eventType: 'day_recap',
+              eventId: `${referenceRound}:${recapPayload.isDefinitive ? 'def' : 'prov'}`,
+            })
+            const alreadySeen = getCelebrationFlag(seenKey)
+            if (recapPayload.isDefinitive && !alreadySeen) {
+              setShowRecap(true)
+              setCelebrationFlag(seenKey)
+            } else if (!recapPayload.isDefinitive) {
+              setShowRecap(true)
+            }
+          } catch {
+            if (generation === loadGenerationRef.current) {
+              setRecap(null)
+              setShowRecap(false)
+            }
           }
+        } else if (generation === loadGenerationRef.current) {
+          setRecap(null)
+          setShowRecap(false)
         }
       } catch (err) {
-        if (!cancelled) setError(toUserMessage(err))
+        if (generation === loadGenerationRef.current) {
+          setError(toUserMessage(err))
+        }
       } finally {
-        if (!cancelled) setLoading(false)
+        if (generation === loadGenerationRef.current) {
+          setLoading(false)
+        }
       }
-    }
-
-    void load()
-    return () => {
-      cancelled = true
-    }
+    })
   }, [sessionToken, playerId, accessCode])
+
+  useEffect(() => {
+    const generationRef = loadGenerationRef
+    const guard = loadGuardRef.current
+    void loadPage()
+    return () => {
+      generationRef.current += 1
+      guard.reset()
+    }
+  }, [loadPage])
 
   const nextMatch = useMemo(() => {
     const base = findNextOpenMatch(matches, now)
@@ -203,12 +233,23 @@ export function HomePage() {
     }
   }
 
+  function retry() {
+    void loadPage()
+  }
+
   if (loading) {
     return <StateCard title="Accueil" message="Chargement des matchs…" />
   }
 
   if (error) {
-    return <StateCard title="Accueil" message={error} tone="error" />
+    return (
+      <div className="page-stack">
+        <StateCard title="Accueil" message={error} tone="error" />
+        <button type="button" className="btn-secondary" onClick={retry}>
+          Réessayer
+        </button>
+      </div>
+    )
   }
 
   if (!nextMatch) {

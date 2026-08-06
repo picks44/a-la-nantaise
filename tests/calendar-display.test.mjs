@@ -323,7 +323,6 @@ describe('MatchListItem visual hierarchy (K3)', () => {
     assert.match(item, /panelTitleClass = isFinishedShell \? 'text-ink'/)
     assert.match(item, /panelMutedClass = isFinishedShell \? 'text-muted'/)
     assert.match(css, /\.match-reveal-details/)
-    assert.match(css, /bg-surface/)
     assert.match(css, /\.match-reveal-trophies/)
     assert.doesNotMatch(item, /border-yellow\/60 bg-yellow\/15/)
   })

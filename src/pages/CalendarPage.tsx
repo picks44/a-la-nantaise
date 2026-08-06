@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { MatchListItem } from '../components/MatchListItem'
 import { useSession } from '../context/useSession'
@@ -12,8 +12,18 @@ import {
   getPredictionForMatch,
   withPredictionStatus,
 } from '../lib/api'
+import {
+  createGenerationToken,
+  createRefreshCoalescer,
+  runCalendarDataLoad,
+} from '../lib/calendarRefresh'
 import { shouldShowJumpToNextMatch } from '../lib/matchOrder'
-import { toUserMessage } from '../lib/errors'
+import { toUserMessage, UNKNOWN_USER_MESSAGE } from '../lib/errors'
+import {
+  createInFlightGuard,
+  loadCalendarBundle,
+} from '../lib/pageLoad'
+import { shouldOpenDetailsForDeepLink } from '../lib/pageLoadTimeout'
 import {
   REVEAL_TIMEOUT_MESSAGE,
   createRevealLoader,
@@ -27,6 +37,12 @@ import type { Match, Prediction, Season } from '../types'
 
 const MATCH_ID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+type CalendarBundle = {
+  season: Season
+  matches: Match[]
+  predictions: Prediction[]
+}
 
 export function CalendarPage() {
   const { sessionToken, playerId } = useSession()
@@ -57,6 +73,9 @@ export function CalendarPage() {
   const sessionTokenRef = useRef(sessionToken)
   const seasonIdRef = useRef(season?.id)
   const revealableMatchIdsRef = useRef<string[]>([])
+  const loadGuardRef = useRef(createInFlightGuard())
+  const dataGenerationRef = useRef(createGenerationToken())
+  const hasExistingDataRef = useRef(false)
 
   useEffect(() => {
     revealStatesRef.current = revealStates
@@ -69,6 +88,10 @@ export function CalendarPage() {
   useEffect(() => {
     seasonIdRef.current = season?.id
   }, [season?.id])
+
+  useEffect(() => {
+    hasExistingDataRef.current = matches.length > 0
+  }, [matches.length])
 
   const revealLoaderRef = useRef<ReturnType<typeof createRevealLoader> | null>(
     null,
@@ -103,35 +126,121 @@ export function CalendarPage() {
     return () => window.clearInterval(timer)
   }, [])
 
+  const applyBundle = useCallback((bundle: CalendarBundle) => {
+    setSeason(bundle.season)
+    setMatches(bundle.matches)
+    setPredictions(bundle.predictions)
+    setError(null)
+  }, [])
+
+  const reloadRevealsAfterData = useCallback(() => {
+    // One coordinated wave after data lands — not before the fetch.
+    revealStatesRef.current = revealReducer(revealStatesRef.current, {
+      type: 'reset',
+    })
+    dispatchRevealState({ type: 'reset' })
+    revealLoader.resetInFlight()
+    for (const matchId of revealableMatchIdsRef.current) {
+      void revealLoader.loadReveal(matchId)
+    }
+  }, [revealLoader])
+
+  const loadCalendarData = useCallback(
+    async (mode: 'initial' | 'soft') => {
+      if (!sessionToken || !playerId) return
+      await loadGuardRef.current.run(async () => {
+        const generation = dataGenerationRef.current.next()
+        const token = sessionToken
+
+        await runCalendarDataLoad({
+          mode,
+          hasExistingData: hasExistingDataRef.current,
+          generation,
+          isCurrent: (gen) => dataGenerationRef.current.isCurrent(gen),
+          load: async () => {
+            const bundle = await loadCalendarBundle({
+              sessionToken: token,
+              fetchActiveSeason,
+              fetchMatches,
+              fetchMyPredictions,
+            })
+            return {
+              season: bundle.season as Season,
+              matches: bundle.matches as Match[],
+              predictions: bundle.predictions as Prediction[],
+            }
+          },
+          onFullLoading: () => {
+            setLoading(true)
+            setError(null)
+          },
+          onSoftStart: () => {
+            // Keep current list visible; clear only a soft banner error.
+            setError(null)
+          },
+          onSuccess: (bundle) => {
+            applyBundle(bundle)
+            reloadRevealsAfterData()
+          },
+          onError: (err) => {
+            if (!hasExistingDataRef.current) {
+              setError(toUserMessage(err))
+            }
+          },
+          onSettled: () => {
+            setLoading(false)
+          },
+        })
+      })
+    },
+    [applyBundle, playerId, reloadRevealsAfterData, sessionToken],
+  )
+
+  useEffect(() => {
+    const generation = dataGenerationRef.current
+    const guard = loadGuardRef.current
+    void loadCalendarData('initial')
+    return () => {
+      generation.bump()
+      guard.reset()
+    }
+  }, [loadCalendarData])
+
+  function retryInitial() {
+    void loadCalendarData('initial')
+  }
+
   useEffect(() => {
     if (!sessionToken || !playerId) return
-    let cancelled = false
 
-    async function load() {
-      setLoading(true)
-      setError(null)
-      try {
-        const [seasonRow, matchRows, predictionRows] = await Promise.all([
-          fetchActiveSeason(sessionToken!),
-          fetchMatches(sessionToken!),
-          fetchMyPredictions(sessionToken!),
-        ])
-        if (cancelled) return
-        setSeason(seasonRow)
-        setMatches(matchRows)
-        setPredictions(predictionRows)
-      } catch (err) {
-        if (!cancelled) setError(toUserMessage(err))
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
+    const coalescer = createRefreshCoalescer({
+      delayMs: 50,
+      onFlush: () => {
+        void loadCalendarData('soft')
+      },
+    })
+
+    function requestRefresh() {
+      coalescer.request()
     }
 
-    void load()
+    function handleVisibility() {
+      if (document.visibilityState === 'visible') requestRefresh()
+    }
+
+    window.addEventListener('focus', requestRefresh)
+    window.addEventListener('pageshow', requestRefresh)
+    window.addEventListener('online', requestRefresh)
+    document.addEventListener('visibilitychange', handleVisibility)
+
     return () => {
-      cancelled = true
+      coalescer.dispose()
+      window.removeEventListener('focus', requestRefresh)
+      window.removeEventListener('pageshow', requestRefresh)
+      window.removeEventListener('online', requestRefresh)
+      document.removeEventListener('visibilitychange', handleVisibility)
     }
-  }, [sessionToken, playerId])
+  }, [loadCalendarData, playerId, sessionToken])
 
   const revealableMatchIds = useMemo(
     () =>
@@ -163,56 +272,6 @@ export function CalendarPage() {
       void revealLoader.loadReveal(matchId)
     }
   }, [revealLoader, revealableMatchIds, season?.id, sessionToken])
-
-  useEffect(() => {
-    if (!sessionToken || !playerId) return
-    const stableSessionToken = sessionToken
-
-    function refresh() {
-      // Reset global hérité (focus/pageshow/online) — pourra être affiné plus tard
-      // (invalider seulement si score/statut change, ou pageshow + persisted).
-      revealStatesRef.current = revealReducer(revealStatesRef.current, {
-        type: 'reset',
-      })
-      dispatchRevealState({ type: 'reset' })
-      revealLoader.resetInFlight()
-      setLoading(true)
-      setError(null)
-      void Promise.all([
-        fetchActiveSeason(stableSessionToken),
-        fetchMatches(stableSessionToken),
-        fetchMyPredictions(stableSessionToken),
-      ])
-        .then(([seasonRow, matchRows, predictionRows]) => {
-          setSeason(seasonRow)
-          setMatches(matchRows)
-          setPredictions(predictionRows)
-        })
-        .catch((err) => setError(toUserMessage(err)))
-        .finally(() => {
-          setLoading(false)
-          for (const matchId of revealableMatchIdsRef.current) {
-            void revealLoader.loadReveal(matchId)
-          }
-        })
-    }
-
-    function handleVisibility() {
-      if (document.visibilityState === 'visible') refresh()
-    }
-
-    window.addEventListener('focus', refresh)
-    window.addEventListener('pageshow', refresh)
-    window.addEventListener('online', refresh)
-    document.addEventListener('visibilitychange', handleVisibility)
-
-    return () => {
-      window.removeEventListener('focus', refresh)
-      window.removeEventListener('pageshow', refresh)
-      window.removeEventListener('online', refresh)
-      document.removeEventListener('visibilitychange', handleVisibility)
-    }
-  }, [playerId, revealLoader, sessionToken])
 
   const items = useMemo(() => {
     if (!playerId) return []
@@ -271,11 +330,41 @@ export function CalendarPage() {
   )
 
   useEffect(() => {
+    if (!highlightMatchId || matches.length === 0 || !playerId) return
+    const target = matches.find((match) => match.id === highlightMatchId)
+    if (!target) return
+    const prediction = getPredictionForMatch(
+      predictions,
+      target.id,
+      playerId,
+    )
+    const withStatus = withPredictionStatus(target, Boolean(prediction), now)
+    const next = findNextOpenMatch(matches, now)
+    if (
+      !shouldOpenDetailsForDeepLink({
+        matchFound: true,
+        uiStatus: withStatus.status,
+        isNextOpen: next?.id === highlightMatchId,
+      })
+    ) {
+      return
+    }
+    setDetailsOpenById((current) =>
+      current[highlightMatchId] === true
+        ? current
+        : { ...current, [highlightMatchId]: true },
+    )
+  }, [highlightMatchId, matches, now, playerId, predictions])
+
+  useEffect(() => {
     if (loading || !highlightMatchId) return
     const el = document.getElementById(`match-${highlightMatchId}`)
     if (!el) return
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [loading, highlightMatchId, items])
+
+  const showInitialLoading = loading && matches.length === 0
+  const showInitialError = Boolean(error) && matches.length === 0
 
   return (
     <div className="page-stack">
@@ -296,10 +385,15 @@ export function CalendarPage() {
         ) : null}
       </header>
 
-      {loading ? (
+      {showInitialLoading ? (
         <EmptyCard message="Chargement du calendrier…" />
-      ) : error ? (
-        <EmptyCard message={error} tone="error" />
+      ) : showInitialError ? (
+        <div className="space-y-3">
+          <EmptyCard message={error!} tone="error" />
+          <button type="button" className="btn-secondary" onClick={retryInitial}>
+            Réessayer
+          </button>
+        </div>
       ) : items.length === 0 ? (
         <div className="panel border-dashed p-6 text-center">
           <p className="font-bold text-ink">Aucun match pour l’instant</p>
@@ -353,7 +447,7 @@ function getRevealErrorMessage(error: unknown): string {
     return REVEAL_TIMEOUT_MESSAGE
   }
   const message = toUserMessage(error)
-  if (message === 'Une erreur est survenue. Réessaie dans quelques instants.') {
+  if (message === UNKNOWN_USER_MESSAGE) {
     return 'Pronostics collectifs temporairement indisponibles.'
   }
   return message
