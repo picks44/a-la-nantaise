@@ -162,18 +162,21 @@ export async function unsubscribeLocalPush(): Promise<boolean> {
 /**
  * Best-effort remote deactivation using a session token from an ending session.
  * Never throws; never logs endpoint, keys, or tokens. Does not unsubscribe locally.
+ * @returns true when the remote deactivate call completed without throwing.
  */
 export async function bestEffortDeactivateRemotePush(
   sessionToken: string | null | undefined,
   deactivate: (token: string, endpoint: string) => Promise<unknown>,
-): Promise<void> {
-  if (!sessionToken) return
+): Promise<boolean> {
+  if (!sessionToken) return false
   try {
-    if (!isWebPushSupported()) return
+    if (!isWebPushSupported()) return false
     const subscription = await getExistingPushSubscription()
-    if (!subscription) return
+    if (!subscription) return false
     await deactivate(sessionToken, subscription.endpoint)
+    return true
   } catch {
     // Expected when the session is already invalid server-side.
+    return false
   }
 }

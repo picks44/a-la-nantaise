@@ -256,6 +256,10 @@ describe('user-facing error messages', () => {
         'MATCH_LOCKED',
         'Ce match a commencé : les pronostics sont maintenant verrouillés.',
       ],
+      [
+        'PUSH_DEVICE_LIMIT',
+        'Tu as atteint la limite de 5 appareils pour les rappels. Désactive un ancien appareil ou contacte l’administrateur.',
+      ],
     ]
 
     for (const [code, expected] of cases) {

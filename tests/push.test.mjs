@@ -83,6 +83,42 @@ describe('push frontend helpers', () => {
     assert.match(section, /d['\u2019]accueil/)
   })
 
+  it('reuses an existing browser PushSubscription before subscribe()', () => {
+    const source = read('src/lib/push.ts')
+    const subscribeStart = source.indexOf('export async function subscribeToPush')
+    const subscribeBody = source.slice(
+      subscribeStart,
+      source.indexOf('export function serializationFromSubscription'),
+    )
+    assert.match(subscribeBody, /pushManager\.getSubscription\(\)/)
+    assert.match(subscribeBody, /if \(existing\) return existing/)
+    assert.ok(
+      subscribeBody.indexOf('getSubscription()') <
+        subscribeBody.indexOf('pushManager.subscribe'),
+    )
+  })
+
+  it('only unsubscribes locally after a successful remote deactivate on logout', () => {
+    const session = read('src/context/SessionProvider.tsx')
+    const push = read('src/lib/push.ts')
+    assert.match(push, /Promise<boolean>/)
+    assert.match(push, /return true/)
+    assert.match(push, /return false/)
+
+    for (const fnName of ['const logout = useCallback', 'const leaveGroup = useCallback']) {
+      const start = session.indexOf(fnName)
+      assert.ok(start > 0, fnName)
+      const end = session.indexOf('}, [', start)
+      const body = session.slice(start, end)
+      assert.match(body, /remoteDeactivated/)
+      assert.match(body, /if \(remoteDeactivated\)/)
+      assert.match(body, /unsubscribeLocalPush/)
+      assert.ok(
+        body.indexOf('remoteDeactivated') < body.indexOf('unsubscribeLocalPush'),
+      )
+    }
+  })
+
   it('best-effort deactivates remote push on session end without blocking', () => {
     const session = read('src/context/SessionProvider.tsx')
     const push = read('src/lib/push.ts')
@@ -371,5 +407,26 @@ describe('push SQL regression scripts', () => {
     assert.match(subscriptions, /anon must execute register_push_subscription/)
     assert.match(subscriptions, /legacy access-code register_push_subscription must be dropped/)
     assert.match(subscriptions, /authenticated must execute register_push_subscription/)
+    assert.match(subscriptions, /PUSH_DEVICE_LIMIT/)
+    assert.match(subscriptions, /test-limit-6/)
+    assert.match(subscriptions, /inactive endpoint should reactivate/)
+  })
+
+  it('keeps register limit after endpoint lookup in dedicated migration', () => {
+    const migration = read(
+      'supabase/migrations/20260806100000_push_register_limit_after_endpoint_lookup.sql',
+    )
+    assert.match(migration, /register_push_subscription/)
+    assert.match(migration, /v_existing_id/)
+    assert.match(migration, /PUSH_DEVICE_LIMIT/)
+    assert.match(migration, /IF v_existing_id IS NULL THEN/)
+    assert.ok(
+      migration.indexOf('INTO v_existing_id') <
+        migration.indexOf('IF v_existing_id IS NULL THEN'),
+    )
+    assert.ok(
+      migration.indexOf('IF v_existing_id IS NULL THEN') <
+        migration.indexOf('INSERT INTO public.push_subscriptions'),
+    )
   })
 })

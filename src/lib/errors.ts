@@ -211,7 +211,7 @@ export function toUserMessage(error: unknown): string {
     case 'INVALID_PUSH_KEYS':
       return 'Clés d’abonnement push invalides.'
     case 'PUSH_DEVICE_LIMIT':
-      return 'Trop d’appareils actifs pour les rappels.'
+      return 'Tu as atteint la limite de 5 appareils pour les rappels. Désactive un ancien appareil ou contacte l’administrateur.'
     case 'PUSH_UNSUPPORTED':
       return 'Les notifications push ne sont pas disponibles sur ce navigateur.'
     case 'PUSH_MISCONFIGURED':

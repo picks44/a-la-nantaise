@@ -224,7 +224,117 @@ BEGIN
 END;
 $$;
 
--- 8) anon ne peut pas SELECT les tables
+-- 8) Limite de 5 appareils : 5e accepté, 6e refusé, réactivation d’un endpoint connu OK
+DO $$
+DECLARE
+  tok text := current_setting('test.push_token_a');
+  i integer;
+  rec RECORD;
+BEGIN
+  DELETE FROM public.push_subscriptions
+  WHERE player_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01';
+
+  FOR i IN 1..5 LOOP
+    SELECT * INTO rec
+    FROM public.register_push_subscription(
+      tok,
+      'https://fcm.googleapis.com/fcm/send/test-limit-' || i::text,
+      'BFakeP256dhKeyMaterialBase64urlxx',
+      'fakeAuthKeyBase64',
+      NULL,
+      'LimitAgent/1.0'
+    );
+    IF rec.status IS DISTINCT FROM 'active' THEN
+      RAISE EXCEPTION 'TEST_FAIL: endpoint % should be active', i;
+    END IF;
+  END LOOP;
+
+  BEGIN
+    PERFORM *
+    FROM public.register_push_subscription(
+      tok,
+      'https://fcm.googleapis.com/fcm/send/test-limit-6',
+      'BFakeP256dhKeyMaterialBase64urlxx',
+      'fakeAuthKeyBase64'
+    );
+    RAISE EXCEPTION 'TEST_FAIL: expected PUSH_DEVICE_LIMIT on 6th endpoint';
+  EXCEPTION
+    WHEN OTHERS THEN
+      IF SQLERRM NOT LIKE '%PUSH_DEVICE_LIMIT%' THEN
+        RAISE;
+      END IF;
+  END;
+
+  -- Endpoint déjà connu (actif) : réenregistrement malgré 5 actives
+  SELECT * INTO rec
+  FROM public.register_push_subscription(
+    tok,
+    'https://fcm.googleapis.com/fcm/send/test-limit-3',
+    'BFakeP256dhKeyMaterialBase64urlUPDATED',
+    'fakeAuthKeyUpdated'
+  );
+  IF rec.status IS DISTINCT FROM 'active' THEN
+    RAISE EXCEPTION 'TEST_FAIL: re-register existing active endpoint should succeed';
+  END IF;
+
+  IF (
+    SELECT count(*) FROM public.push_subscriptions AS s
+    WHERE s.player_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01'
+      AND s.status = 'active'
+  ) <> 5 THEN
+    RAISE EXCEPTION 'TEST_FAIL: re-register must not create a duplicate row';
+  END IF;
+
+  -- Endpoint inactif connu : réactivation même si 5 autres appareils sont déjà actifs
+  INSERT INTO public.push_subscriptions (
+    player_id,
+    endpoint,
+    endpoint_hash,
+    p256dh,
+    auth,
+    content_encoding,
+    status,
+    last_seen_at,
+    failure_count,
+    invalidated_at
+  )
+  VALUES (
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01',
+    'https://fcm.googleapis.com/fcm/send/test-limit-inactive',
+    public.push_endpoint_hash(
+      'https://fcm.googleapis.com/fcm/send/test-limit-inactive'
+    ),
+    'BFakeP256dhKeyMaterialBase64urlxx',
+    'fakeAuthKeyBase64',
+    'aes128gcm',
+    'disabled',
+    now(),
+    0,
+    now()
+  );
+
+  SELECT * INTO rec
+  FROM public.register_push_subscription(
+    tok,
+    'https://fcm.googleapis.com/fcm/send/test-limit-inactive',
+    'BFakeP256dhKeyMaterialBase64urlxx',
+    'fakeAuthKeyBase64'
+  );
+  IF rec.status IS DISTINCT FROM 'active' THEN
+    RAISE EXCEPTION 'TEST_FAIL: inactive endpoint should reactivate';
+  END IF;
+
+  IF (
+    SELECT count(*) FROM public.push_subscriptions AS s
+    WHERE s.player_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa01'
+      AND s.status = 'active'
+  ) <> 6 THEN
+    RAISE EXCEPTION 'TEST_FAIL: known inactive endpoint must reactivate without device-limit block';
+  END IF;
+END;
+$$;
+
+-- 9) anon ne peut pas SELECT les tables
 DO $$
 BEGIN
   BEGIN
@@ -244,7 +354,7 @@ BEGIN
 END;
 $$;
 
--- 9) PUBLIC n’a plus EXECUTE ; anon conserve l’accès (signatures finales post-180000)
+-- 10) PUBLIC n’a plus EXECUTE ; anon conserve l’accès (signatures finales post-180000)
 DO $$
 BEGIN
   -- Legacy access-code signature from 170000 must be gone after 180000

@@ -283,9 +283,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const token = sessionToken
     try {
       if (token) {
-        await bestEffortDeactivateRemotePush(token, deactivatePushSubscription)
+        const remoteDeactivated = await bestEffortDeactivateRemotePush(
+          token,
+          deactivatePushSubscription,
+        )
         await logoutPlayer(token)
-        await unsubscribeLocalPush()
+        // Only drop the browser subscription after a successful remote disable.
+        // Otherwise the next subscribe() creates a new endpoint while the old
+        // row may remain active and consume a device slot.
+        if (remoteDeactivated) {
+          await unsubscribeLocalPush()
+        }
       }
     } catch {
       // Ne bloque pas la déconnexion locale.
@@ -307,9 +315,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const token = sessionToken
     try {
       if (token) {
-        await bestEffortDeactivateRemotePush(token, deactivatePushSubscription)
+        const remoteDeactivated = await bestEffortDeactivateRemotePush(
+          token,
+          deactivatePushSubscription,
+        )
         await logoutPlayer(token)
-        await unsubscribeLocalPush()
+        if (remoteDeactivated) {
+          await unsubscribeLocalPush()
+        }
       }
     } catch {
       // Ne bloque pas la sortie de groupe.
