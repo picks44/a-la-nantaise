@@ -157,6 +157,16 @@ Services locaux attendus (stack **dev**) :
 - Postgres : `127.0.0.1:54322`
 - Studio : `127.0.0.1:54323`
 
+### Réinitialiser / reseeder la base locale
+
+Pour rejouer les migrations et recharger le seed de développement (`supabase/seed.sql`) :
+
+```bash
+supabase db reset
+```
+
+Cette commande cible uniquement la stack **locale** (ports `54xxx`). Elle efface les données manuelles de la base de dev. Ne jamais utiliser `supabase db reset --linked` sans avoir vérifié explicitement le projet distant.
+
 ## Deux stacks Supabase locales
 
 Le dépôt maintient **deux** environnements Docker distincts :
