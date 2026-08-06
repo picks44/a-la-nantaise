@@ -51,7 +51,7 @@ cp .env.example .env
 | Tests SQL isolés | `npm run test:sql:local` | n/a | `http://127.0.0.1:55321` | Stack Docker `a-la-nantaise-test` (ports 55xxx) | `supabase-test/supabase/config.toml` | Reset uniquement de la base de test ; la stack dev reste intacte |
 | Frontend local + Supabase distant | `npm run dev` avec `.env.local` absent ou neutralisé | `http://localhost:5173` | URL de `.env` | Aucun conteneur applicatif | `.env` | Vérifier explicitement la cible avant tout test mutatif |
 | CI GitHub | workflow automatique | pas de serveur persistant | aucun projet réel | aucun | `.github/workflows/ci.yml` injecte des placeholders | ne valide pas une vraie instance Supabase |
-| Vercel Preview / Production | build Vercel | domaine Vercel | dépend des variables Vercel | aucun | `vercel.json` + variables Vercel | le repo ne contient pas le project ref Supabase distant |
+| Vercel Preview / Production | build Vercel | domaine Vercel | dépend des variables Vercel | aucun | `vercel.json` + variables Vercel | Le project ref Supabase distant n’est pas versionné ; une liaison locale peut exister dans `supabase/.temp/` |
 
 ### Comportement du dépôt
 
@@ -98,7 +98,7 @@ Règles :
 `sync-fc-nantes` :
 
 - `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
+- `SUPABASE_ANON_KEY` (suffisant : les écritures passent par des RPC admin `SECURITY DEFINER`, authentifiées via session admin ou code legacy)
 
 `send-prediction-reminders` :
 
@@ -178,7 +178,7 @@ Pour rejouer les migrations et recharger le seed de développement (`supabase/se
 supabase db reset
 ```
 
-Cette commande cible uniquement la stack **locale** (ports `54xxx`). Elle efface les données manuelles de la base de dev. Ne jamais utiliser `supabase db reset --linked` sans avoir vérifié explicitement le projet distant.
+Cette commande cible uniquement la stack **locale** (ports `54xxx`). Elle efface les données manuelles de la base de dev. Ne jamais exécuter de reset sur une base liée ou distante. `supabase db reset` doit rester strictement local dans ce projet.
 
 **Contrat seed :** les scénarios temporels (calendrier, reveal, verrouillage) ne sont garantis qu’après un `supabase db reset` sur la stack **dev**. Le fichier n’est pas conçu pour rafraîchir des dates relatives sur une base déjà seedée (`ON CONFLICT DO NOTHING`).
 
@@ -294,8 +294,8 @@ npm run test:sql:isolation
 
 ### Garde-fous importants
 
-- ne jamais exécuter `supabase db push` ou `supabase db reset --linked` sans avoir vérifié manuellement le projet ciblé ;
-- le repo ne versionne aucun `supabase link` ni project ref distant ;
+- ne jamais exécuter de reset ou de push sur une base liée / distante ; `supabase db reset` reste strictement local ;
+- le project ref Supabase distant n’est pas versionné dans le dépôt (une liaison locale peut néanmoins exister dans `supabase/.temp/`) ;
 - aucune commande courante du dépôt ne doit viser silencieusement la production ;
 - ne jamais copier `supabase/.temp/` (fichiers de liaison) vers `supabase-test/`.
 
@@ -347,7 +347,8 @@ npm run test:sql:isolation
 ### Tests frontend
 
 - `tests/*.test.mjs` : helpers unitaires, garde-fous env/SQL, scans de câblage ciblés
-- CI exécute `npm test`, `npm run lint`, `npm run build` — **pas** les suites SQL Docker
+- CI exécute `npm test`, `npm run lint` et `npm run build` — **pas** les suites SQL Docker
+- `npm run build` exécute également `tsc -b`, mais `npm run typecheck` reste conservé comme vérification explicite et plus rapide avant le build complet
 
 ## Flux sensibles
 
@@ -356,8 +357,9 @@ npm run test:sql:isolation
 - **Reveal groupe** : chargé à l’ouverture des détails ; `matchGroupRevealState` évite les courses et applique un timeout.
 - **Retry & timeouts** : Home / Ranking / Calendar partagent des bundles de chargement, un garde anti double-clic, et un timeout de page (~20s) hors reveal.
 - **Refresh calendrier** : soft refresh au focus (génération + coalescing) pour ne pas vider la liste.
-- **Classement compétition** : rangs partagés sur points + scores exacts (`getCompetitionRanks`).
+- **Classement compétition** : les ex æquo partagent le même rang lorsque les points et le nombre de scores exacts sont identiques ; le pseudo ne sert qu’à stabiliser l’ordre d’affichage (`getCompetitionRanks`).
 - **Trophées** : overview + ack côté RPC ; célébrations anti-replay en `localStorage` (clés scopées groupe/joueur/saison).
+- **Subscriptions push** : un joueur peut avoir au maximum 5 endpoints actifs ; un endpoint déjà connu peut être réactivé sans consommer un nouveau slot ; les endpoints définitivement invalides sont désactivés lors des envois.
 - **Session joueur** : token opaque en `localStorage` ; expiration de session peut conserver le code d’accès valide (`needs_player`) ; code d’accès invalide force un clear complet.
 - **Deep-link** `?match=` : ouverture des détails pour matchs terminés / verrouillés ; scroll pour prochain / compact.
 
@@ -381,7 +383,8 @@ D’après les fichiers présents :
 En pratique :
 
 - le frontend est déployé par Vercel ;
-- les migrations Supabase, les Edge Functions et les secrets serveur se gèrent hors de ce dépôt, avec vérification explicite de la cible avant toute action distante.
+- les migrations Supabase sont versionnées dans `supabase/migrations/`, mais leur application distante n’est pas automatisée par un workflow versionné dans ce dépôt ;
+- les Edge Functions et les secrets serveur sont déployés ou configurés manuellement, avec vérification explicite de la cible.
 
 ## Règles de sécurité
 
