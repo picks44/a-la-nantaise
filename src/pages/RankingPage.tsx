@@ -46,6 +46,11 @@ import {
   participationClassName,
   participationLabel,
 } from '../lib/rankingDisplay'
+import {
+  formatLockedTrophyProgress,
+  formatTrophyAwardMeta,
+  hasLockedTrophyProgress,
+} from '../lib/trophyDisplay'
 import type {
   Match,
   Player,
@@ -1016,14 +1021,13 @@ function TrophyPanel({
 
   return (
     <div className="page-stack">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-black text-ink">Trophées & séries</h2>
-        {season ? (
+      {season ? (
+        <div className="flex justify-end -mb-1.5">
           <span className="badge border-ink bg-yellow text-ink">
             {season.name}
           </span>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {pending.length > 0 ? (
         <section
@@ -1131,22 +1135,26 @@ function TrophyPanel({
       </section>
 
       {isColdStart ? (
-        <section className="panel border-dashed p-6 text-center">
-          <span className="mx-auto flex size-14 items-center justify-center rounded-full border border-ink bg-yellow text-ink">
-            <Sparkles className="size-6" aria-hidden />
-          </span>
-          <p className="mt-4 font-black text-ink">La chasse commence ici</p>
-          <p className="mx-auto mt-2 max-w-sm text-sm text-muted">
-            Pronostique ton prochain match pour débloquer « Première
-            participation » et lancer tes séries.
-          </p>
+        <section className="panel border-dashed px-3 py-2.5 sm:px-4">
+          <div className="flex items-start gap-3 sm:items-center">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-ink bg-yellow text-ink">
+              <Sparkles className="size-4" aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <p className="font-black text-ink">La chasse commence ici</p>
+              <p className="mt-0.5 text-sm text-muted">
+                Pronostique ton prochain match pour débloquer « Première
+                participation » et lancer tes séries.
+              </p>
+            </div>
+          </div>
         </section>
       ) : null}
 
       {overview.earnedTrophies.length > 0 ? (
         <section className="space-y-2">
           <h3 className="label-caps">Débloqués</h3>
-          <ul className="space-y-2">
+          <ul className="space-y-1.5">
             {overview.earnedTrophies.map((item) => (
               <li key={item.id}>
                 <EarnedTrophyCard trophy={item} />
@@ -1158,10 +1166,8 @@ function TrophyPanel({
 
       {overview.lockedTrophies.length > 0 ? (
         <section className="space-y-2">
-          <h3 className="label-caps">
-            {overview.earnedTrophies.length > 0 ? 'Encore à débloquer' : 'Objectifs'}
-          </h3>
-          <ul className="space-y-2">
+          <h3 className="label-caps">Encore à débloquer</h3>
+          <ul className="space-y-1.5">
             {overview.lockedTrophies.map((item) => (
               <li key={item.trophyKey}>
                 <LockedTrophyCard trophy={item} />
@@ -1190,37 +1196,41 @@ function HeroStat({
   return (
     <div
       className={[
-        'px-4 py-4',
+        'px-3 py-2.5 sm:px-4 sm:py-3',
         bordered ? 'border-t border-yellow/25 sm:border-t-0 sm:border-l' : '',
       ].join(' ')}
     >
-      <div className="flex items-center gap-2 text-yellow/80">
-        <Icon className="size-4" aria-hidden />
-        <p className="text-[11px] font-bold tracking-[0.08em] uppercase">
+      <div className="flex items-center gap-1.5 text-yellow/80">
+        <Icon className="size-3.5 shrink-0" aria-hidden />
+        <p className="text-[11px] font-bold tracking-[0.08em] uppercase leading-snug">
           {label}
         </p>
       </div>
-      <p className="mt-2 text-3xl font-black tabular-nums text-yellow">{value}</p>
-      <p className="mt-1 text-xs text-yellow/70">{hint}</p>
+      <p className="mt-1 text-2xl font-black tabular-nums text-yellow sm:text-3xl">
+        {value}
+      </p>
+      <p className="mt-0.5 text-[11px] leading-snug text-yellow/65">{hint}</p>
     </div>
   )
 }
 
 function EarnedTrophyCard({ trophy }: { trophy: TrophyAward }) {
+  const meta = formatTrophyAwardMeta({
+    awardedAt: trophy.awardedAt,
+    sourceRoundNumber: trophy.sourceRoundNumber,
+    sourceMatchLabel: trophy.sourceMatchLabel,
+  })
+
   return (
-    <article className="panel overflow-hidden border-green-dark/30">
-      <div className="flex items-start gap-3 px-3 py-2.5 sm:px-4 sm:py-3">
+    <article className="panel overflow-hidden border-green-dark/40 bg-yellow/15">
+      <div className="flex items-start gap-3 px-3 py-2 sm:px-4 sm:py-2.5">
         <TrophyIcon name={trophy.icon} unlocked />
         <div className="min-w-0 flex-1">
           <p className="font-black text-ink">{trophy.name}</p>
           <p className="mt-0.5 text-sm text-muted">{trophy.description}</p>
-          <p className="mt-1.5 text-xs font-semibold text-ink/70">
-            {new Date(trophy.awardedAt).toLocaleDateString('fr-FR')}
-            {trophy.sourceRoundNumber != null
-              ? ` · Journée ${trophy.sourceRoundNumber}`
-              : ''}
-            {trophy.sourceMatchLabel ? ` · ${trophy.sourceMatchLabel}` : ''}
-          </p>
+          {meta ? (
+            <p className="mt-1 text-xs text-muted">{meta}</p>
+          ) : null}
         </div>
       </div>
     </article>
@@ -1232,10 +1242,7 @@ function LockedTrophyCard({
 }: {
   trophy: TrophyOverview['lockedTrophies'][number]
 }) {
-  const hasProgress =
-    trophy.progressCurrent != null &&
-    trophy.progressTarget != null &&
-    trophy.progressTarget > 0
+  const hasProgress = hasLockedTrophyProgress(trophy)
   const ratio = hasProgress
     ? Math.min(1, trophy.progressCurrent! / trophy.progressTarget!)
     : 0
@@ -1249,38 +1256,36 @@ function LockedTrophyCard({
       ].join(' ')}
       aria-label={`${trophy.name}, verrouillé`}
     >
-      <div className="flex items-start gap-3 px-3 py-2.5 sm:px-4 sm:py-3">
+      <div className="flex items-start gap-2.5 px-3 py-2 sm:px-3.5 sm:py-2">
         <TrophyIcon name={trophy.icon} unlocked={false} />
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-ink">{trophy.name}</p>
+          <div className="flex items-start justify-between gap-2">
+            <p className="min-w-0 font-semibold text-ink">{trophy.name}</p>
+            {hasProgress ? (
+              <span className="shrink-0 text-xs font-bold tabular-nums text-ink">
+                {formatLockedTrophyProgress(
+                  trophy.progressCurrent!,
+                  trophy.progressTarget!,
+                )}
+              </span>
+            ) : null}
+          </div>
           <p className="mt-0.5 text-sm text-muted">{trophy.description}</p>
           {hasProgress ? (
-            <div className="mt-2">
-              <div className="mb-1 flex items-center justify-between text-xs font-bold text-ink">
-                <span>Progression</span>
-                <span className="tabular-nums">
-                  {trophy.progressCurrent}/{trophy.progressTarget}
-                </span>
-              </div>
+            <div
+              className="mt-1.5 h-1.5 overflow-hidden rounded-full border border-ink/40 bg-ink/10"
+              role="progressbar"
+              aria-valuenow={trophy.progressCurrent!}
+              aria-valuemin={0}
+              aria-valuemax={trophy.progressTarget!}
+              aria-label={`Progression ${trophy.name}`}
+            >
               <div
-                className="h-2 overflow-hidden rounded-full border border-ink/20 bg-canvas"
-                role="progressbar"
-                aria-valuenow={trophy.progressCurrent!}
-                aria-valuemin={0}
-                aria-valuemax={trophy.progressTarget!}
-                aria-label={`Progression ${trophy.name}`}
-              >
-                <div
-                  className="h-full bg-yellow transition-[width]"
-                  style={{ width: `${Math.round(ratio * 100)}%` }}
-                />
-              </div>
+                className="h-full bg-yellow transition-[width]"
+                style={{ width: `${Math.round(ratio * 100)}%` }}
+              />
             </div>
-          ) : (
-            <p className="mt-1.5 text-xs font-semibold text-muted">
-              Se débloque en match
-            </p>
-          )}
+          ) : null}
         </div>
       </div>
     </article>
@@ -1309,14 +1314,14 @@ function TrophyIcon({
   return (
     <span
       className={[
-        'flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border',
+        'flex shrink-0 items-center justify-center rounded-[var(--radius-sm)] border',
         unlocked
-          ? 'border-ink bg-yellow text-ink'
-          : 'border-border bg-surface-muted text-muted',
+          ? 'size-12 border-ink bg-yellow text-ink'
+          : 'size-9 border-ink/25 bg-surface-muted text-ink/55',
       ].join(' ')}
       aria-hidden
     >
-      <Icon className="size-5" />
+      <Icon className={unlocked ? 'size-5' : 'size-4'} />
     </span>
   )
 }
