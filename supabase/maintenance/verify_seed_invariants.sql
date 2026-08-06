@@ -325,6 +325,9 @@ BEGIN
   END IF;
 
   -- ---- Classement compétition 1,1,3,3,5,5,7,7 ----
+  -- Aligné sur getCompetitionRanks (frontend) : même rang si points + exacts
+  -- égaux. get_season_ranking n’expose pas de rang ; son ORDER BY utilise aussi
+  -- display_name pour l’ordre d’affichage seulement (pas pour le numéro de rang).
   SELECT array_agg(ranked.comp_rank ORDER BY ranked.points DESC, ranked.exact_scores DESC, ranked.display_name ASC)
   INTO v_ranks
   FROM (
@@ -333,7 +336,7 @@ BEGIN
       totals.points,
       totals.exact_scores,
       RANK() OVER (
-        ORDER BY totals.points DESC, totals.exact_scores DESC, totals.display_name ASC
+        ORDER BY totals.points DESC, totals.exact_scores DESC
       ) AS comp_rank
     FROM (
       SELECT
