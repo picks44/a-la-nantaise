@@ -68,7 +68,7 @@ describe('visual hierarchy polish', () => {
     assert.doesNotMatch(item, /Faire mon prono/)
     assert.match(
       item,
-      /function RevealSection[\s\S]*if \(match\.status === 'to_predict'\) return null/,
+      /function RevealSection[\s\S]*match\.status === 'to_predict' \|\| match\.status === 'kickoff_unconfirmed'/,
     )
   })
 
@@ -189,6 +189,9 @@ describe('visual hierarchy polish', () => {
     assert.match(item, /aria-controls/)
     assert.match(item, /hidden=\{!detailsOpen\}/)
     assert.match(item, /Réessayer/)
+    assert.match(item, /Afficher les détails/)
+    assert.match(item, /Masquer les détails/)
+    assert.match(item, /match-reveal-details/)
   })
 
   it('uses explicit calendar status labels', () => {
