@@ -24,7 +24,7 @@ import {
   formatTrophyAwardMeta,
   hasLockedTrophyProgress,
 } from '../lib/trophyDisplay'
-import type { Season, TrophyAward, TrophyOverview } from '../types'
+import type { TrophyAward, TrophyOverview } from '../types'
 
 
 function StatusCard({
@@ -58,7 +58,6 @@ function prefersReducedMotion(): boolean {
 }
 
 export function TrophyPanel({
-  season,
   overview,
   loading,
   error,
@@ -67,7 +66,6 @@ export function TrophyPanel({
   playerId,
   onDismissCelebration,
 }: {
-  season: Season | null
   overview: TrophyOverview | null
   loading: boolean
   error: string | null
@@ -286,14 +284,6 @@ export function TrophyPanel({
 
   return (
     <div className="page-stack">
-      {season ? (
-        <div className="flex justify-end -mb-1.5">
-          <span className="badge border-ink bg-yellow text-ink">
-            {season.name}
-          </span>
-        </div>
-      ) : null}
-
       {pending.length > 0 ? (
         <section
           className={[

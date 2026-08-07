@@ -335,10 +335,6 @@
     @apply border-t border-green-dark/30 bg-surface text-ink;
   }
 
-  .match-reveal-trophies {
-    @apply mt-2 rounded-[var(--radius-sm)] border border-border/80 bg-canvas px-2.5 py-2;
-  }
-
   /* Calendrier — lignes compactes des matchs futurs (hors prochain). */
   .future-match-row {
     @apply px-3 py-2;

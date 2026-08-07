@@ -103,7 +103,7 @@ function RankingRow({
           </p>
           {isActive ? (
             <span className="badge-text border-green bg-green text-white">
-              TOI
+              Toi
             </span>
           ) : null}
           {variant === 'full' && !player.isActive ? (

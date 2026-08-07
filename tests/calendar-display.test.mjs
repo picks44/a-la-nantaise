@@ -308,30 +308,43 @@ describe('MatchListItem open details wiring (K2)', () => {
   const detailsEnd = revealBody.lastIndexOf('</section>')
   const panel = revealBody.slice(detailsStart, detailsEnd)
 
-  it('keeps two main sections with trophies nested under predictions', () => {
+  it('keeps predictions primary with trophies nested and ranking secondary', () => {
     assert.ok(detailsStart >= 0 && detailsEnd > detailsStart)
     assert.match(panel, /Pronostics du groupe/)
+    assert.match(panel, /Trophées obtenus/)
     assert.match(panel, /Classement du match/)
-    assert.match(panel, /Trophées obtenus sur ce match/)
+    assert.match(panel, /Voir le classement du match/)
     assert.match(panel, /aria-labelledby=\{`group-predictions-\$\{match\.id\}`\}/)
     assert.match(panel, /aria-labelledby=\{`match-ranking-\$\{match\.id\}`\}/)
     assert.match(panel, /selectParticipantBadge/)
     assert.match(panel, /formatParticipantPointsLabel/)
     assert.match(panel, /formatCalendarPoints\(row\.points\)/)
     assert.match(panel, /\{row\.rank\}\./)
+    assert.match(panel, /grid-cols-\[minmax\(0,1fr\)_auto_auto\]/)
     assert.doesNotMatch(panel, /participant\.outcome/)
     assert.doesNotMatch(panel, /Nouveaux trophees/)
     assert.doesNotMatch(panel, /border-green bg-success-soft/)
     assert.doesNotMatch(panel, /#\{row\.rank\}/)
+    assert.doesNotMatch(panel, /match-reveal-trophies/)
   })
 
-  it('does not introduce a third top-level trophy section', () => {
+  it('keeps trophies under predictions and ranking after as a collapsed block', () => {
     const predictionsSection = panel.indexOf('group-predictions-')
-    const trophiesHeading = panel.indexOf('Trophées obtenus sur ce match')
+    const trophiesHeading = panel.indexOf('Trophées obtenus')
+    const rankingToggle = panel.indexOf('Voir le classement du match')
     const rankingSection = panel.indexOf('match-ranking-')
     assert.ok(predictionsSection >= 0)
     assert.ok(trophiesHeading > predictionsSection)
-    assert.ok(rankingSection > trophiesHeading)
+    assert.ok(rankingToggle > trophiesHeading)
+    assert.ok(rankingSection > rankingToggle)
+  })
+
+  it('collapses match ranking behind a local rankingOpen toggle', () => {
+    assert.match(revealBody, /const \[rankingOpen, setRankingOpen\] = useState\(false\)/)
+    assert.match(panel, /aria-expanded=\{rankingOpen\}/)
+    assert.match(panel, /aria-controls=\{rankingId\}/)
+    assert.match(panel, /hidden=\{!rankingOpen\}/)
+    assert.match(panel, /Masquer le classement du match/)
   })
 
   it('preserves K1 closed summary helpers', () => {
@@ -349,11 +362,11 @@ describe('MatchListItem visual hierarchy (K3)', () => {
 
   it('puts finished open details on a light surface under the green summary', () => {
     assert.match(item, /match-reveal-details/)
-    assert.match(item, /match-reveal-trophies/)
     assert.match(item, /panelTitleClass = isFinishedShell \? 'text-ink'/)
     assert.match(item, /panelMutedClass = isFinishedShell \? 'text-muted'/)
     assert.match(css, /\.match-reveal-details/)
-    assert.match(css, /\.match-reveal-trophies/)
+    assert.doesNotMatch(item, /match-reveal-trophies/)
+    assert.doesNotMatch(css, /\.match-reveal-trophies/)
     assert.doesNotMatch(item, /border-yellow\/60 bg-yellow\/15/)
   })
 
@@ -408,7 +421,8 @@ describe('MatchListItem group teaser visibility (future cards)', () => {
     assert.match(item, /Afficher les détails/)
     assert.match(item, /Pronostics du groupe/)
     assert.match(item, /Classement du match/)
-    assert.match(item, /Trophées obtenus sur ce match/)
+    assert.match(item, /Trophées obtenus/)
+    assert.match(item, /Voir le classement du match/)
     assert.ok(item.indexOf('Les pronos du groupe') !== item.lastIndexOf('Les pronos du groupe'))
   })
 })

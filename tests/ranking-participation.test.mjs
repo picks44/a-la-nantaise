@@ -4,12 +4,15 @@ import { describe, it } from 'node:test'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  formatParticipationFraction,
   formatParticipationSummary,
   getCompetitionRanks,
   getDenseRanks,
+  groupParticipationRows,
   listRoundNumbers,
   selectDefaultRoundNumber,
   selectHomeRanking,
+  shouldShowParticipationFraction,
   summarizeParticipation,
 } from '../src/lib/ranking.ts'
 import {
@@ -184,6 +187,65 @@ describe('participation summary', () => {
       formatParticipationSummary(0, 0),
       'Aucun joueur concerné sur cette journée.',
     )
+  })
+})
+
+describe('participation social grouping', () => {
+  const sample = [
+    {
+      playerId: '1',
+      pseudo: 'Vincent',
+      roundNumber: 5,
+      status: 'complete',
+      predictedCount: 1,
+      expectedCount: 1,
+    },
+    {
+      playerId: '2',
+      pseudo: 'Max',
+      roundNumber: 5,
+      status: 'partial',
+      predictedCount: 1,
+      expectedCount: 2,
+    },
+    {
+      playerId: '3',
+      pseudo: 'Camille',
+      roundNumber: 5,
+      status: 'missing',
+      predictedCount: 0,
+      expectedCount: 1,
+    },
+    {
+      playerId: '4',
+      pseudo: 'Nouveau',
+      roundNumber: 5,
+      status: 'not_applicable',
+      predictedCount: 0,
+      expectedCount: 0,
+    },
+  ]
+
+  it('groups complete / partial / missing and drops not_applicable', () => {
+    assert.deepEqual(groupParticipationRows(sample), {
+      complete: [sample[0]],
+      partial: [sample[1]],
+      missing: [sample[2]],
+    })
+  })
+
+  it('shows fractions only for partial or multi-match rows', () => {
+    assert.equal(shouldShowParticipationFraction(sample[0]), false)
+    assert.equal(shouldShowParticipationFraction(sample[1]), true)
+    assert.equal(shouldShowParticipationFraction(sample[2]), false)
+    assert.equal(
+      shouldShowParticipationFraction({
+        status: 'complete',
+        expectedCount: 2,
+      }),
+      true,
+    )
+    assert.equal(formatParticipationFraction(sample[1]), '1/2')
   })
 })
 
@@ -362,6 +424,16 @@ describe('ranking migration and UI wiring', () => {
     assert.match(rankingPage, /GroupRanking/)
     assert.match(rankingPage, /formatParticipationSummary/)
     assert.match(rankingPage, /summarizeParticipation/)
+    assert.match(rankingPage, /groupParticipationRows/)
+    assert.match(rankingPage, /Pronostics enregistrés/)
+    assert.match(rankingPage, /En cours/)
+    assert.match(rankingPage, /En attente/)
+    assert.match(rankingPage, /\$\{title\} · \$\{rows\.length\}/)
+    assert.match(rankingPage, /divide-y divide-border\/50/)
+    assert.match(rankingPage, />\s*Toi\s*</)
+    assert.doesNotMatch(rankingPage, /role="progressbar"/)
+    assert.doesNotMatch(rankingPage, /participationLabel/)
+    assert.doesNotMatch(rankingPage, /\/\{row\.expectedCount\} prono/)
     assert.doesNotMatch(rankingPage, /players\.map\(\(player, index\) =>/)
     assert.match(podium, /variant === 'full'/)
     assert.match(podium, /RankingRow/)
@@ -394,5 +466,20 @@ describe('ranking migration and UI wiring', () => {
       /fetchRoundParticipation\(\s*sessionToken!,\s*selectedRound!/,
     )
     assert.doesNotMatch(rankingPage, /for \(const .* of .*players/)
+  })
+
+  it('keeps not_applicable out of social lists and hides classic fractions', () => {
+    const rankingLib = read('src/lib/ranking.ts')
+    assert.match(rankingPage, /groupParticipationRows/)
+    assert.match(rankingPage, /shouldShowParticipationFraction/)
+    assert.match(rankingPage, /formatParticipationFraction/)
+    assert.match(rankingPage, /Pronostics enregistrés/)
+    assert.match(rankingPage, /En cours/)
+    assert.match(rankingPage, /En attente/)
+    assert.match(rankingLib, /status === 'complete'/)
+    assert.match(rankingLib, /status === 'partial'/)
+    assert.match(rankingLib, /status === 'missing'/)
+    assert.doesNotMatch(rankingPage, /predictedCount\}\/\{row\.expectedCount\} prono/)
+    assert.doesNotMatch(rankingPage, /role="progressbar"/)
   })
 })

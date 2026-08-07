@@ -233,10 +233,10 @@ describe('home group ranking', () => {
     assert.deepEqual(getCompetitionRanks(players), [1, 2, 3])
   })
 
-  it('uses compact widget copy for points, exacts, and TOI badge', () => {
+  it('uses compact widget copy for points, exacts, and Toi badge', () => {
     const podium = read('src/components/Podium.tsx')
-    assert.match(podium, /badge-text border-green bg-green text-white[\s\S]*TOI/)
-    assert.doesNotMatch(podium, />Toi</)
+    assert.match(podium, /badge-text border-green bg-green text-white[\s\S]*Toi/)
+    assert.doesNotMatch(podium, />TOI</)
     assert.match(podium, /\{player\.points\} pts/)
     assert.match(
       podium,

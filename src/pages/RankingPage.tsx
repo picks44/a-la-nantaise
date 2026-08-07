@@ -18,8 +18,11 @@ import {
 import {
   formatParticipationSummary,
   getCompetitionRanks,
+  groupParticipationRows,
   listRoundNumbers,
   selectDefaultRoundNumber,
+  shouldShowParticipationFraction,
+  formatParticipationFraction,
   summarizeParticipation,
 } from '../lib/ranking'
 import { toUserMessage, UNKNOWN_USER_MESSAGE } from '../lib/errors'
@@ -29,11 +32,7 @@ import {
   resolveRecapViewState,
 } from '../lib/pageLoad'
 import { withPageLoadTimeout } from '../lib/pageLoadTimeout'
-import {
-  formatProvisionalBadge,
-  participationClassName,
-  participationLabel,
-} from '../lib/rankingDisplay'
+import { formatProvisionalBadge } from '../lib/rankingDisplay'
 import type {
   Match,
   Player,
@@ -472,7 +471,6 @@ export function RankingPage() {
           className="space-y-3"
         >
           <TrophyPanel
-            season={season}
             overview={trophyOverview}
             loading={trophyLoading}
             error={trophyError}
@@ -544,71 +542,122 @@ function ParticipationList({
   )
   const { predictedCount, applicableCount } = summarizeParticipation(rows)
   const summary = formatParticipationSummary(predictedCount, applicableCount)
-  const progressRatio =
-    applicableCount > 0 ? predictedCount / applicableCount : 0
+  const { complete, partial, missing } = groupParticipationRows(rows)
+  const roundNumber = rows[0]?.roundNumber
 
   return (
     <section className="panel overflow-hidden" aria-label="Participation">
-      {allNotApplicable ? (
-        <p className="border-b border-border px-4 py-3 text-sm text-muted">
-          Aucun match pronostiquable sur cette journée (annulé, reporté, ou
-          hors période pour les joueurs).
-        </p>
-      ) : (
-        <div className="space-y-2 border-b border-border px-4 py-3">
+      <div className="space-y-1.5 border-b border-border px-4 py-3">
+        {roundNumber != null ? (
+          <h3 className="text-base font-extrabold text-ink">
+            Journée {roundNumber}
+          </h3>
+        ) : null}
+        {allNotApplicable ? (
+          <p className="text-sm text-muted">
+            Aucun match pronostiquable sur cette journée (annulé, reporté, ou
+            hors période pour les joueurs).
+          </p>
+        ) : (
           <p className="text-sm font-bold text-ink">{summary}</p>
-          <div
-            className="h-2 overflow-hidden rounded-full border border-ink/15 bg-canvas"
-            role="progressbar"
-            aria-valuenow={predictedCount}
-            aria-valuemin={0}
-            aria-valuemax={applicableCount}
-            aria-label="Progression des pronostics"
-          >
-            <div
-              className="h-full bg-green transition-[width]"
-              style={{ width: `${Math.round(progressRatio * 100)}%` }}
+        )}
+      </div>
+
+      {!allNotApplicable ? (
+        <div className="space-y-4 px-4 py-3.5">
+          <ParticipationGroup
+            title="Pronostics enregistrés"
+            rows={complete}
+            activePlayerId={activePlayerId}
+            emptyLabel="Personne n’a encore validé tous ses pronos."
+            showCheck
+          />
+          {partial.length > 0 ? (
+            <ParticipationGroup
+              title="En cours"
+              rows={partial}
+              activePlayerId={activePlayerId}
+              showFraction
             />
-          </div>
+          ) : null}
+          <ParticipationGroup
+            title="En attente"
+            rows={missing}
+            activePlayerId={activePlayerId}
+            emptyLabel="Tout le monde a pronostiqué."
+          />
         </div>
-      )}
-      <ul className="divide-y divide-border">
-        {rows.map((row) => {
-          const isActive = row.playerId === activePlayerId
-          return (
-            <li
-              key={row.playerId}
-              className={[
-                'flex items-center gap-3 px-4 py-2.5 sm:py-3',
-                isActive ? 'border-l-4 border-l-green bg-success-soft/60' : '',
-              ].join(' ')}
-            >
-              <div className="min-w-0 flex-1">
-                <p className="flex flex-wrap items-center gap-2 font-semibold">
-                  <span className="truncate">{row.pseudo}</span>
-                  {isActive ? (
-                    <span className="badge-text border-green bg-green text-white">
-                      Toi
-                    </span>
-                  ) : null}
-                </p>
-                <p className="mt-0.5 text-xs font-medium text-ink/65">
-                  {row.predictedCount}/{row.expectedCount} prono
-                  {row.expectedCount > 1 ? 's' : ''}
-                </p>
-              </div>
-              <span
+      ) : null}
+    </section>
+  )
+}
+
+function ParticipationGroup({
+  title,
+  rows,
+  activePlayerId,
+  emptyLabel,
+  showCheck = false,
+  showFraction = false,
+}: {
+  title: string
+  rows: RoundParticipationRow[]
+  activePlayerId: string
+  emptyLabel?: string
+  showCheck?: boolean
+  showFraction?: boolean
+}) {
+  const heading = `${title} · ${rows.length}`
+
+  return (
+    <section className="space-y-1.5" aria-label={heading}>
+      <h4 className="text-[11px] font-bold tracking-[0.12em] text-ink/55 uppercase">
+        {heading}
+      </h4>
+      {rows.length === 0 ? (
+        emptyLabel ? (
+          <p className="text-sm text-muted">{emptyLabel}</p>
+        ) : null
+      ) : (
+        <ul className="divide-y divide-border/50">
+          {rows.map((row) => {
+            const isActive = row.playerId === activePlayerId
+            const fractionVisible =
+              showFraction || shouldShowParticipationFraction(row)
+            return (
+              <li
+                key={row.playerId}
                 className={[
-                  'badge-text',
-                  participationClassName(row.status),
+                  'flex items-baseline gap-2 px-0.5 py-1',
+                  isActive ? 'rounded-[var(--radius-sm)] bg-success-soft/70' : '',
                 ].join(' ')}
               >
-                {participationLabel(row.status)}
-              </span>
-            </li>
-          )
-        })}
-      </ul>
+                {showCheck ? (
+                  <span
+                    className="w-3.5 shrink-0 text-center font-bold text-green-dark"
+                    aria-hidden="true"
+                  >
+                    ✓
+                  </span>
+                ) : null}
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
+                  {row.pseudo}
+                </span>
+                {isActive ? (
+                  <span className="badge-text shrink-0 border-green bg-green text-white">
+                    Toi
+                  </span>
+                ) : null}
+                {fractionVisible ? (
+                  <span className="shrink-0 text-sm font-semibold tabular-nums text-ink/65">
+                    {formatParticipationFraction(row)}
+                  </span>
+                ) : null}
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </section>
   )
 }

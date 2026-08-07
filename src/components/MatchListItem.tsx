@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Match, MatchGroupReveal, Prediction } from '../types'
 import {
@@ -349,12 +350,15 @@ function RevealSection({
   onDetailsOpenChange?: (open: boolean) => void
   onRetryReveal?: () => void
 }) {
+  const [rankingOpen, setRankingOpen] = useState(false)
+
   if (match.status === 'to_predict' || match.status === 'kickoff_unconfirmed') {
     return null
   }
 
   const isBeforeReveal = match.status === 'predicted'
   const detailsId = `reveal-details-${match.id}`
+  const rankingId = `match-ranking-panel-${match.id}`
   const isFinishedShell = match.status === 'finished'
   const borderClass = isFinishedShell ? 'border-white/15' : 'border-border'
   const titleClass = isFinishedShell ? 'text-white' : 'text-ink'
@@ -500,81 +504,87 @@ function RevealSection({
         >
           {participants.length > 0 || trophies.length > 0 ? (
             <section
-              className="space-y-2"
+              className="space-y-3"
               aria-labelledby={`group-predictions-${match.id}`}
             >
-              <h4
-                id={`group-predictions-${match.id}`}
-                className={[
-                  'text-xs font-bold tracking-[0.08em] uppercase',
-                  panelMutedClass,
-                ].join(' ')}
-              >
-                Pronostics du groupe
-              </h4>
-
               {participants.length > 0 ? (
-                <ul className="divide-y divide-border/60">
-                  {participants.map((participant) => {
-                    const badge = reveal.resultReady
-                      ? selectParticipantBadge({
-                          exactScore: participant.exactScore,
-                          bestPrediction: participant.bestPrediction,
-                        })
-                      : null
-                    const pointsLabel = formatParticipantPointsLabel(
-                      participant.points,
-                      Boolean(reveal.resultReady),
-                    )
-                    const scoreLabel = formatParticipantPredictionScore({
-                      homeScore: participant.homeScore,
-                      awayScore: participant.awayScore,
-                    })
+                <div className="space-y-1.5">
+                  <h4
+                    id={`group-predictions-${match.id}`}
+                    className={[
+                      'text-xs font-bold tracking-[0.08em] uppercase',
+                      panelMutedClass,
+                    ].join(' ')}
+                  >
+                    Pronostics du groupe
+                  </h4>
+                  <ul className="divide-y divide-border/50">
+                    {participants.map((participant) => {
+                      const badge = reveal.resultReady
+                        ? selectParticipantBadge({
+                            exactScore: participant.exactScore,
+                            bestPrediction: participant.bestPrediction,
+                          })
+                        : null
+                      const pointsLabel = formatParticipantPointsLabel(
+                        participant.points,
+                        Boolean(reveal.resultReady),
+                      )
+                      const scoreLabel = formatParticipantPredictionScore({
+                        homeScore: participant.homeScore,
+                        awayScore: participant.awayScore,
+                      })
 
-                    return (
-                      <li
-                        key={participant.playerId}
-                        className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 text-sm"
-                      >
-                        <span
-                          className={[
-                            'min-w-0 flex-1 truncate font-semibold',
-                            panelTitleClass,
-                          ].join(' ')}
+                      return (
+                        <li
+                          key={participant.playerId}
+                          className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-baseline gap-x-3 gap-y-0.5 py-1.5 text-sm"
                         >
-                          {participant.pseudo}
-                        </span>
-                        <span
-                          className={[
-                            'shrink-0 font-bold tabular-nums',
-                            panelTitleClass,
-                          ].join(' ')}
-                        >
-                          {scoreLabel}
-                        </span>
-                        {pointsLabel ? (
                           <span
                             className={[
-                              'shrink-0 font-semibold tabular-nums',
+                              'min-w-0 truncate font-semibold',
+                              panelTitleClass,
+                            ].join(' ')}
+                          >
+                            {participant.pseudo}
+                          </span>
+                          <span
+                            className={[
+                              'shrink-0 font-bold tabular-nums',
+                              panelTitleClass,
+                            ].join(' ')}
+                          >
+                            {scoreLabel}
+                            {badge ? (
+                              <span className="badge ml-2 align-middle border-yellow bg-yellow text-ink">
+                                {badge}
+                              </span>
+                            ) : null}
+                          </span>
+                          <span
+                            className={[
+                              'min-w-[3.75rem] shrink-0 text-right font-semibold tabular-nums',
                               panelMutedClass,
                             ].join(' ')}
                           >
-                            {pointsLabel}
+                            {pointsLabel ?? ''}
                           </span>
-                        ) : null}
-                        {badge ? (
-                          <span className="badge shrink-0 border-yellow bg-yellow text-ink">
-                            {badge}
-                          </span>
-                        ) : null}
-                      </li>
-                    )
-                  })}
-                </ul>
-              ) : null}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              ) : (
+                <h4
+                  id={`group-predictions-${match.id}`}
+                  className="sr-only"
+                >
+                  Pronostics du groupe
+                </h4>
+              )}
 
               {trophies.length > 0 ? (
-                <div className="match-reveal-trophies">
+                <div className="space-y-1">
                   <h5
                     id={`match-trophies-${match.id}`}
                     className={[
@@ -582,11 +592,11 @@ function RevealSection({
                       panelMutedClass,
                     ].join(' ')}
                   >
-                    Trophées obtenus sur ce match
+                    Trophées obtenus
                   </h5>
                   <ul
                     className={[
-                      'mt-1 space-y-0.5 text-sm',
+                      'space-y-0.5 text-sm',
                       panelTitleClass,
                     ].join(' ')}
                   >
@@ -602,47 +612,63 @@ function RevealSection({
           ) : null}
 
           {reveal.resultReady && performance.length > 0 ? (
-            <section
-              className="space-y-1"
-              aria-labelledby={`match-ranking-${match.id}`}
-            >
-              <h4
-                id={`match-ranking-${match.id}`}
-                className={[
-                  'text-xs font-bold tracking-[0.08em] uppercase',
-                  panelMutedClass,
-                ].join(' ')}
+            <div className="space-y-2">
+              <button
+                type="button"
+                className="min-h-11 text-left text-xs font-extrabold tracking-[0.06em] text-green-dark uppercase underline-offset-2 hover:underline"
+                aria-expanded={rankingOpen}
+                aria-controls={rankingId}
+                onClick={() => setRankingOpen((open) => !open)}
               >
-                Classement du match
-              </h4>
-              <ol className="list-none space-y-0 p-0 text-sm">
-                {performance.map((row) => (
-                  <li
-                    key={row.playerId}
-                    className="flex items-baseline justify-between gap-3 py-0.5"
+                {rankingOpen
+                  ? 'Masquer le classement du match'
+                  : 'Voir le classement du match'}
+              </button>
+              <div id={rankingId} hidden={!rankingOpen}>
+                <section
+                  className="space-y-1"
+                  aria-labelledby={`match-ranking-${match.id}`}
+                >
+                  <h4
+                    id={`match-ranking-${match.id}`}
+                    className={[
+                      'text-xs font-bold tracking-[0.08em] uppercase',
+                      panelMutedClass,
+                    ].join(' ')}
                   >
-                    <span
-                      className={['min-w-0 truncate', panelTitleClass].join(
-                        ' ',
-                      )}
-                    >
-                      <span className="font-semibold tabular-nums">
-                        {row.rank}.
-                      </span>{' '}
-                      {row.pseudo}
-                    </span>
-                    <span
-                      className={[
-                        'shrink-0 font-semibold tabular-nums',
-                        panelMutedClass,
-                      ].join(' ')}
-                    >
-                      {formatCalendarPoints(row.points)}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </section>
+                    Classement du match
+                  </h4>
+                  <ol className="list-none space-y-0 p-0 text-sm">
+                    {performance.map((row) => (
+                      <li
+                        key={row.playerId}
+                        className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 py-0.5"
+                      >
+                        <span
+                          className={[
+                            'min-w-0 truncate',
+                            panelTitleClass,
+                          ].join(' ')}
+                        >
+                          <span className="font-semibold tabular-nums">
+                            {row.rank}.
+                          </span>{' '}
+                          {row.pseudo}
+                        </span>
+                        <span
+                          className={[
+                            'shrink-0 font-semibold tabular-nums',
+                            panelMutedClass,
+                          ].join(' ')}
+                        >
+                          {formatCalendarPoints(row.points)}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              </div>
+            </div>
           ) : null}
         </div>
       ) : null}

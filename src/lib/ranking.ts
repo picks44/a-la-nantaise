@@ -118,6 +118,35 @@ export function formatParticipationSummary(
   return `${predictedCount} ${joueur} sur ${applicableCount} ${verbe} pronostiqué`
 }
 
+/** Groupes sociaux frontend — hors not_applicable. */
+export function groupParticipationRows(rows: RoundParticipationRow[]): {
+  complete: RoundParticipationRow[]
+  partial: RoundParticipationRow[]
+  missing: RoundParticipationRow[]
+} {
+  return {
+    complete: rows.filter((row) => row.status === 'complete'),
+    partial: rows.filter((row) => row.status === 'partial'),
+    missing: rows.filter((row) => row.status === 'missing'),
+  }
+}
+
+/**
+ * Fraction N/M utile uniquement en multi-match ou partiel.
+ * Masquée pour le cas classique 1/1 ou 0/1.
+ */
+export function shouldShowParticipationFraction(
+  row: Pick<RoundParticipationRow, 'status' | 'expectedCount'>,
+): boolean {
+  return row.status === 'partial' || row.expectedCount > 1
+}
+
+export function formatParticipationFraction(
+  row: Pick<RoundParticipationRow, 'predictedCount' | 'expectedCount'>,
+): string {
+  return `${row.predictedCount}/${row.expectedCount}`
+}
+
 /** Journée par défaut pour l’onglet Participation. */
 export function selectDefaultRoundNumber(
   matches: Match[],

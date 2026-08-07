@@ -49,10 +49,10 @@ describe('trophy panel structure (T1)', () => {
     assert.doesNotMatch(panel, /<h2[^>]*>\s*Trophées & séries\s*<\/h2>/)
   })
 
-  it('keeps the season badge and useful section headings', () => {
+  it('keeps useful section headings without a season badge', () => {
     const panel = trophyPanelSource()
-    assert.match(panel, /\bbadge\b/)
-    assert.match(panel, /\{season\.name\}/)
+    assert.doesNotMatch(panel, /\{season\.name\}/)
+    assert.doesNotMatch(trophyPanelFile, /season: Season/)
     assert.match(panel, />Débloqués</)
     assert.match(panel, />Encore à débloquer</)
     assert.doesNotMatch(panel, />Objectifs</)
