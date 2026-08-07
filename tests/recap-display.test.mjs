@@ -11,6 +11,8 @@ import {
 import {
   formatGroupAverageLabel,
   formatRankDeltaLabel,
+  formatRecapMatchDetail,
+  formatRecapMatchHeadline,
   formatRecapMessage,
   formatRecapRoundPoints,
   selectRecapIndicators,
@@ -192,7 +194,7 @@ describe('formatGroupAverageLabel', () => {
 })
 
 describe('selectRecapIndicators', () => {
-  it('orders by priority and caps at three', () => {
+  it('orders by priority, skips group average, and caps at two', () => {
     assert.deepEqual(
       selectRecapIndicators({
         exactScoreCount: 2,
@@ -200,11 +202,7 @@ describe('selectRecapIndicators', () => {
         participantAveragePoints: 1.6,
         correctOutcomeOnlyCount: 3,
       }),
-      [
-        '2 scores exacts',
-        '1 match manqué',
-        'Moyenne du groupe : 1,6 pts',
-      ],
+      ['2 exacts', '1 match manqué'],
     )
   })
 
@@ -220,7 +218,7 @@ describe('selectRecapIndicators', () => {
     )
   })
 
-  it('formats singular labels', () => {
+  it('formats singular performance labels without average', () => {
     assert.deepEqual(
       selectRecapIndicators({
         exactScoreCount: 1,
@@ -228,7 +226,36 @@ describe('selectRecapIndicators', () => {
         participantAveragePoints: null,
         correctOutcomeOnlyCount: 1,
       }),
-      ['1 score exact', '1 bon résultat'],
+      ['1 exact', '1 bon résultat'],
+    )
+  })
+})
+
+describe('formatRecapMatch lines', () => {
+  it('builds Home-like headline and detail', () => {
+    assert.equal(
+      formatRecapMatchHeadline({
+        label: 'Guingamp – FC Nantes',
+        status: 'finished',
+        finalScore: { home: 2, away: 0 },
+      }),
+      'Guingamp 2-0 FC Nantes',
+    )
+    assert.equal(
+      formatRecapMatchDetail({
+        predicted: true,
+        prediction: { home: 0, away: 2 },
+        points: 0,
+      }),
+      'Prono 0-2 · À côté du score · 0 pt',
+    )
+    assert.equal(
+      formatRecapMatchDetail({
+        predicted: false,
+        prediction: null,
+        points: null,
+      }),
+      'Non pronostiqué',
     )
   })
 })
@@ -257,7 +284,7 @@ describe('formatRankDeltaLabel', () => {
 })
 
 describe('RoundRecapCard editorial wiring', () => {
-  it('keeps editorial hierarchy without gap or champions grid', () => {
+  it('keeps player-feedback hierarchy: message then points then rank impact', () => {
     const card = readFileSync(
       join(root, 'src/components/RoundRecapCard.tsx'),
       'utf8',
@@ -265,11 +292,23 @@ describe('RoundRecapCard editorial wiring', () => {
     assert.match(card, /formatRankChangeHuman/)
     assert.match(card, /selectRecapIndicators/)
     assert.match(card, /formatRecapRoundPoints/)
+    assert.match(card, /formatRecapMatchHeadline/)
+    assert.match(card, /formatRecapMatchDetail/)
+    assert.match(card, /Nouveau trophée débloqué/)
     assert.doesNotMatch(card, /formatGapToPreviousHuman/)
+    assert.doesNotMatch(card, /formatGroupAverageLabel/)
+    assert.doesNotMatch(card, /participantAveragePoints/)
     assert.doesNotMatch(card, /Champions/)
     assert.doesNotMatch(card, /RANK_FOCUSED/)
     assert.doesNotMatch(card, /grid-cols-3/)
-    assert.doesNotMatch(card, /Stable/)
+    assert.doesNotMatch(card, /pointsResultLabel/)
+    assert.doesNotMatch(card, /text-5xl|text-6xl/)
+    assert.match(card, /text-3xl font-black tabular-nums[\s\S]*sm:text-4xl/)
+    assert.match(
+      card,
+      /\{message\}[\s\S]*roundPoints[\s\S]*\{rankSentence\}/,
+    )
+    assert.match(card, /text-base font-bold text-ink sm:text-lg/)
     assert.match(card, /indicators\.length > 0/)
     assert.match(card, /Journée \{recap\.roundNumber\}/)
   })

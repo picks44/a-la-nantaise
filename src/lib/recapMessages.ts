@@ -1,5 +1,6 @@
 import type { RecapMessageKey } from '../types'
 import { formatPoints } from './formatPoints.ts'
+import { formatLastMatchVerdict } from './lastMatchDisplay.ts'
 import { formatPlacesDelta, formatRankOrdinal } from './rankingDisplay.ts'
 
 /** Textes FR stables — map dépendante du statut définitif / provisoire. */
@@ -91,7 +92,7 @@ export function formatGroupAverageLabel(average: number): string {
 }
 
 function formatExactScoresLabel(count: number): string {
-  return count === 1 ? '1 score exact' : `${count} scores exacts`
+  return count === 1 ? '1 exact' : `${count} exacts`
 }
 
 function formatMissedMatchesLabel(count: number): string {
@@ -103,14 +104,15 @@ function formatGoodResultsLabel(count: number): string {
 }
 
 /**
- * Jusqu’à 3 indicateurs non nuls / utiles.
- * Priorité : exacts → manqués → moyenne → bons. Liste vide si rien à montrer.
+ * Jusqu’à 2 indicateurs de performance personnelle.
+ * Priorité : exacts → manqués → bons. Pas de moyenne de groupe.
  */
 export function selectRecapIndicators(input: {
   exactScoreCount: number
   missedPredictionCount: number
-  participantAveragePoints: number | null | undefined
   correctOutcomeOnlyCount: number
+  /** @deprecated Ignoré — conservé pour compat appelants. */
+  participantAveragePoints?: number | null
 }): string[] {
   const indicators: string[] = []
 
@@ -120,12 +122,46 @@ export function selectRecapIndicators(input: {
   if (input.missedPredictionCount > 0) {
     indicators.push(formatMissedMatchesLabel(input.missedPredictionCount))
   }
-  if (input.participantAveragePoints != null) {
-    indicators.push(formatGroupAverageLabel(input.participantAveragePoints))
-  }
   if (input.correctOutcomeOnlyCount > 0) {
     indicators.push(formatGoodResultsLabel(input.correctOutcomeOnlyCount))
   }
 
-  return indicators.slice(0, 3)
+  return indicators.slice(0, 2)
 }
+
+/** Ligne 1 d’un match récap : `Guingamp 2-0 FC Nantes`. */
+export function formatRecapMatchHeadline(match: {
+  label: string
+  status: string
+  finalScore: { home: number; away: number } | null
+}): string {
+  if (match.finalScore) {
+    const parts = match.label.split(/\s+[–-]\s+/)
+    if (parts.length === 2) {
+      return `${parts[0]} ${match.finalScore.home}-${match.finalScore.away} ${parts[1]}`
+    }
+    return `${match.label} ${match.finalScore.home}-${match.finalScore.away}`
+  }
+  return match.label || match.status
+}
+
+/** Ligne 2 : `Prono 0-2 · À côté du score · 0 pt` (langage Home). */
+export function formatRecapMatchDetail(match: {
+  predicted: boolean
+  prediction: { home: number; away: number } | null
+  points: number | null
+}): string {
+  if (!match.predicted || !match.prediction) {
+    return 'Non pronostiqué'
+  }
+
+  const score = `Prono ${match.prediction.home}-${match.prediction.away}`
+  if (match.points == null) {
+    return `${score} · Résultat en attente`
+  }
+
+  const verdict = formatLastMatchVerdict(match.points)
+  const pointsLabel = formatPoints(match.points, { signed: true })
+  return `${score} · ${verdict} · ${pointsLabel}`
+}
+

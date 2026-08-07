@@ -73,7 +73,7 @@ function RankingRow({
         className={[
           'flex shrink-0',
           variant === 'full'
-            ? 'w-8 flex-col items-start text-ink/55 sm:w-9'
+            ? 'w-8 flex-col items-start pt-0.5 text-ink sm:w-9'
             : 'w-5 items-baseline pt-0.5 text-ink/45',
         ].join(' ')}
         aria-label={rankAria}
@@ -91,7 +91,7 @@ function RankingRow({
         {isLeaderMark ? (
           <span
             aria-hidden="true"
-            className="mt-1 h-1 w-5 rounded-sm bg-yellow sm:w-6"
+            className="mt-1 h-1 w-4 rounded-sm bg-yellow sm:w-5"
           />
         ) : null}
       </span>

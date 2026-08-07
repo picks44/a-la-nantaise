@@ -245,8 +245,11 @@ describe('home group ranking', () => {
       /tracking-wider uppercase text-ink\/55[\s\S]*pts/,
     )
     assert.match(podium, /variant === 'full'[\s\S]*?text-lg font-black sm:text-xl/)
+    assert.match(podium, /variant === 'full'[\s\S]*?text-ink sm:w-9/)
+    assert.doesNotMatch(podium, /text-2xl font-black sm:text-3xl/)
     assert.match(podium, /variant === 'full' \? 'gap-2\.5 py-3\.5'/)
     assert.match(podium, /const isLeaderMark = variant === 'full' && rank === 1/)
+    assert.match(podium, /isLeaderMark[\s\S]*?bg-yellow/)
     assert.match(podium, /formatLiveRankDeltaLabel/)
     assert.match(podium, /formatLiveRoundPointsLabel/)
     // Compact branch untouched.
