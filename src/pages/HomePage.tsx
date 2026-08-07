@@ -269,7 +269,7 @@ export function HomePage() {
           players={homeRanking.players}
           ranks={homeRanking.ranks}
           activePlayerId={activePlayer?.id ?? ''}
-          title="Classement du groupe"
+          title="Classement"
           variant="compact"
           awaitingFirstResult={homeRanking.awaitingFirstResult}
           participantCount={homeRanking.participantCount}
@@ -285,6 +285,9 @@ export function HomePage() {
   const inputsLocked =
     isUnconfirmed || countdown.locked || nextMatch.status === 'locked'
   const stadium = venueSecondaryLabel(nextMatch.venue)
+  const hasExistingPrediction = Boolean(
+    playerId && getPredictionForMatch(predictions, nextMatch.id, playerId),
+  )
 
   return (
     <div className="page-stack">
@@ -388,7 +391,11 @@ export function HomePage() {
                 disabled={inputsLocked || saving}
                 className="btn-green w-full max-w-none sm:w-auto sm:min-w-[14rem] sm:max-w-sm"
               >
-                {saving ? 'Validation…' : 'Valider mon prono'}
+                {saving
+                  ? 'Validation…'
+                  : hasExistingPrediction
+                    ? 'Modifier mon prono'
+                    : 'Valider mon prono'}
               </button>
             </div>
           </form>
@@ -427,7 +434,7 @@ export function HomePage() {
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-1.5 bg-green-dark px-4 py-2.5 text-white sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex flex-col items-center gap-0.5 bg-green-dark px-4 py-2.5 text-center text-white sm:px-5">
           <p className="text-[11px] font-bold tracking-[0.1em] text-yellow/90 uppercase">
             {isUnconfirmed
               ? 'Pronostics'
@@ -437,11 +444,6 @@ export function HomePage() {
           </p>
           <p className="text-lg font-black tracking-wide text-yellow tabular-nums">
             {isUnconfirmed ? 'Bientôt disponible' : formatCountdown(countdown)}
-          </p>
-          <p className="text-xs text-white/85 sm:text-right">
-            {isUnconfirmed
-              ? 'L’horaire officiel n’est pas encore confirmé.'
-              : 'Jusqu’au coup d’envoi (heure serveur)'}
           </p>
         </div>
       </section>
@@ -457,7 +459,7 @@ export function HomePage() {
         players={homeRanking.players}
         ranks={homeRanking.ranks}
         activePlayerId={activePlayer?.id ?? ''}
-        title="Classement du groupe"
+        title="Classement"
         variant="compact"
         awaitingFirstResult={homeRanking.awaitingFirstResult}
         participantCount={homeRanking.participantCount}

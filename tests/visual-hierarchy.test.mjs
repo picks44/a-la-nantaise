@@ -88,7 +88,7 @@ describe('visual hierarchy polish', () => {
     assert.match(ranking, /GroupRanking/)
     assert.doesNotMatch(ranking, /isLeader \? 'bg-yellow'/)
     assert.doesNotMatch(podium, /isLeader \? 'bg-yellow'/)
-    assert.match(podium, /const isLeaderMark = rank === 1/)
+    assert.match(podium, /const isLeaderMark = variant === 'full' && rank === 1/)
   })
 
   it('keeps the heraldic crest visible in the mobile header', () => {
@@ -136,7 +136,7 @@ describe('visual hierarchy polish', () => {
     assert.match(home, /btn-green/)
     assert.match(home, /Pronostic enregistré :/)
     assert.doesNotMatch(home, /absolute top-0 bottom-0 left-0 w-1 bg-ink/)
-    assert.match(home, /Classement du groupe/)
+    assert.match(home, /title="Classement"/)
     assert.match(home, /<form/)
     assert.match(home, /type="submit"/)
     assert.match(settings, /btn-danger/)
@@ -172,10 +172,11 @@ describe('home group ranking', () => {
     assert.doesNotMatch(podium, /slice\(0,\s*3\)/)
     assert.doesNotMatch(podium, /topThree/)
     assert.match(podium, /players\.map\(/)
-    assert.match(podium, /Classement du groupe/)
+    assert.match(podium, /title = 'Classement du groupe'/)
     assert.match(podium, /awaitingFirstResult/)
     assert.match(podium, /premier match/)
-    assert.match(home, /title="Classement du groupe"/)
+    assert.match(home, /title="Classement"/)
+    assert.doesNotMatch(home, /title="Classement du groupe"/)
     assert.match(home, /selectHomeRanking/)
     assert.match(home, /homeRanking\.players/)
     assert.match(home, /homeRanking\.ranks/)
@@ -195,7 +196,7 @@ describe('home group ranking', () => {
     assert.deepEqual(ranks, [1, 1, 1, 1, 1])
   })
 
-  it('styles every tied leader the same way', () => {
+  it('keeps full leader mark and hides it on compact home rows', () => {
     const players = [
       { id: 'a', pseudo: 'Alpha', points: 0, exactScores: 0 },
       { id: 'b', pseudo: 'Bravo', points: 0, exactScores: 0 },
@@ -203,7 +204,7 @@ describe('home group ranking', () => {
     ]
     assert.deepEqual(getCompetitionRanks(players), [1, 1, 1])
     const podium = read('src/components/Podium.tsx')
-    assert.match(podium, /const isLeaderMark = rank === 1/)
+    assert.match(podium, /const isLeaderMark = variant === 'full' && rank === 1/)
     assert.doesNotMatch(
       podium,
       /isLeaderMark = rank === 1 && isFirstOccurrenceOfRank/,
@@ -218,5 +219,27 @@ describe('home group ranking', () => {
       { id: 'c', pseudo: 'Charlie', points: 1, exactScores: 0 },
     ]
     assert.deepEqual(getCompetitionRanks(players), [1, 2, 3])
+  })
+
+  it('uses compact widget copy for points, exacts, and TOI badge', () => {
+    const podium = read('src/components/Podium.tsx')
+    assert.match(podium, /variant === 'compact' \? 'TOI' : 'Toi'/)
+    assert.match(podium, /\{player\.points\} pts/)
+    assert.match(
+      podium,
+      /\$\{player\.exactScores\} exact\$\{player\.exactScores > 1 \? 's' : ''\}/,
+    )
+    assert.doesNotMatch(podium, /scores exact/)
+  })
+
+  it('shows compact hierarchy and reference-round context without live deltas', () => {
+    const podium = read('src/components/Podium.tsx')
+    assert.match(podium, /Après J\$\{referenceRoundNumber\}/)
+    assert.match(podium, /referenceRoundNumber/)
+    assert.match(podium, /text-ink\/45/)
+    assert.match(podium, /font-bold sm:text-base/)
+    assert.match(podium, /gap-2\.5 py-3/)
+    assert.match(podium, /variant === 'compact'[\s\S]*?exact\$\{/)
+    assert.doesNotMatch(podium, /variant === 'compact'[\s\S]{0,120}rankDelta/)
   })
 })

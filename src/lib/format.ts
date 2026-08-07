@@ -89,16 +89,21 @@ export function formatCountdown(parts: CountdownParts): string {
   const minutes = Math.floor((totalSeconds % 3600) / 60)
   const seconds = totalSeconds % 60
 
-  const fortyEightHoursMs = 48 * 60 * 60 * 1000
+  const twentyFourHoursMs = 24 * 60 * 60 * 1000
   const oneHourMs = 60 * 60 * 1000
+  const oneMinuteMs = 60 * 1000
 
-  if (parts.totalMs >= fortyEightHoursMs) {
-    return `${days} j · ${hoursInDay} h`
+  if (parts.totalMs > twentyFourHoursMs) {
+    return `${days} j ${hoursInDay} h`
   }
 
   if (parts.totalMs >= oneHourMs) {
-    return `${totalHours} h · ${minutes} min`
+    return `${totalHours} h ${minutes}`
   }
 
-  return `${minutes} min · ${seconds} s`
+  if (parts.totalMs >= oneMinuteMs) {
+    return `${minutes} min`
+  }
+
+  return `${seconds} sec`
 }

@@ -37,7 +37,7 @@ function RankingRow({
   variant: 'compact' | 'full'
   live: boolean
 }) {
-  const isLeaderMark = rank === 1
+  const isLeaderMark = variant === 'full' && rank === 1
   const deltaLabel = live ? formatLiveRankDeltaLabel(player.rankDelta) : null
   const roundPointsLabel = live
     ? formatLiveRoundPointsLabel(player.roundPoints)
@@ -64,19 +64,26 @@ function RankingRow({
   return (
     <li
       className={[
-        'flex items-start gap-3 bg-surface px-4',
-        variant === 'full' ? 'py-4' : 'py-2.5',
+        'flex items-start bg-surface px-4',
+        variant === 'full' ? 'gap-3 py-4' : 'gap-2.5 py-3',
         isActive ? 'border-l-2 border-l-green bg-success-soft/35' : '',
       ].join(' ')}
     >
       <span
-        className="flex w-11 shrink-0 flex-col items-start text-green-dark sm:w-12"
+        className={[
+          'flex shrink-0',
+          variant === 'full'
+            ? 'w-11 flex-col items-start text-green-dark sm:w-12'
+            : 'w-5 items-baseline pt-0.5 text-ink/45',
+        ].join(' ')}
         aria-label={rankAria}
       >
         <span
           className={[
-            'font-black leading-none tabular-nums',
-            variant === 'full' ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl',
+            'leading-none tabular-nums',
+            variant === 'full'
+              ? 'text-2xl font-black sm:text-3xl'
+              : 'text-sm font-semibold sm:text-[0.9375rem]',
           ].join(' ')}
         >
           {rank}
@@ -93,15 +100,17 @@ function RankingRow({
         <div className="flex flex-wrap items-center gap-2">
           <p
             className={[
-              'truncate font-semibold',
-              variant === 'full' ? 'text-base sm:text-lg' : 'text-sm sm:text-base',
+              'truncate',
+              variant === 'full'
+                ? 'text-base font-semibold sm:text-lg'
+                : 'text-sm font-bold sm:text-base',
             ].join(' ')}
           >
             {player.pseudo}
           </p>
           {isActive ? (
             <span className="badge-text border-green bg-green text-white">
-              Toi
+              {variant === 'compact' ? 'TOI' : 'Toi'}
             </span>
           ) : null}
           {variant === 'full' && !player.isActive ? (
@@ -157,25 +166,26 @@ function RankingRow({
         ) : null}
 
         {variant === 'compact' ? (
-          <p className="mt-0.5 text-xs font-medium text-ink/70">
-            {`${player.exactScores} score${player.exactScores > 1 ? 's' : ''} exact${player.exactScores > 1 ? 's' : ''}`}
+          <p className="mt-1 text-xs font-medium text-ink/60">
+            {`${player.exactScores} exact${player.exactScores > 1 ? 's' : ''}`}
           </p>
         ) : null}
       </div>
 
-      <div className="shrink-0 text-right">
-        <p
-          className={[
-            'font-black tabular-nums leading-none',
-            variant === 'full' ? 'text-2xl' : 'text-base sm:text-lg',
-          ].join(' ')}
-        >
-          {player.points}
+      {variant === 'compact' ? (
+        <p className="shrink-0 self-start pt-0.5 text-sm font-black tabular-nums sm:text-base">
+          {player.points} pts
         </p>
-        <p className="mt-0.5 text-xs font-semibold tracking-wider uppercase text-ink/55">
-          pts
-        </p>
-      </div>
+      ) : (
+        <div className="shrink-0 text-right">
+          <p className="text-2xl font-black tabular-nums leading-none">
+            {player.points}
+          </p>
+          <p className="mt-0.5 text-xs font-semibold tracking-wider uppercase text-ink/55">
+            pts
+          </p>
+        </div>
+      )}
     </li>
   )
 }
@@ -184,31 +194,53 @@ function RankingHeader({
   title,
   showLink,
   badge,
+  context,
 }: {
   title: string
   showLink: boolean
   badge?: string | null
+  /** Compact Home : contexte de journée (ex. « Après J4 »). */
+  context?: string | null
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-      <div className="flex min-w-0 items-center gap-3">
-        <span aria-hidden="true" className="h-5 w-1.5 shrink-0 bg-green" />
-        <h2
-          id="group-ranking-title"
-          className="truncate text-sm font-black tracking-[0.06em] uppercase"
-        >
-          {title}
-        </h2>
-        {badge ? (
-          <span className="badge-text shrink-0 border-border bg-surface-muted text-muted">
-            {badge}
-          </span>
-        ) : null}
+    <div
+      className={[
+        'flex justify-between gap-3 border-b border-border px-4',
+        context ? 'items-start py-3.5' : 'items-center py-3',
+      ].join(' ')}
+    >
+      <div className="flex min-w-0 items-start gap-3">
+        <span
+          aria-hidden="true"
+          className={[
+            'w-1.5 shrink-0 bg-green',
+            context ? 'mt-0.5 h-8' : 'h-5',
+          ].join(' ')}
+        />
+        <div className="min-w-0">
+          <h2
+            id="group-ranking-title"
+            className="truncate text-sm font-black tracking-[0.06em] uppercase"
+          >
+            {title}
+          </h2>
+          {context ? (
+            <p className="mt-0.5 text-xs font-medium text-muted">{context}</p>
+          ) : null}
+          {badge ? (
+            <span className="badge-text mt-1 shrink-0 border-border bg-surface-muted text-muted">
+              {badge}
+            </span>
+          ) : null}
+        </div>
       </div>
       {showLink ? (
         <Link
           to="/classement"
-          className="shrink-0 text-[11px] font-bold tracking-[0.1em] text-green uppercase underline-offset-2 hover:underline"
+          className={[
+            'shrink-0 text-[11px] font-bold tracking-[0.1em] text-green uppercase underline-offset-2 hover:underline',
+            context ? 'pt-0.5' : '',
+          ].join(' ')}
         >
           Voir le classement
         </Link>
@@ -232,6 +264,13 @@ export function GroupRanking({
 }: GroupRankingProps) {
   // Statut provisoire/définitif : un seul contexte (récap ou chrome RankingPage), pas de badge header.
   const badge = null
+  const referenceRoundNumber = players.find(
+    (player) => player.referenceRoundNumber != null,
+  )?.referenceRoundNumber
+  const compactContext =
+    variant === 'compact' && referenceRoundNumber != null
+      ? `Après J${referenceRoundNumber}`
+      : null
 
   if (awaitingFirstResult) {
     const count = participantCount > 0 ? participantCount : players.length
@@ -277,7 +316,12 @@ export function GroupRanking({
 
   return (
     <section aria-labelledby="group-ranking-title" className="panel overflow-hidden">
-      <RankingHeader title={title} showLink={showLink} badge={badge} />
+      <RankingHeader
+        title={title}
+        showLink={showLink}
+        badge={badge}
+        context={compactContext}
+      />
 
       <ol className="divide-y divide-border">
         {players.map((player, index) => {

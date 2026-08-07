@@ -70,25 +70,39 @@ describe('admin migration', () => {
 })
 
 describe('formatCountdown', () => {
-  it('formats long durations with days', () => {
+  it('formats durations over 24h with days and hours only', () => {
     const now = new Date('2026-08-03T10:00:00Z')
-    const kickoff = new Date('2026-08-29T20:00:00Z').toISOString()
+    const kickoff = new Date('2026-08-06T15:00:00Z').toISOString()
     const parts = getCountdown(kickoff, now)
-    assert.match(formatCountdown(parts), /^\d+ j · \d+ h$/)
+    assert.equal(formatCountdown(parts), '3 j 5 h')
   })
 
-  it('formats mid durations with hours and minutes', () => {
+  it('formats 26h as days and hours (24h threshold)', () => {
     const now = new Date('2026-08-03T10:00:00Z')
-    const kickoff = new Date('2026-08-04T04:24:00Z').toISOString()
+    const kickoff = new Date('2026-08-04T12:00:00Z').toISOString()
     const parts = getCountdown(kickoff, now)
-    assert.equal(formatCountdown(parts), '18 h · 24 min')
+    assert.equal(formatCountdown(parts), '1 j 2 h')
   })
 
-  it('formats short durations with minutes and seconds', () => {
+  it('formats mid durations under 24h with hours and minutes', () => {
     const now = new Date('2026-08-03T10:00:00Z')
-    const kickoff = new Date('2026-08-03T10:42:18Z').toISOString()
+    const kickoff = new Date('2026-08-03T22:42:00Z').toISOString()
     const parts = getCountdown(kickoff, now)
-    assert.equal(formatCountdown(parts), '42 min · 18 s')
+    assert.equal(formatCountdown(parts), '12 h 42')
+  })
+
+  it('formats under 1h with minutes only', () => {
+    const now = new Date('2026-08-03T10:00:00Z')
+    const kickoff = new Date('2026-08-03T10:45:30Z').toISOString()
+    const parts = getCountdown(kickoff, now)
+    assert.equal(formatCountdown(parts), '45 min')
+  })
+
+  it('formats under 1min with seconds only', () => {
+    const now = new Date('2026-08-03T10:00:00Z')
+    const kickoff = new Date('2026-08-03T10:00:30Z').toISOString()
+    const parts = getCountdown(kickoff, now)
+    assert.equal(formatCountdown(parts), '30 sec')
   })
 
   it('shows locked state after kickoff', () => {
@@ -97,5 +111,19 @@ describe('formatCountdown', () => {
     const parts = getCountdown(kickoff, now)
     assert.equal(parts.locked, true)
     assert.equal(formatCountdown(parts), 'Verrouillé')
+  })
+
+  it('does not use middle-dot separators', () => {
+    const now = new Date('2026-08-03T10:00:00Z')
+    const overDay = getCountdown(
+      new Date('2026-08-05T10:00:00Z').toISOString(),
+      now,
+    )
+    const underDay = getCountdown(
+      new Date('2026-08-03T22:00:00Z').toISOString(),
+      now,
+    )
+    assert.equal(formatCountdown(overDay).includes('·'), false)
+    assert.equal(formatCountdown(underDay).includes('·'), false)
   })
 })
