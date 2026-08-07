@@ -37,7 +37,7 @@ import {
   getCountdown,
   venueSecondaryLabel,
 } from '../lib/format'
-import { pointsResultLabel } from '../lib/status'
+import { getLastMatchPerformance } from '../lib/lastMatchDisplay'
 import type {
   Match,
   Player,
@@ -470,6 +470,28 @@ export function HomePage() {
   )
 }
 
+function lastMatchRewardClass(tone: 'exact' | 'good' | 'miss'): {
+  verdict: string
+  points: string
+} {
+  if (tone === 'exact') {
+    return {
+      verdict: 'badge border-yellow/40 text-yellow',
+      points: 'text-yellow',
+    }
+  }
+  if (tone === 'good') {
+    return {
+      verdict: 'text-white',
+      points: 'text-white',
+    }
+  }
+  return {
+    verdict: 'text-white/80',
+    points: 'text-white/85',
+  }
+}
+
 function LastMatchBlock({
   match,
   prediction,
@@ -479,7 +501,11 @@ function LastMatchBlock({
 }) {
   if (!match?.finalScore) return null
 
-  const resultLabel = pointsResultLabel(prediction?.points)
+  const performance = getLastMatchPerformance(prediction)
+  const rewardClass =
+    performance.kind === 'scored'
+      ? lastMatchRewardClass(performance.tone)
+      : null
 
   return (
     <section
@@ -499,30 +525,62 @@ function LastMatchBlock({
       </div>
 
       <div className="px-4 py-4">
-        <p className="text-center text-sm font-semibold leading-snug text-yellow">
-          {match.homeTeam}
-          <span className="mx-2 text-white/40">vs</span>
-          {match.awayTeam}
-        </p>
-        <p className="mt-2 text-center font-black tracking-tight text-yellow tabular-nums text-4xl sm:text-5xl">
-          {match.finalScore.home}
-          <span className="mx-2 text-2xl text-white/35">–</span>
-          {match.finalScore.away}
-        </p>
+        <div className="text-center">
+          <p className="text-[11px] font-bold tracking-[0.1em] text-white/55 uppercase">
+            Score final
+          </p>
+          <p className="mt-1 text-sm font-semibold leading-snug text-white/75">
+            {match.homeTeam}
+            <span className="mx-2 font-black tabular-nums text-white/90">
+              {match.finalScore.home}
+              <span className="mx-1 text-white/40">–</span>
+              {match.finalScore.away}
+            </span>
+            {match.awayTeam}
+          </p>
+        </div>
 
-        <div className="mt-4 border border-white/15 bg-ink/40 px-3 py-3">
+        <div className="mt-5 text-center">
           <p className="text-[11px] font-bold tracking-[0.1em] text-white/55 uppercase">
             Ton prono
           </p>
-          <p className="mt-1 text-lg font-black tabular-nums">
-            {prediction
-              ? `${prediction.homeScore} – ${prediction.awayScore}`
-              : 'Aucun'}
-          </p>
-          {resultLabel ? (
-            <p className="badge mt-3 border-yellow bg-yellow text-ink">
-              {resultLabel}
+          {performance.kind === 'missing' ? (
+            <p className="mt-1 text-lg font-black text-white/85">
+              Non pronostiqué
             </p>
+          ) : (
+            <p className="mt-1 font-black tracking-tight text-yellow tabular-nums text-3xl sm:text-4xl">
+              {performance.homeScore}
+              <span className="mx-2 text-xl text-white/35">–</span>
+              {performance.awayScore}
+            </p>
+          )}
+
+          {performance.kind === 'pending' ? (
+            <p className="mt-3 text-sm font-semibold text-white/60">
+              Résultat en attente
+            </p>
+          ) : null}
+
+          {performance.kind === 'scored' && rewardClass ? (
+            <div className="mt-4 flex flex-col items-center gap-0.5">
+              <p
+                className={[
+                  'text-sm font-extrabold tracking-wide',
+                  rewardClass.verdict,
+                ].join(' ')}
+              >
+                {performance.resultLabel}
+              </p>
+              <p
+                className={[
+                  'text-2xl font-black tabular-nums',
+                  rewardClass.points,
+                ].join(' ')}
+              >
+                {performance.pointsLabel}
+              </p>
+            </div>
           ) : null}
         </div>
       </div>

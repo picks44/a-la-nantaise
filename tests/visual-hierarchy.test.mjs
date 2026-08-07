@@ -223,13 +223,36 @@ describe('home group ranking', () => {
 
   it('uses compact widget copy for points, exacts, and TOI badge', () => {
     const podium = read('src/components/Podium.tsx')
-    assert.match(podium, /variant === 'compact' \? 'TOI' : 'Toi'/)
+    assert.match(podium, /badge-text border-green bg-green text-white[\s\S]*TOI/)
+    assert.doesNotMatch(podium, />Toi</)
     assert.match(podium, /\{player\.points\} pts/)
     assert.match(
       podium,
       /\$\{player\.exactScores\} exact\$\{player\.exactScores > 1 \? 's' : ''\}/,
     )
     assert.doesNotMatch(podium, /scores exact/)
+  })
+
+  it('converges full ranking to compact language without dropping live detail', () => {
+    const podium = read('src/components/Podium.tsx')
+    // Full: inline "N pts", reduced rank, denser row — not the stacked PTS block.
+    assert.match(
+      podium,
+      /variant === 'compact'[\s\S]*?\{player\.points\} pts[\s\S]*?\{player\.points\} pts/,
+    )
+    assert.doesNotMatch(
+      podium,
+      /tracking-wider uppercase text-ink\/55[\s\S]*pts/,
+    )
+    assert.match(podium, /variant === 'full'[\s\S]*?text-lg font-black sm:text-xl/)
+    assert.match(podium, /variant === 'full' \? 'gap-2\.5 py-3\.5'/)
+    assert.match(podium, /const isLeaderMark = variant === 'full' && rank === 1/)
+    assert.match(podium, /formatLiveRankDeltaLabel/)
+    assert.match(podium, /formatLiveRoundPointsLabel/)
+    // Compact branch untouched.
+    assert.match(podium, /gap-2\.5 py-3/)
+    assert.match(podium, /w-5 items-baseline pt-0\.5 text-ink\/45/)
+    assert.match(podium, /text-sm font-semibold sm:text-\[0\.9375rem\]/)
   })
 
   it('shows compact hierarchy and reference-round context without live deltas', () => {

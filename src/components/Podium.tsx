@@ -65,7 +65,7 @@ function RankingRow({
     <li
       className={[
         'flex items-start bg-surface px-4',
-        variant === 'full' ? 'gap-3 py-4' : 'gap-2.5 py-3',
+        variant === 'full' ? 'gap-2.5 py-3.5' : 'gap-2.5 py-3',
         isActive ? 'border-l-2 border-l-green bg-success-soft/35' : '',
       ].join(' ')}
     >
@@ -73,7 +73,7 @@ function RankingRow({
         className={[
           'flex shrink-0',
           variant === 'full'
-            ? 'w-11 flex-col items-start text-green-dark sm:w-12'
+            ? 'w-8 flex-col items-start text-ink/55 sm:w-9'
             : 'w-5 items-baseline pt-0.5 text-ink/45',
         ].join(' ')}
         aria-label={rankAria}
@@ -82,7 +82,7 @@ function RankingRow({
           className={[
             'leading-none tabular-nums',
             variant === 'full'
-              ? 'text-2xl font-black sm:text-3xl'
+              ? 'text-lg font-black sm:text-xl'
               : 'text-sm font-semibold sm:text-[0.9375rem]',
           ].join(' ')}
         >
@@ -98,19 +98,12 @@ function RankingRow({
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <p
-            className={[
-              'truncate',
-              variant === 'full'
-                ? 'text-base font-semibold sm:text-lg'
-                : 'text-sm font-bold sm:text-base',
-            ].join(' ')}
-          >
+          <p className="truncate text-sm font-bold sm:text-base">
             {player.pseudo}
           </p>
           {isActive ? (
             <span className="badge-text border-green bg-green text-white">
-              {variant === 'compact' ? 'TOI' : 'Toi'}
+              TOI
             </span>
           ) : null}
           {variant === 'full' && !player.isActive ? (
@@ -129,11 +122,11 @@ function RankingRow({
         {variant === 'full' && live ? (
           secondaryLine ? (
             player.isNewToRanking ? (
-              <p className="mt-1.5 text-xs font-medium text-ink/55">
+              <p className="mt-1 text-xs font-medium text-ink/60">
                 {secondaryLine}
               </p>
             ) : (
-              <p className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 text-xs font-medium text-ink/55">
+              <p className="mt-1 flex flex-wrap items-baseline gap-x-1.5 text-xs font-medium text-ink/60">
                 {deltaLabel ? (
                   <span
                     className={[
@@ -142,7 +135,7 @@ function RankingRow({
                         ? 'text-green-dark'
                         : deltaNegative
                           ? 'text-warning'
-                          : 'text-ink/55',
+                          : 'text-ink/60',
                     ].join(' ')}
                   >
                     {deltaLabel}
@@ -152,14 +145,14 @@ function RankingRow({
                   <span aria-hidden="true">·</span>
                 ) : null}
                 {roundPointsLabel ? (
-                  <span className="tabular-nums text-ink/55">
+                  <span className="tabular-nums text-ink/60">
                     {roundPointsLabel}
                   </span>
                 ) : null}
               </p>
             )
           ) : (
-            <p className="mt-1.5 text-xs font-medium text-ink/55">
+            <p className="mt-1 text-xs font-medium text-ink/60">
               Aucun résultat noté
             </p>
           )
@@ -177,14 +170,9 @@ function RankingRow({
           {player.points} pts
         </p>
       ) : (
-        <div className="shrink-0 text-right">
-          <p className="text-2xl font-black tabular-nums leading-none">
-            {player.points}
-          </p>
-          <p className="mt-0.5 text-xs font-semibold tracking-wider uppercase text-ink/55">
-            pts
-          </p>
-        </div>
+        <p className="shrink-0 self-start pt-0.5 text-right text-base font-black tabular-nums sm:text-lg">
+          {player.points} pts
+        </p>
       )}
     </li>
   )
