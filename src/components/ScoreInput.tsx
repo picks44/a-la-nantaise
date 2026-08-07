@@ -27,7 +27,9 @@ export function ScoreInput({
     <div
       className={[
         'flex min-w-0 flex-1 flex-col',
-        isBoard ? 'items-center gap-1.5' : 'items-center gap-2',
+        isBoard
+          ? 'items-center gap-1 sm:gap-1.5'
+          : 'items-center gap-2',
       ].join(' ')}
     >
       <label
@@ -58,7 +60,7 @@ export function ScoreInput({
         className={[
           'text-center font-black tabular-nums transition-[color,background-color,border-color,box-shadow] duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-50',
           isBoard
-            ? 'mx-auto w-full max-w-[5.5rem] rounded-[var(--radius-sm)] border-2 border-green-dark bg-green-dark py-2.5 text-3xl text-yellow shadow-sm ring-offset-2 hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ink sm:max-w-[6.5rem] sm:py-3 sm:text-4xl'
+            ? 'mx-auto w-full max-w-[5.5rem] rounded-[var(--radius-sm)] border-2 border-green-dark bg-green-dark py-2 text-[1.75rem] text-yellow shadow-sm ring-offset-2 hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ink sm:max-w-[6.5rem] sm:py-3 sm:text-4xl'
             : 'w-full max-w-[5.5rem] rounded-[var(--radius-sm)] border border-border bg-surface text-3xl text-ink',
         ].join(' ')}
       />

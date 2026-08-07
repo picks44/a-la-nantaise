@@ -295,12 +295,12 @@ export function HomePage() {
         aria-labelledby="next-match-title"
         className="overflow-hidden rounded-[var(--radius-md)] border border-ink bg-yellow"
       >
-        <div className="flex items-start justify-between gap-3 border-b border-ink/15 px-4 py-2.5 sm:px-5">
+        <div className="flex items-start justify-between gap-2 border-b border-ink/15 px-4 py-2 sm:gap-3 sm:px-5 sm:py-2.5">
           <div className="min-w-0">
             <p className="text-[11px] font-bold tracking-[0.1em] text-ink/70 uppercase">
               Journée {nextMatch.matchday} · Ligue 2
             </p>
-            <p className="mt-1 text-sm font-bold text-ink sm:text-base">
+            <p className="mt-0.5 text-sm font-bold text-ink sm:mt-1 sm:text-base">
               {isUnconfirmed ? (
                 formatMatchDate(nextMatch.kickoffAt)
               ) : (
@@ -321,7 +321,7 @@ export function HomePage() {
           </div>
           <span
             className={[
-              'badge shrink-0',
+              'badge shrink-0 max-sm:px-1.5 max-sm:text-[9px] max-sm:tracking-[0.06em]',
               isUnconfirmed
                 ? 'border-border bg-surface-muted text-muted'
                 : inputsLocked
@@ -337,8 +337,8 @@ export function HomePage() {
           </span>
         </div>
 
-        <div className="px-4 py-4 sm:px-5">
-          <div className="flex flex-col items-center gap-1 text-center">
+        <div className="px-4 py-2.5 sm:px-5 sm:py-4">
+          <div className="flex flex-col items-center gap-0.5 text-center sm:gap-1">
             <h1 id="next-match-title" className="sr-only">
               {nextMatch.homeTeam} contre {nextMatch.awayTeam}
             </h1>
@@ -348,7 +348,7 @@ export function HomePage() {
           </div>
 
           <form
-            className="mt-3 flex flex-col gap-3"
+            className="mt-2 flex flex-col gap-2 sm:mt-3 sm:gap-3"
             onSubmit={(event) => {
               event.preventDefault()
               void handleSave()
@@ -368,7 +368,7 @@ export function HomePage() {
               />
               <span
                 aria-hidden="true"
-                className="pb-3 text-xl font-black text-ink/40 sm:pb-3.5 sm:text-2xl"
+                className="pb-2 text-lg font-black text-ink/30 sm:pb-3.5 sm:text-2xl sm:text-ink/40"
               >
                 –
               </span>
@@ -389,7 +389,7 @@ export function HomePage() {
               <button
                 type="submit"
                 disabled={inputsLocked || saving}
-                className="btn-green w-full max-w-none sm:w-auto sm:min-w-[14rem] sm:max-w-sm"
+                className="btn-green w-[85%] max-w-none sm:w-auto sm:min-w-[14rem] sm:max-w-sm"
               >
                 {saving
                   ? 'Validation…'
@@ -403,7 +403,7 @@ export function HomePage() {
           {saveError ? (
             <p
               role="alert"
-              className="mt-3 border border-danger bg-danger-soft px-3 py-2 text-center text-sm font-semibold text-danger"
+              className="mt-1.5 border border-danger bg-danger-soft px-3 py-2 text-center text-sm font-semibold text-danger sm:mt-3"
             >
               {saveError}
             </p>
@@ -413,7 +413,7 @@ export function HomePage() {
             <p
               role="status"
               aria-live="polite"
-              className="ui-success-pop mt-3 rounded-[var(--radius-sm)] border border-green/30 bg-success-soft px-3 py-2 text-center text-sm font-semibold text-success"
+              className="ui-success-pop mt-1.5 rounded-[var(--radius-sm)] border border-green/30 bg-success-soft px-3 py-2 text-center text-sm font-semibold text-success sm:mt-3"
             >
               <CheckCircle2
                 aria-hidden="true"
@@ -425,7 +425,7 @@ export function HomePage() {
               </span>
             </p>
           ) : saved && !saveError ? (
-            <p className="mt-3 text-center text-sm font-medium text-green-dark/90">
+            <p className="mt-1.5 text-center text-xs font-medium text-green-dark/90 sm:mt-3 sm:text-sm">
               Ton prono :{' '}
               <span className="font-black tabular-nums">
                 {draft.home}–{draft.away}
@@ -434,7 +434,7 @@ export function HomePage() {
           ) : null}
         </div>
 
-        <div className="flex flex-col items-center gap-0.5 bg-green-dark px-4 py-2.5 text-center text-white sm:px-5">
+        <div className="flex flex-col items-center gap-0 bg-green-dark px-4 py-1.5 text-center text-white sm:gap-0.5 sm:px-5 sm:py-2.5">
           <p className="text-[11px] font-bold tracking-[0.1em] text-yellow/90 uppercase">
             {isUnconfirmed
               ? 'Pronostics'
