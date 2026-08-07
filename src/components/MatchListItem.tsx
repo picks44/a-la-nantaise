@@ -1,12 +1,12 @@
 import { Link } from 'react-router-dom'
 import type { Match, MatchGroupReveal, Prediction } from '../types'
 import {
-  formatCalendarPersonalPrediction,
   formatCalendarPoints,
   formatFutureMatchMeta,
   formatParticipantPointsLabel,
   formatParticipantPredictionScore,
   formatSavedPrediction,
+  getCalendarPersonalPredictionView,
   selectClosedGroupSummary,
   selectParticipantBadge,
 } from '../lib/calendarDisplay'
@@ -218,17 +218,17 @@ export function MatchListItem({
         </div>
 
         {isFinished ? (
-          <p className="mt-3 text-sm font-semibold tabular-nums text-white">
-            {formatCalendarPersonalPrediction(
+          <FinishedPersonalPrediction
+            prediction={
               prediction
                 ? {
                     homeScore: prediction.homeScore,
                     awayScore: prediction.awayScore,
                     points: prediction.points,
                   }
-                : null,
-            )}
-          </p>
+                : null
+            }
+          />
         ) : null}
 
         {(match.status === 'predicted' || match.status === 'locked') &&
@@ -236,7 +236,7 @@ export function MatchListItem({
           <div className="mt-2.5 rounded-[var(--radius-sm)] border border-border bg-canvas/70 px-3 py-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 flex-1 items-baseline gap-3">
-                <span className="label-caps shrink-0">Votre pronostic</span>
+                <span className="label-caps shrink-0">Ton prono</span>
                 <span className="font-black tabular-nums text-green-dark text-lg">
                   {prediction.homeScore} – {prediction.awayScore}
                 </span>
@@ -245,9 +245,9 @@ export function MatchListItem({
                 <Link
                   to="/"
                   className="btn-ghost min-h-10 whitespace-nowrap"
-                  aria-label="Modifier votre pronostic"
+                  aria-label="Voir mon prono sur l’accueil"
                 >
-                  Modifier
+                  Voir mon prono
                 </Link>
               ) : null}
             </div>
@@ -289,6 +289,46 @@ export function MatchListItem({
     >
       {cardInner}
     </article>
+  )
+}
+
+function FinishedPersonalPrediction({
+  prediction,
+}: {
+  prediction: {
+    homeScore: number
+    awayScore: number
+    points?: number | null
+  } | null
+}) {
+  const view = getCalendarPersonalPredictionView(prediction)
+
+  if (view.kind === 'missing') {
+    return (
+      <p className="mt-3 text-sm font-semibold text-white/85">{view.label}</p>
+    )
+  }
+
+  if (view.kind === 'pending') {
+    return (
+      <p className="mt-3 text-sm font-semibold tabular-nums text-white">
+        {view.scoreLine}
+      </p>
+    )
+  }
+
+  return (
+    <div className="mt-3 space-y-0.5 text-center sm:text-left">
+      <p className="text-sm font-semibold tabular-nums text-white">
+        {view.scoreLine}
+      </p>
+      <p className="text-sm font-extrabold tracking-wide text-yellow">
+        {view.verdict}
+      </p>
+      <p className="text-lg font-black tabular-nums text-white">
+        {view.pointsLabel}
+      </p>
+    </div>
   )
 }
 

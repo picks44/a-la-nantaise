@@ -9,6 +9,7 @@ import {
   formatDominantTendency,
   formatParticipantPointsLabel,
   formatParticipantPredictionScore,
+  getCalendarPersonalPredictionView,
   selectClosedGroupSummary,
   selectParticipantBadge,
 } from '../src/lib/calendarDisplay.ts'
@@ -28,14 +29,14 @@ describe('formatCalendarPoints', () => {
 })
 
 describe('formatCalendarPersonalPrediction', () => {
-  it('handles scored predictions', () => {
+  it('handles scored predictions with Home verdict language', () => {
     assert.equal(
       formatCalendarPersonalPrediction({
         homeScore: 1,
         awayScore: 1,
         points: 3,
       }),
-      'Ton prono : 1–1 · +3 pts',
+      'Ton prono : 1–1 · Pleine lucarne · +3 pts',
     )
     assert.equal(
       formatCalendarPersonalPrediction({
@@ -43,7 +44,7 @@ describe('formatCalendarPersonalPrediction', () => {
         awayScore: 0,
         points: 1,
       }),
-      'Ton prono : 2–0 · +1 pt',
+      'Ton prono : 2–0 · Bon résultat · +1 pt',
     )
     assert.equal(
       formatCalendarPersonalPrediction({
@@ -51,13 +52,13 @@ describe('formatCalendarPersonalPrediction', () => {
         awayScore: 1,
         points: 0,
       }),
-      'Ton prono : 0–1 · 0 pt',
+      'Ton prono : 0–1 · À côté du score · 0 pt',
     )
   })
 
   it('handles missing prediction', () => {
-    assert.equal(formatCalendarPersonalPrediction(null), 'Aucun pronostic')
-    assert.equal(formatCalendarPersonalPrediction(undefined), 'Aucun pronostic')
+    assert.equal(formatCalendarPersonalPrediction(null), 'Non pronostiqué')
+    assert.equal(formatCalendarPersonalPrediction(undefined), 'Non pronostiqué')
   })
 
   it('omits points when the prediction is not scored yet', () => {
@@ -75,6 +76,24 @@ describe('formatCalendarPersonalPrediction', () => {
         awayScore: 0,
       }),
       'Ton prono : 1–0',
+    )
+  })
+})
+
+describe('getCalendarPersonalPredictionView', () => {
+  it('splits score, verdict and points for finished cards', () => {
+    assert.deepEqual(
+      getCalendarPersonalPredictionView({
+        homeScore: 0,
+        awayScore: 2,
+        points: 0,
+      }),
+      {
+        kind: 'scored',
+        scoreLine: 'Ton prono : 0–2',
+        verdict: 'À côté du score',
+        pointsLabel: '0 pt',
+      },
     )
   })
 })
@@ -186,10 +205,10 @@ describe('MatchListItem closed summary wiring (K1)', () => {
   const calendar = read('src/pages/CalendarPage.tsx')
 
   it('uses compact personal prediction and group summary helpers', () => {
-    assert.match(item, /formatCalendarPersonalPrediction/)
+    assert.match(item, /getCalendarPersonalPredictionView/)
     assert.match(item, /selectClosedGroupSummary/)
+    assert.match(item, /FinishedPersonalPrediction/)
     assert.doesNotMatch(item, /pointsResultLabel/)
-    assert.doesNotMatch(item, /Pleine lucarne/)
     assert.doesNotMatch(item, /Sans prono/)
     assert.doesNotMatch(item, /Pronos uniques/)
     assert.doesNotMatch(item, /StatChip/)
@@ -219,6 +238,17 @@ describe('MatchListItem closed summary wiring (K1)', () => {
     assert.match(calendar, /findLastFinishedMatch/)
     assert.match(calendar, /detailsOpenById/)
     assert.match(calendar, /detailsOpen=\{isDetailsOpen\(match\.id\)\}/)
+  })
+
+  it('structures the calendar as next / upcoming / finished sections', () => {
+    assert.match(calendar, /Prochain match/)
+    assert.match(calendar, /À venir/)
+    assert.match(calendar, /Terminés/)
+    assert.match(calendar, /nextItems/)
+    assert.match(calendar, /upcomingItems/)
+    assert.match(calendar, /finishedItems/)
+    assert.doesNotMatch(calendar, /<form/)
+    assert.doesNotMatch(calendar, /type="number"/)
   })
 })
 
@@ -305,7 +335,7 @@ describe('MatchListItem open details wiring (K2)', () => {
   })
 
   it('preserves K1 closed summary helpers', () => {
-    assert.match(item, /formatCalendarPersonalPrediction/)
+    assert.match(item, /getCalendarPersonalPredictionView/)
     assert.match(item, /selectClosedGroupSummary/)
     assert.match(item, /Afficher les détails/)
     assert.doesNotMatch(item, /Sans prono/)

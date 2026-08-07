@@ -321,15 +321,6 @@ export function CalendarPage() {
     })
   }, [revealStates])
 
-  const showJumpToNext = useMemo(
-    () =>
-      shouldShowJumpToNextMatch(
-        items.map((item) => item.match.id),
-        nextOpenId,
-      ),
-    [items, nextOpenId],
-  )
-
   useEffect(() => {
     if (!highlightMatchId || matches.length === 0 || !playerId) return
     const target = matches.find((match) => match.id === highlightMatchId)
@@ -367,6 +358,67 @@ export function CalendarPage() {
   const showInitialLoading = loading && matches.length === 0
   const showInitialError = Boolean(error) && matches.length === 0
 
+  const nextItems = useMemo(
+    () =>
+      nextOpenId
+        ? items.filter(({ match }) => match.id === nextOpenId)
+        : [],
+    [items, nextOpenId],
+  )
+  const upcomingItems = useMemo(
+    () =>
+      items.filter(
+        ({ match }) =>
+          match.status !== 'finished' && match.id !== nextOpenId,
+      ),
+    [items, nextOpenId],
+  )
+  const finishedItems = useMemo(
+    () => items.filter(({ match }) => match.status === 'finished'),
+    [items],
+  )
+  const displayOrderIds = useMemo(
+    () => [
+      ...nextItems.map(({ match }) => match.id),
+      ...upcomingItems.map(({ match }) => match.id),
+      ...finishedItems.map(({ match }) => match.id),
+    ],
+    [finishedItems, nextItems, upcomingItems],
+  )
+  const showJumpToNext = shouldShowJumpToNextMatch(displayOrderIds, nextOpenId)
+
+  function renderMatchRow(match: Match, prediction: Prediction | undefined) {
+    const revealState = getRevealState(revealStates, match.id)
+    return (
+      <li key={match.id}>
+        <MatchListItem
+          match={match}
+          prediction={prediction}
+          reveal={
+            revealState.status === 'success' ? revealState.data : undefined
+          }
+          revealLoading={revealState.status === 'loading'}
+          revealError={
+            revealState.status === 'error' ? revealState.error : null
+          }
+          isNext={match.id === nextOpenId}
+          isPredictionTarget={match.id === nextOpenId}
+          highlighted={match.id === highlightMatchId}
+          detailsOpen={isDetailsOpen(match.id)}
+          onDetailsOpenChange={(open) => {
+            setDetailsOpenById((current) => ({
+              ...current,
+              [match.id]: open,
+            }))
+          }}
+          onRetryReveal={() => {
+            revealLoader.retryReveal(match.id)
+          }}
+        />
+      </li>
+    )
+  }
+
   return (
     <div className="page-stack">
       <PageHeader
@@ -401,41 +453,61 @@ export function CalendarPage() {
           </p>
         </div>
       ) : (
-        <ul className="space-y-2.5">
-          {items.map(({ match, prediction }) => {
-            const revealState = getRevealState(revealStates, match.id)
-            return (
-              <li key={match.id}>
-                <MatchListItem
-                  match={match}
-                  prediction={prediction}
-                  reveal={
-                    revealState.status === 'success'
-                      ? revealState.data
-                      : undefined
-                  }
-                  revealLoading={revealState.status === 'loading'}
-                  revealError={
-                    revealState.status === 'error' ? revealState.error : null
-                  }
-                  isNext={match.id === nextOpenId}
-                  isPredictionTarget={match.id === nextOpenId}
-                  highlighted={match.id === highlightMatchId}
-                  detailsOpen={isDetailsOpen(match.id)}
-                  onDetailsOpenChange={(open) => {
-                    setDetailsOpenById((current) => ({
-                      ...current,
-                      [match.id]: open,
-                    }))
-                  }}
-                  onRetryReveal={() => {
-                    revealLoader.retryReveal(match.id)
-                  }}
-                />
-              </li>
-            )
-          })}
-        </ul>
+        <div className="space-y-6">
+          {nextItems.length > 0 ? (
+            <section aria-labelledby="calendar-next-heading" className="space-y-2.5">
+              <h2
+                id="calendar-next-heading"
+                className="text-[11px] font-bold tracking-[0.12em] text-ink/55 uppercase"
+              >
+                Prochain match
+              </h2>
+              <ul className="space-y-2.5">
+                {nextItems.map(({ match, prediction }) =>
+                  renderMatchRow(match, prediction),
+                )}
+              </ul>
+            </section>
+          ) : null}
+
+          {upcomingItems.length > 0 ? (
+            <section
+              aria-labelledby="calendar-upcoming-heading"
+              className="space-y-2.5"
+            >
+              <h2
+                id="calendar-upcoming-heading"
+                className="text-[11px] font-bold tracking-[0.12em] text-ink/55 uppercase"
+              >
+                À venir
+              </h2>
+              <ul className="space-y-2.5">
+                {upcomingItems.map(({ match, prediction }) =>
+                  renderMatchRow(match, prediction),
+                )}
+              </ul>
+            </section>
+          ) : null}
+
+          {finishedItems.length > 0 ? (
+            <section
+              aria-labelledby="calendar-finished-heading"
+              className="space-y-2.5"
+            >
+              <h2
+                id="calendar-finished-heading"
+                className="text-[11px] font-bold tracking-[0.12em] text-ink/55 uppercase"
+              >
+                Terminés
+              </h2>
+              <ul className="space-y-2.5">
+                {finishedItems.map(({ match, prediction }) =>
+                  renderMatchRow(match, prediction),
+                )}
+              </ul>
+            </section>
+          ) : null}
+        </div>
       )}
     </div>
   )

@@ -34,8 +34,8 @@ describe('visual hierarchy polish', () => {
     assert.match(item, /isNext/)
     assert.match(item, /id="prochain-match"/)
     assert.match(item, /bg-yellow/)
-    assert.match(item, /Votre pronostic/)
-    assert.match(item, /Modifier/)
+    assert.match(item, /Ton prono/)
+    assert.match(item, /Voir mon prono/)
     assert.match(item, /Prono enregistré|statusLabel/)
     assert.doesNotMatch(item, /border-l-4 border-l-yellow/)
     assert.doesNotMatch(item, /border-l-4 border-l-green/)
@@ -51,18 +51,18 @@ describe('visual hierarchy polish', () => {
     )
   })
 
-  it('shows Modifier only for predicted + isPredictionTarget', () => {
+  it('shows Voir mon prono only for predicted + isPredictionTarget', () => {
     const item = read('src/components/MatchListItem.tsx')
     assert.match(
       item,
       /const canShowModifier[\s\S]*match\.status === 'predicted' && isPredictionTarget/,
     )
-    assert.match(item, /<Link[\s\S]*>\s*Modifier\s*<\/Link>/)
+    assert.match(item, /<Link[\s\S]*>\s*Voir mon prono\s*<\/Link>/)
   })
 
-  it('renders score + "Votre pronostic" for predicted and locked', () => {
+  it('renders score + "Ton prono" for predicted and locked', () => {
     const item = read('src/components/MatchListItem.tsx')
-    assert.match(item, /Votre pronostic/)
+    assert.match(item, /Ton prono/)
     assert.match(
       item,
       /\(match\.status === 'predicted' \|\| match\.status === 'locked'\) &&\s*prediction/,

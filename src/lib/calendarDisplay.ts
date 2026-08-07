@@ -1,17 +1,60 @@
 import type { MatchGroupReveal, MatchUiStatus } from '../types'
 import { formatMatchDateShort, formatMatchTime } from './format.ts'
 import { formatPoints } from './formatPoints.ts'
+import { formatLastMatchVerdict } from './lastMatchDisplay.ts'
 
 /** Points calendrier : `0 pt` / `1 pt` / `N pts`. */
 export function formatCalendarPoints(points: number): string {
   return formatPoints(points)
 }
 
+export type CalendarPersonalPredictionView =
+  | { kind: 'missing'; label: string }
+  | { kind: 'pending'; scoreLine: string }
+  | {
+      kind: 'scored'
+      scoreLine: string
+      verdict: string
+      pointsLabel: string
+    }
+
 /**
- * Ligne prono personnel (carte terminée fermée).
- * - aucun prono → `Aucun pronostic`
- * - prono non noté → `Ton prono : H–A` (jamais `0 pt`)
- * - prono noté → `Ton prono : H–A · +N pts` / `· 0 pt`
+ * Vue prono personnel (carte terminée) — même langage que Home « Dernier match ».
+ */
+export function getCalendarPersonalPredictionView(
+  prediction:
+    | {
+        homeScore: number
+        awayScore: number
+        points?: number | null
+      }
+    | null
+    | undefined,
+): CalendarPersonalPredictionView {
+  if (!prediction) {
+    return { kind: 'missing', label: 'Non pronostiqué' }
+  }
+
+  const scoreLine = `Ton prono : ${prediction.homeScore}–${prediction.awayScore}`
+  if (prediction.points == null) {
+    return { kind: 'pending', scoreLine }
+  }
+
+  const pointsLabel =
+    prediction.points === 0
+      ? formatCalendarPoints(0)
+      : formatPoints(prediction.points, { signed: true })
+
+  return {
+    kind: 'scored',
+    scoreLine,
+    verdict: formatLastMatchVerdict(prediction.points),
+    pointsLabel,
+  }
+}
+
+/**
+ * Ligne compacte legacy (tests / résumés). Préférer `getCalendarPersonalPredictionView`.
  */
 export function formatCalendarPersonalPrediction(
   prediction:
@@ -23,14 +66,10 @@ export function formatCalendarPersonalPrediction(
     | null
     | undefined,
 ): string {
-  if (!prediction) return 'Aucun pronostic'
-  const score = `${prediction.homeScore}–${prediction.awayScore}`
-  if (prediction.points == null) return `Ton prono : ${score}`
-  const pointsLabel =
-    prediction.points === 0
-      ? formatCalendarPoints(0)
-      : formatPoints(prediction.points, { signed: true })
-  return `Ton prono : ${score} · ${pointsLabel}`
+  const view = getCalendarPersonalPredictionView(prediction)
+  if (view.kind === 'missing') return view.label
+  if (view.kind === 'pending') return view.scoreLine
+  return `${view.scoreLine} · ${view.verdict} · ${view.pointsLabel}`
 }
 
 /**

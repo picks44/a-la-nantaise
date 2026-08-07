@@ -86,7 +86,7 @@ describe('MatchListItem future compact wiring (K4)', () => {
   it('keeps next and finished on the full card path', () => {
     assert.match(item, /id="prochain-match"/)
     assert.match(item, /isFinished/)
-    assert.match(item, /formatCalendarPersonalPrediction/)
+    assert.match(item, /getCalendarPersonalPredictionView/)
     assert.match(item, /match-reveal-details/)
   })
 
