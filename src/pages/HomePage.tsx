@@ -419,16 +419,16 @@ export function HomePage() {
                 aria-hidden="true"
                 className="mr-1.5 inline size-4 align-text-bottom"
               />
-              Pronostic enregistré :{' '}
+              Ton prono enregistré :{' '}
               <span className="font-black tabular-nums">
                 {draft.home}–{draft.away}
               </span>
             </p>
           ) : saved && !saveError ? (
             <p className="mt-3 text-center text-sm font-medium text-green-dark/90">
-              Pronostic actuel :{' '}
+              Ton prono :{' '}
               <span className="font-black tabular-nums">
-                {draft.home} – {draft.away}
+                {draft.home}–{draft.away}
               </span>
             </p>
           ) : null}

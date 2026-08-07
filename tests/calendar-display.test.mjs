@@ -408,7 +408,7 @@ describe('MatchListItem group teaser visibility (future cards)', () => {
     assert.match(beforeRevealBlock, /Les pronos du groupe/)
     assert.match(
       beforeRevealBlock,
-      /Les pronostics des autres seront reveles automatiquement au coup/,
+      /Les pronostics des autres seront révélés automatiquement au coup/,
     )
     assert.doesNotMatch(
       beforeRevealBlock,

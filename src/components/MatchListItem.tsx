@@ -369,7 +369,7 @@ function RevealSection({
       <div className={`mt-3 border-t ${borderClass} pt-3 text-sm ${mutedClass}`}>
         <p className={`font-semibold ${titleClass}`}>Les pronos du groupe</p>
         <p className="mt-1">
-          Les pronostics des autres seront reveles automatiquement au coup
+          Les pronostics des autres seront révélés automatiquement au coup
           d’envoi.
         </p>
       </div>
@@ -431,7 +431,7 @@ function RevealSection({
         className={`mt-3 space-y-2 border-t ${borderClass} pt-3 text-sm ${mutedClass} transition-all duration-300`}
       >
         <RevealError />
-        <p>Pronostics collectifs encore verrouilles.</p>
+        <p>Pronostics collectifs encore verrouillés.</p>
       </div>
     )
   }
