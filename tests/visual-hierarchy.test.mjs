@@ -95,9 +95,21 @@ describe('visual hierarchy polish', () => {
     const layout = read('src/components/Layout.tsx')
     assert.match(layout, /sticky top-0/)
     assert.match(layout, /BrandMark/)
+    assert.match(layout, /size="md"/)
     assert.match(layout, /bg-yellow/)
     assert.match(layout, /safe-area-inset-top/)
     assert.doesNotMatch(layout, /hidden shrink-0[\s\S]*BrandMark|BrandMark[\s\S]*hidden sm:block/)
+  })
+
+  it('clarifies mobile active nav without changing routes or yellow header', () => {
+    const layout = read('src/components/Layout.tsx')
+    assert.match(layout, /bg-green-dark/)
+    assert.match(layout, /bg-white\/12 text-yellow/)
+    assert.match(layout, /after:h-1 after:rounded-full after:bg-green/)
+    assert.match(layout, /Saison 26\/27/)
+    assert.match(layout, /aria-label="Paramètres"/)
+    assert.doesNotMatch(layout, /to="\/parametres"[\s\S]{0,200}BottomNav|BottomNav[\s\S]{0,400}parametres/)
+    assert.match(layout, /navItems = \[[\s\S]*Accueil[\s\S]*Calendrier[\s\S]*Classement/)
   })
 
   it('centralizes brand crest colors sampled from the logo', () => {
