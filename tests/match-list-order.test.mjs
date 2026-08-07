@@ -183,7 +183,7 @@ describe('jump to next match link', () => {
     assert.match(calendar, /shouldShowJumpToNextMatch/)
     assert.match(calendar, /showJumpToNext/)
     assert.match(calendar, /href="#prochain-match"/)
-    assert.match(calendar, /\{showJumpToNext \?/)
+    assert.match(calendar, /showJumpToNext \?/)
     assert.doesNotMatch(calendar, /\{nextOpenId \?/)
     assert.match(item, /id=\{`match-\$\{match\.id\}`\}/)
     assert.match(item, /id="prochain-match"/)

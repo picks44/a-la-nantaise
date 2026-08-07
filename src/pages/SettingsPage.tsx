@@ -1,6 +1,7 @@
 import { useId, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { LogOut, Shield, UserRound } from 'lucide-react'
+import { PageHeader } from '../components/PageHeader'
 import { PwaInstallSection } from '../components/PwaInstallSection'
 import { PushNotificationsSection } from '../components/PushNotificationsSection'
 import { useSession } from '../context/useSession'
@@ -72,12 +73,10 @@ export function SettingsPage() {
 
   return (
     <div className="page-stack mx-auto max-w-3xl">
-      <header>
-        <h1 className="title-display">Paramètres</h1>
-        <p className="mt-1 text-sm text-muted">
-          Pseudo, PIN, rappels et options de cet appareil.
-        </p>
-      </header>
+      <PageHeader
+        title="Paramètres"
+        description="Gère tes préférences et ton profil."
+      />
 
       {error ? (
         <p role="alert" className="text-sm font-semibold text-danger">

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { MatchListItem } from '../components/MatchListItem'
+import { PageHeader } from '../components/PageHeader'
 import { useSession } from '../context/useSession'
 import {
   fetchActiveSeason,
@@ -368,22 +369,20 @@ export function CalendarPage() {
 
   return (
     <div className="page-stack">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="title-display">Calendrier</h1>
-          <p className="mt-1 text-sm text-muted">
-            Les matchs du FC Nantes à pronostiquer avec le groupe.
-          </p>
-        </div>
-        {showJumpToNext ? (
-          <a
-            href="#prochain-match"
-            className="btn-ghost min-h-11 text-xs text-green-dark"
-          >
-            Aller au prochain match
-          </a>
-        ) : null}
-      </header>
+      <PageHeader
+        title="Calendrier"
+        description="Les matchs à venir, tes pronostics et les résultats."
+        actions={
+          showJumpToNext ? (
+            <a
+              href="#prochain-match"
+              className="btn-ghost min-h-11 text-xs text-green-dark"
+            >
+              Aller au prochain match
+            </a>
+          ) : null
+        }
+      />
 
       {showInitialLoading ? (
         <EmptyCard message="Chargement du calendrier…" />

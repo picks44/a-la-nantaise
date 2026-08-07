@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { GroupRanking } from '../components/Podium'
+import { PageHeader } from '../components/PageHeader'
 import { RoundRecapCard } from '../components/RoundRecapCard'
 import { SeasonTimelinePanel } from '../components/SeasonTimelinePanel'
 import { TrophyPanel } from '../components/TrophyPanel'
@@ -290,68 +291,68 @@ export function RankingPage() {
 
   return (
     <div className="page-stack min-w-0">
-      <header>
-        <h1 className="title-display">Classement</h1>
-        <p className="mt-1 text-sm text-muted">
-          Vue générale et suivi des pronostics par journée.
-        </p>
-      </header>
+      <div className="space-y-3">
+        <PageHeader
+          title="Classement"
+          description="La course du groupe, journée après journée."
+        />
 
-      <div
-        role="tablist"
-        aria-label="Vues du classement"
-        className="ranking-tablist flex rounded-[var(--radius-sm)] border border-ink bg-surface p-1"
-        onKeyDown={(event) => {
-          if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return
-          event.preventDefault()
-          const order: RankingTab[] = [
-            'general',
-            'participation',
-            'trophies',
-            'parcours',
-          ]
-          setTab((current) => {
-            const index = order.indexOf(current)
-            const next =
-              event.key === 'ArrowRight'
-                ? order[(index + 1) % order.length]
-                : order[(index - 1 + order.length) % order.length]
-            return next
-          })
-        }}
-      >
-        <TabButton
-          selected={tab === 'general'}
-          onSelect={() => setTab('general')}
-          id="tab-general"
-          controls="panel-general"
+        <div
+          role="tablist"
+          aria-label="Vues du classement"
+          className="ranking-tablist flex rounded-[var(--radius-sm)] border border-ink bg-surface p-1"
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return
+            event.preventDefault()
+            const order: RankingTab[] = [
+              'general',
+              'participation',
+              'trophies',
+              'parcours',
+            ]
+            setTab((current) => {
+              const index = order.indexOf(current)
+              const next =
+                event.key === 'ArrowRight'
+                  ? order[(index + 1) % order.length]
+                  : order[(index - 1 + order.length) % order.length]
+              return next
+            })
+          }}
         >
-          Général
-        </TabButton>
-        <TabButton
-          selected={tab === 'participation'}
-          onSelect={() => setTab('participation')}
-          id="tab-participation"
-          controls="panel-participation"
-        >
-          Participation
-        </TabButton>
-        <TabButton
-          selected={tab === 'trophies'}
-          onSelect={() => setTab('trophies')}
-          id="tab-trophies"
-          controls="panel-trophies"
-        >
-          Trophées & séries
-        </TabButton>
-        <TabButton
-          selected={tab === 'parcours'}
-          onSelect={() => setTab('parcours')}
-          id="tab-parcours"
-          controls="panel-parcours"
-        >
-          Parcours
-        </TabButton>
+          <TabButton
+            selected={tab === 'general'}
+            onSelect={() => setTab('general')}
+            id="tab-general"
+            controls="panel-general"
+          >
+            Général
+          </TabButton>
+          <TabButton
+            selected={tab === 'participation'}
+            onSelect={() => setTab('participation')}
+            id="tab-participation"
+            controls="panel-participation"
+          >
+            Participation
+          </TabButton>
+          <TabButton
+            selected={tab === 'trophies'}
+            onSelect={() => setTab('trophies')}
+            id="tab-trophies"
+            controls="panel-trophies"
+          >
+            Trophées & séries
+          </TabButton>
+          <TabButton
+            selected={tab === 'parcours'}
+            onSelect={() => setTab('parcours')}
+            id="tab-parcours"
+            controls="panel-parcours"
+          >
+            Parcours
+          </TabButton>
+        </div>
       </div>
 
       {loading ? (
