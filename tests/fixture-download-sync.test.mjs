@@ -341,14 +341,46 @@ describe('daily fixture sync schedule', () => {
     assert.match(schedule, /a-la-nantaise-daily-fixture-sync/)
   })
 
-  it('adds evening and late sync jobs without changing the daily schedule', () => {
-    assert.match(schedule, /a-la-nantaise-evening-fixture-sync/)
-    assert.match(schedule, /'30 21 \* \* \*'/)
-    assert.match(schedule, /a-la-nantaise-late-fixture-sync/)
-    assert.match(schedule, /'15 22 \* \* \*'/)
+  it('schedules a conditional */15 job gated by fixture_result_sync_is_needed', () => {
+    assert.match(schedule, /a-la-nantaise-conditional-fixture-sync/)
+    assert.match(schedule, /'\*\/15 \* \* \* \*'/)
+    assert.match(schedule, /WHERE public\.fixture_result_sync_is_needed\(\)/)
+    assert.match(schedule, /fixture_result_sync_is_needed/)
+    assert.match(schedule, /105 min/)
+    assert.doesNotMatch(
+      schedule,
+      /cron\.schedule\(\s*'a-la-nantaise-evening-fixture-sync'/,
+    )
+    assert.doesNotMatch(
+      schedule,
+      /cron\.schedule\(\s*'a-la-nantaise-late-fixture-sync'/,
+    )
+    assert.doesNotMatch(schedule, /'30 21 \* \* \*'/)
+    assert.doesNotMatch(schedule, /'15 22 \* \* \*'/)
+  })
+
+  it('keeps daily unchanged alongside conditional only', () => {
     assert.match(schedule, /'15 5 \* \* \*'/)
-    assert.match(schedule, /22:30 Paris \(hiver\)/)
-    assert.match(schedule, /JAMAIS le daily/)
+    assert.match(schedule, /a-la-nantaise-daily-fixture-sync/)
+    assert.match(schedule, /a-la-nantaise-conditional-fixture-sync/)
+    const scheduledNames = [
+      ...schedule.matchAll(
+        /cron\.schedule\(\s*'([^']+-fixture-sync)'/g,
+      ),
+    ].map((m) => m[1])
+    assert.deepEqual(scheduledNames.sort(), [
+      'a-la-nantaise-conditional-fixture-sync',
+      'a-la-nantaise-daily-fixture-sync',
+    ])
+    // evening/late may appear only as cleanup targets, never as cron.schedule.
+    assert.doesNotMatch(
+      schedule,
+      /cron\.schedule\(\s*'a-la-nantaise-evening-fixture-sync'/,
+    )
+    assert.doesNotMatch(
+      schedule,
+      /cron\.schedule\(\s*'a-la-nantaise-late-fixture-sync'/,
+    )
   })
 
   it('reads credentials from Vault without hard-coding them', () => {
@@ -360,11 +392,57 @@ describe('daily fixture sync schedule', () => {
     assert.doesNotMatch(schedule, /https:\/\/[a-z0-9-]+\.supabase\.co/i)
   })
 
-  it('replaces an existing job with the same name', () => {
+  it('replaces existing jobs idempotently without unscheduling daily in the conditional block', () => {
+    assert.match(schedule, /\$replace_daily\$/)
+    assert.match(schedule, /\$replace_conditional\$/)
     assert.match(schedule, /cron\.unschedule\(existing_job_id\)/)
     assert.match(schedule, /cron\.schedule\(/)
-    assert.match(schedule, /\$replace_evening_late\$/)
-    assert.match(schedule, /a-la-nantaise-evening-fixture-sync/)
-    assert.match(schedule, /a-la-nantaise-late-fixture-sync/)
+    const conditionalBlock = schedule.slice(
+      schedule.indexOf('$replace_conditional$'),
+      schedule.indexOf("a-la-nantaise-conditional-fixture-sync',\n  '*/15"),
+    )
+    assert.match(conditionalBlock, /a-la-nantaise-conditional-fixture-sync/)
+    assert.match(conditionalBlock, /a-la-nantaise-evening-fixture-sync/)
+    assert.match(conditionalBlock, /a-la-nantaise-late-fixture-sync/)
+    assert.doesNotMatch(
+      conditionalBlock,
+      /jobname = 'a-la-nantaise-daily-fixture-sync'/,
+    )
+  })
+})
+
+describe('fixture_result_sync_is_needed migration', () => {
+  const migration = readFileSync(
+    join(root, 'supabase/migrations/20260810130000_fixture_result_sync_is_needed.sql'),
+    'utf8',
+  )
+  const sqlTest = readFileSync(
+    join(root, 'supabase/tests/fixture_result_sync_is_needed.sql'),
+    'utf8',
+  )
+
+  it('defines a stable SQL predicate without SECURITY DEFINER', () => {
+    assert.match(migration, /CREATE OR REPLACE FUNCTION public\.fixture_result_sync_is_needed\(\)/)
+    assert.match(migration, /interval '105 minutes'/)
+    assert.match(migration, /interval '8 hours'/)
+    assert.match(migration, /kickoff_time_confirmed = TRUE/)
+    assert.match(migration, /'finished', 'postponed', 'cancelled'/)
+    assert.doesNotMatch(
+      migration,
+      /CREATE OR REPLACE FUNCTION[\s\S]*SECURITY DEFINER/i,
+    )
+    assert.match(migration, /REVOKE ALL ON FUNCTION public\.fixture_result_sync_is_needed\(\)/)
+  })
+
+  it('covers required SQL regression cases', () => {
+    assert.match(sqlTest, /kickoff non confirmé/)
+    assert.match(sqlTest, /trop tôt/)
+    assert.match(sqlTest, /105 min/)
+    assert.match(sqlTest, /dans la fenêtre/)
+    assert.match(sqlTest, /finished/)
+    assert.match(sqlTest, /postponed/)
+    assert.match(sqlTest, /cancelled/)
+    assert.match(sqlTest, /après kickoff \+ 8 h/)
+    assert.match(sqlTest, /changement de kickoff/)
   })
 })

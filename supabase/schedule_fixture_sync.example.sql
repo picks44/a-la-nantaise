@@ -10,11 +10,15 @@
 -- la définition du job Cron.
 --
 -- Schedules pg_cron : UTC (ne pas changer la timezone globale de pg_cron).
--- Correspondance Europe/Paris :
---   15 5  * * *  → 07:15 été / 06:15 hiver
---   30 21 * * *  → 23:30 été / 22:30 hiver
---   15 22 * * *  → 00:15 été / 23:15 hiver
--- Le décalage DST n’est volontairement pas corrigé dans ce lot.
+--
+-- Jobs :
+--   daily       15 5 * * *   → sync toujours (filet calendrier + résultats)
+--   conditional */15 * * * * → sync-fc-nantes SEULEMENT si
+--                              public.fixture_result_sync_is_needed()
+--                              (kickoff confirmé + 105 min .. + 8 h, non terminal)
+--
+-- Source de vérité : matches.kickoff_at (TIMESTAMPTZ) + kickoff_time_confirmed.
+-- Aucune dépendance à l’heure locale Paris ni au DST.
 
 CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA pg_catalog;
 CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
@@ -45,8 +49,19 @@ BEGIN
 END
 $check_secrets$;
 
--- Rend le script rejouable : l'ancien job portant ce nom est remplacé.
-DO $replace_job$
+-- Prérequis : migration fixture_result_sync_is_needed déjà appliquée.
+DO $check_predicate$
+BEGIN
+  IF to_regprocedure('public.fixture_result_sync_is_needed()') IS NULL THEN
+    RAISE EXCEPTION
+      'Fonction public.fixture_result_sync_is_needed() absente. '
+      'Appliquer la migration 20260810130000 avant ce script Ops.';
+  END IF;
+END
+$check_predicate$;
+
+-- Rend le script rejouable : l'ancien job daily portant ce nom est remplacé.
+DO $replace_daily$
 DECLARE
   existing_job_id BIGINT;
 BEGIN
@@ -59,9 +74,9 @@ BEGIN
     PERFORM cron.unschedule(existing_job_id);
   END IF;
 END
-$replace_job$;
+$replace_daily$;
 
--- Tous les jours à 05:15 UTC (07:15 à Paris l'été, 06:15 l'hiver).
+-- Tous les jours à 05:15 UTC (filet de sécurité — toujours synchroniser).
 SELECT cron.schedule(
   'a-la-nantaise-daily-fixture-sync',
   '15 5 * * *',
@@ -97,13 +112,15 @@ SELECT cron.schedule(
   $job$
 );
 
--- Remplace uniquement evening / late (JAMAIS le daily dans ce bloc).
-DO $replace_evening_late$
+-- Remplace uniquement le job conditionnel (+ nettoie d’anciens evening/late
+-- s’ils avaient été créés manuellement). Ne touche PAS au daily ici.
+DO $replace_conditional$
 DECLARE
   existing_job_id BIGINT;
   job_name TEXT;
 BEGIN
   FOREACH job_name IN ARRAY ARRAY[
+    'a-la-nantaise-conditional-fixture-sync',
     'a-la-nantaise-evening-fixture-sync',
     'a-la-nantaise-late-fixture-sync'
   ]
@@ -118,12 +135,13 @@ BEGIN
     END IF;
   END LOOP;
 END
-$replace_evening_late$;
+$replace_conditional$;
 
--- Soir : 21:30 UTC = 23:30 Paris (été) / 22:30 Paris (hiver).
+-- Toutes les 15 minutes UTC : appelle sync-fc-nantes seulement si un match
+-- est dans la fenêtre résultat (WHERE court-circuite net.http_post).
 SELECT cron.schedule(
-  'a-la-nantaise-evening-fixture-sync',
-  '30 21 * * *',
+  'a-la-nantaise-conditional-fixture-sync',
+  '*/15 * * * *',
   $job$
   SELECT net.http_post(
     url := (
@@ -152,43 +170,8 @@ SELECT cron.schedule(
       )
     ),
     timeout_milliseconds := 20000
-  ) AS request_id;
-  $job$
-);
-
--- Rattrapage : 22:15 UTC = 00:15 Paris (été) / 23:15 Paris (hiver).
-SELECT cron.schedule(
-  'a-la-nantaise-late-fixture-sync',
-  '15 22 * * *',
-  $job$
-  SELECT net.http_post(
-    url := (
-      SELECT decrypted_secret
-      FROM vault.decrypted_secrets
-      WHERE name = 'project_url'
-    ) || '/functions/v1/sync-fc-nantes',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'apikey', (
-        SELECT decrypted_secret
-        FROM vault.decrypted_secrets
-        WHERE name = 'function_anon_key'
-      ),
-      'Authorization', 'Bearer ' || (
-        SELECT decrypted_secret
-        FROM vault.decrypted_secrets
-        WHERE name = 'function_anon_key'
-      )
-    ),
-    body := jsonb_build_object(
-      'admin_code', (
-        SELECT decrypted_secret
-        FROM vault.decrypted_secrets
-        WHERE name = 'fixture_sync_admin_code'
-      )
-    ),
-    timeout_milliseconds := 20000
-  ) AS request_id;
+  ) AS request_id
+  WHERE public.fixture_result_sync_is_needed();
   $job$
 );
 
@@ -197,14 +180,12 @@ SELECT jobid, jobname, schedule, active
 FROM cron.job
 WHERE jobname IN (
   'a-la-nantaise-daily-fixture-sync',
-  'a-la-nantaise-evening-fixture-sync',
-  'a-la-nantaise-late-fixture-sync'
+  'a-la-nantaise-conditional-fixture-sync'
 )
 ORDER BY jobname;
 
--- Rollback ciblé (evening / late uniquement) :
--- SELECT cron.unschedule('a-la-nantaise-evening-fixture-sync');
--- SELECT cron.unschedule('a-la-nantaise-late-fixture-sync');
+-- Rollback ciblé (conditional uniquement) :
+-- SELECT cron.unschedule('a-la-nantaise-conditional-fixture-sync');
 -- Ne jamais unschedule le daily ici.
 --
 -- Désactiver le daily (ops séparée) :
