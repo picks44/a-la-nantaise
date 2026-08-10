@@ -341,6 +341,16 @@ describe('daily fixture sync schedule', () => {
     assert.match(schedule, /a-la-nantaise-daily-fixture-sync/)
   })
 
+  it('adds evening and late sync jobs without changing the daily schedule', () => {
+    assert.match(schedule, /a-la-nantaise-evening-fixture-sync/)
+    assert.match(schedule, /'30 21 \* \* \*'/)
+    assert.match(schedule, /a-la-nantaise-late-fixture-sync/)
+    assert.match(schedule, /'15 22 \* \* \*'/)
+    assert.match(schedule, /'15 5 \* \* \*'/)
+    assert.match(schedule, /22:30 Paris \(hiver\)/)
+    assert.match(schedule, /JAMAIS le daily/)
+  })
+
   it('reads credentials from Vault without hard-coding them', () => {
     assert.match(schedule, /vault\.decrypted_secrets/)
     assert.match(schedule, /function_anon_key/)
@@ -353,5 +363,8 @@ describe('daily fixture sync schedule', () => {
   it('replaces an existing job with the same name', () => {
     assert.match(schedule, /cron\.unschedule\(existing_job_id\)/)
     assert.match(schedule, /cron\.schedule\(/)
+    assert.match(schedule, /\$replace_evening_late\$/)
+    assert.match(schedule, /a-la-nantaise-evening-fixture-sync/)
+    assert.match(schedule, /a-la-nantaise-late-fixture-sync/)
   })
 })
