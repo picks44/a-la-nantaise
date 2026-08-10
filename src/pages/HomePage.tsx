@@ -385,7 +385,7 @@ export function HomePage() {
               />
             </div>
 
-            <div className="flex justify-center pb-[max(0px,env(safe-area-inset-bottom))]">
+            <div className="flex justify-center">
               <button
                 type="submit"
                 disabled={inputsLocked || saving}
