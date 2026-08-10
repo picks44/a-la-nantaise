@@ -115,10 +115,12 @@ describe('SeasonTimelinePanel wiring', () => {
 
 describe('Ranking tabs mobile overflow', () => {
   const page = read('src/pages/RankingPage.tsx')
+  const tabs = read('src/components/TabList.tsx')
   const css = read('src/index.css')
 
   it('scrolls tabs internally on mobile via ranking-tablist', () => {
-    assert.match(page, /ranking-tablist/)
+    assert.match(page, /from '..\/components\/TabList'/)
+    assert.match(tabs, /ranking-tablist/)
     assert.match(css, /\.ranking-tablist/)
   })
 })

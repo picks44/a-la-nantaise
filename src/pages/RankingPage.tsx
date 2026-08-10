@@ -3,6 +3,7 @@ import { GroupRanking } from '../components/Podium'
 import { PageHeader } from '../components/PageHeader'
 import { RoundRecapCard } from '../components/RoundRecapCard'
 import { SeasonTimelinePanel } from '../components/SeasonTimelinePanel'
+import { TabButton, TabList } from '../components/TabList'
 import { TrophyPanel } from '../components/TrophyPanel'
 import { useSession } from '../context/useSession'
 import {
@@ -52,6 +53,13 @@ import type {
 } from '../types'
 
 type RankingTab = 'general' | 'participation' | 'trophies' | 'parcours'
+
+const RANKING_TAB_ORDER: readonly RankingTab[] = [
+  'general',
+  'participation',
+  'trophies',
+  'parcours',
+]
 
 export function RankingPage() {
   const { sessionToken, activePlayer, accessCode, playerId } = useSession()
@@ -354,28 +362,11 @@ export function RankingPage() {
           description="La course du groupe, journée après journée."
         />
 
-        <div
-          role="tablist"
-          aria-label="Vues du classement"
-          className="ranking-tablist flex rounded-[var(--radius-sm)] border border-ink bg-surface p-1"
-          onKeyDown={(event) => {
-            if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return
-            event.preventDefault()
-            const order: RankingTab[] = [
-              'general',
-              'participation',
-              'trophies',
-              'parcours',
-            ]
-            setTab((current) => {
-              const index = order.indexOf(current)
-              const next =
-                event.key === 'ArrowRight'
-                  ? order[(index + 1) % order.length]
-                  : order[(index - 1 + order.length) % order.length]
-              return next
-            })
-          }}
+        <TabList
+          label="Vues du classement"
+          value={tab}
+          onChange={setTab}
+          order={RANKING_TAB_ORDER}
         >
           <TabButton
             selected={tab === 'general'}
@@ -409,7 +400,7 @@ export function RankingPage() {
           >
             Parcours
           </TabButton>
-        </div>
+        </TabList>
       </div>
 
       {loading ? (
@@ -717,40 +708,6 @@ function ParticipationGroup({
         </ul>
       )}
     </section>
-  )
-}
-
-function TabButton({
-  selected,
-  onSelect,
-  id,
-  controls,
-  children,
-}: {
-  selected: boolean
-  onSelect: () => void
-  id: string
-  controls: string
-  children: string
-}) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      id={id}
-      aria-selected={selected}
-      aria-controls={controls}
-      tabIndex={selected ? 0 : -1}
-      className={[
-        'ranking-tab min-h-11 shrink-0 whitespace-nowrap rounded-[var(--radius-sm)] px-3 text-xs font-extrabold tracking-[0.08em] uppercase transition-[color,background-color] duration-150 ease-out sm:min-w-0 sm:flex-1 sm:px-2',
-        selected
-          ? 'bg-green-dark text-yellow'
-          : 'text-ink/65 hover:bg-canvas hover:text-ink',
-      ].join(' ')}
-      onClick={onSelect}
-    >
-      {children}
-    </button>
   )
 }
 

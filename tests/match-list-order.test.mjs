@@ -181,9 +181,12 @@ describe('jump to next match link', () => {
       'utf8',
     )
     assert.match(calendar, /shouldShowJumpToNextMatch/)
+    assert.match(calendar, /upcomingDisplayOrderIds/)
     assert.match(calendar, /showJumpToNext/)
     assert.match(calendar, /href="#prochain-match"/)
     assert.match(calendar, /showJumpToNext \?/)
+    assert.match(calendar, /tab === 'finished'/)
+    assert.match(calendar, /pendingScrollToNextRef/)
     assert.doesNotMatch(calendar, /\{nextOpenId \?/)
     assert.match(item, /id=\{`match-\$\{match\.id\}`\}/)
     assert.match(item, /id="prochain-match"/)

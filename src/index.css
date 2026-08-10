@@ -287,7 +287,7 @@
     animation: ui-champion-trophy-highlight 420ms var(--ease-ui) both;
   }
 
-  /* Onglets Classement — scroll horizontal interne mobile uniquement. */
+  /* Onglets Classement / Calendrier — scroll horizontal interne mobile uniquement. */
   .ranking-tablist {
     @apply overflow-x-auto overscroll-x-contain;
     scrollbar-width: none;

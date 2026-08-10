@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { useSearchParams } from 'react-router-dom'
 import { MatchListItem } from '../components/MatchListItem'
 import { PageHeader } from '../components/PageHeader'
+import { TabButton, TabList } from '../components/TabList'
 import { useSession } from '../context/useSession'
 import {
   fetchActiveSeason,
@@ -48,6 +49,10 @@ type CalendarBundle = {
   predictions: Prediction[]
 }
 
+type CalendarTab = 'upcoming' | 'finished'
+
+const CALENDAR_TAB_ORDER: readonly CalendarTab[] = ['upcoming', 'finished']
+
 export function CalendarPage() {
   const { sessionToken, playerId } = useSession()
   const [searchParams] = useSearchParams()
@@ -66,6 +71,7 @@ export function CalendarPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
+  const [tab, setTab] = useState<CalendarTab>('upcoming')
   /** Ouverture des détails indexée par matchId (survit aux refresh). */
   const [detailsOpenById, setDetailsOpenById] = useState<Record<string, boolean>>(
     {},
@@ -80,6 +86,8 @@ export function CalendarPage() {
   const loadGuardRef = useRef(createInFlightGuard())
   const dataGenerationRef = useRef(createGenerationToken())
   const hasExistingDataRef = useRef(false)
+  /** Scroll #prochain-match après bascule Terminés → À venir (jump). */
+  const pendingScrollToNextRef = useRef(false)
 
   useEffect(() => {
     revealStatesRef.current = revealStates
@@ -338,11 +346,40 @@ export function CalendarPage() {
   }, [highlightMatchId, matches, now, playerId, predictions])
 
   useEffect(() => {
+    if (!highlightMatchId || matches.length === 0) return
+    const target = matches.find((match) => match.id === highlightMatchId)
+    if (!target) return
+    const desiredTab: CalendarTab =
+      target.status === 'finished' || target.dbStatus === 'finished'
+        ? 'finished'
+        : 'upcoming'
+    setTab(desiredTab)
+  }, [highlightMatchId, matches])
+
+  useEffect(() => {
     if (loading || !highlightMatchId) return
+    // Attend que le tabpanel actif ait monté le nœud cible (évite scroll flaky).
     const el = document.getElementById(`match-${highlightMatchId}`)
     if (!el) return
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [loading, highlightMatchId, items])
+  }, [loading, highlightMatchId, tab, items])
+
+  useEffect(() => {
+    if (!pendingScrollToNextRef.current || tab !== 'upcoming') return
+    const el = document.getElementById('prochain-match')
+    if (!el) {
+      if (!loading) pendingScrollToNextRef.current = false
+      return
+    }
+    pendingScrollToNextRef.current = false
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [tab, loading, nextOpenId, items])
+
+  useEffect(() => {
+    document
+      .getElementById(`tab-${tab}`)
+      ?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
+  }, [tab])
 
   const showInitialLoading = loading && matches.length === 0
   const showInitialError = Boolean(error) && matches.length === 0
@@ -366,15 +403,22 @@ export function CalendarPage() {
     () => items.filter(({ match }) => match.status === 'finished'),
     [items],
   )
-  const displayOrderIds = useMemo(
+  /** Tri local décroissant (plus récent en premier) — ne touche pas sortMatchesForList. */
+  const finishedItemsNewestFirst = useMemo(
+    () => [...finishedItems].reverse(),
+    [finishedItems],
+  )
+  const upcomingDisplayOrderIds = useMemo(
     () => [
       ...nextItems.map(({ match }) => match.id),
       ...upcomingItems.map(({ match }) => match.id),
-      ...finishedItems.map(({ match }) => match.id),
     ],
-    [finishedItems, nextItems, upcomingItems],
+    [nextItems, upcomingItems],
   )
-  const showJumpToNext = shouldShowJumpToNextMatch(displayOrderIds, nextOpenId)
+  const showJumpToNext =
+    tab === 'finished'
+      ? nextOpenId != null
+      : shouldShowJumpToNextMatch(upcomingDisplayOrderIds, nextOpenId)
 
   function renderMatchRow(match: Match, prediction: Prediction | undefined) {
     const revealState = getRevealState(revealStates, match.id)
@@ -408,6 +452,8 @@ export function CalendarPage() {
     )
   }
 
+  const hasUpcomingContent = nextItems.length > 0 || upcomingItems.length > 0
+
   return (
     <div className="page-stack">
       <PageHeader
@@ -418,6 +464,12 @@ export function CalendarPage() {
             <a
               href="#prochain-match"
               className="btn-ghost min-h-11 text-xs text-green-dark"
+              onClick={(event) => {
+                if (tab !== 'finished') return
+                event.preventDefault()
+                pendingScrollToNextRef.current = true
+                setTab('upcoming')
+              }}
             >
               Aller au prochain match
             </a>
@@ -443,59 +495,110 @@ export function CalendarPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          {nextItems.length > 0 ? (
-            <section aria-labelledby="calendar-next-heading" className="space-y-2.5">
-              <h2
-                id="calendar-next-heading"
-                className="text-[11px] font-bold tracking-[0.12em] text-ink/55 uppercase"
-              >
-                Prochain match
-              </h2>
-              <ul className="space-y-2.5">
-                {nextItems.map(({ match, prediction }) =>
-                  renderMatchRow(match, prediction),
-                )}
-              </ul>
-            </section>
-          ) : null}
-
-          {upcomingItems.length > 0 ? (
-            <section
-              aria-labelledby="calendar-upcoming-heading"
-              className="space-y-2.5"
+          <TabList
+            label="Vues du calendrier"
+            value={tab}
+            onChange={setTab}
+            order={CALENDAR_TAB_ORDER}
+          >
+            <TabButton
+              selected={tab === 'upcoming'}
+              onSelect={() => setTab('upcoming')}
+              id="tab-upcoming"
+              controls="panel-upcoming"
             >
-              <h2
-                id="calendar-upcoming-heading"
-                className="text-[11px] font-bold tracking-[0.12em] text-ink/55 uppercase"
-              >
-                À venir
-              </h2>
-              <ul className="space-y-2.5">
-                {upcomingItems.map(({ match, prediction }) =>
-                  renderMatchRow(match, prediction),
-                )}
-              </ul>
-            </section>
-          ) : null}
-
-          {finishedItems.length > 0 ? (
-            <section
-              aria-labelledby="calendar-finished-heading"
-              className="space-y-2.5"
+              À venir
+            </TabButton>
+            <TabButton
+              selected={tab === 'finished'}
+              onSelect={() => setTab('finished')}
+              id="tab-finished"
+              controls="panel-finished"
             >
-              <h2
-                id="calendar-finished-heading"
-                className="text-[11px] font-bold tracking-[0.12em] text-ink/55 uppercase"
-              >
-                Terminés
-              </h2>
-              <ul className="space-y-2.5">
-                {finishedItems.map(({ match, prediction }) =>
-                  renderMatchRow(match, prediction),
-                )}
-              </ul>
-            </section>
-          ) : null}
+              Terminés
+            </TabButton>
+          </TabList>
+
+          {tab === 'upcoming' ? (
+            <div
+              role="tabpanel"
+              id="panel-upcoming"
+              aria-labelledby="tab-upcoming"
+              className="space-y-6"
+            >
+              {!hasUpcomingContent ? (
+                <EmptyCard message="Aucun match à venir." />
+              ) : (
+                <>
+                  {nextItems.length > 0 ? (
+                    <section
+                      aria-labelledby="calendar-next-heading"
+                      className="space-y-2.5"
+                    >
+                      <h2
+                        id="calendar-next-heading"
+                        className="text-[11px] font-bold tracking-[0.12em] text-ink/55 uppercase"
+                      >
+                        Prochain match
+                      </h2>
+                      <ul className="space-y-2.5">
+                        {nextItems.map(({ match, prediction }) =>
+                          renderMatchRow(match, prediction),
+                        )}
+                      </ul>
+                    </section>
+                  ) : null}
+
+                  {upcomingItems.length > 0 ? (
+                    <section
+                      aria-labelledby="calendar-upcoming-heading"
+                      className="space-y-2.5"
+                    >
+                      <h2
+                        id="calendar-upcoming-heading"
+                        className="text-[11px] font-bold tracking-[0.12em] text-ink/55 uppercase"
+                      >
+                        Ensuite
+                      </h2>
+                      <ul className="space-y-2.5">
+                        {upcomingItems.map(({ match, prediction }) =>
+                          renderMatchRow(match, prediction),
+                        )}
+                      </ul>
+                    </section>
+                  ) : null}
+                </>
+              )}
+            </div>
+          ) : (
+            <div
+              role="tabpanel"
+              id="panel-finished"
+              aria-labelledby="tab-finished"
+              className="space-y-6"
+            >
+              {finishedItemsNewestFirst.length === 0 ? (
+                <EmptyCard message="Aucun match terminé." />
+              ) : (
+                <section
+                  aria-labelledby="calendar-finished-heading"
+                  className="space-y-2.5"
+                >
+                  <h2
+                    id="calendar-finished-heading"
+                    className="text-[11px] font-bold tracking-[0.12em] text-ink/55 uppercase"
+                  >
+                    Terminés
+                  </h2>
+                  <ul className="space-y-2.5">
+                    {finishedItemsNewestFirst.map(({ match, prediction }) =>
+                      renderMatchRow(match, prediction),
+                    )}
+                  </ul>
+                </section>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

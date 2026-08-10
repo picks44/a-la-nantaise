@@ -240,15 +240,60 @@ describe('MatchListItem closed summary wiring (K1)', () => {
     assert.match(calendar, /detailsOpen=\{isDetailsOpen\(match\.id\)\}/)
   })
 
-  it('structures the calendar as next / upcoming / finished sections', () => {
-    assert.match(calendar, /Prochain match/)
+  it('structures the calendar with tabs and next / ensuite / finished panels', () => {
+    assert.match(calendar, /from '..\/components\/TabList'/)
+    assert.match(calendar, /type CalendarTab = 'upcoming' \| 'finished'/)
+    assert.match(calendar, /useState<CalendarTab>\('upcoming'/)
+    assert.match(calendar, /Vues du calendrier/)
+    assert.match(calendar, /role="tabpanel"/)
+    assert.match(calendar, /id="panel-upcoming"/)
+    assert.match(calendar, /id="panel-finished"/)
     assert.match(calendar, /À venir/)
     assert.match(calendar, /Terminés/)
+    assert.match(calendar, /id="tab-upcoming"/)
+    assert.match(calendar, /id="tab-finished"/)
+    assert.match(calendar, /Prochain match/)
+    assert.match(calendar, /Ensuite/)
     assert.match(calendar, /nextItems/)
     assert.match(calendar, /upcomingItems/)
     assert.match(calendar, /finishedItems/)
+    assert.match(calendar, /finishedItemsNewestFirst/)
+    assert.match(calendar, /\[\.\.\.finishedItems\]\.reverse\(\)/)
+    assert.match(calendar, /Aucun match à venir\./)
+    assert.match(calendar, /Aucun match terminé\./)
     assert.doesNotMatch(calendar, /<form/)
     assert.doesNotMatch(calendar, /type="number"/)
+  })
+
+  it('keeps finished details only in the finished tab panel', () => {
+    const finishedPanel = calendar.slice(
+      calendar.indexOf('id="panel-finished"'),
+    )
+    assert.match(finishedPanel, /finishedItemsNewestFirst\.map/)
+    assert.match(finishedPanel, /calendar-finished-heading/)
+    const upcomingPanel = calendar.slice(
+      calendar.indexOf('id="panel-upcoming"'),
+      calendar.indexOf('id="panel-finished"'),
+    )
+    assert.doesNotMatch(upcomingPanel, /finishedItemsNewestFirst/)
+    assert.doesNotMatch(upcomingPanel, /calendar-finished-heading/)
+  })
+
+  it('switches tab for deep-link and defers scroll until the target is mounted', () => {
+    assert.match(
+      calendar,
+      /desiredTab: CalendarTab =\s*[\s\S]*finished[\s\S]*upcoming/,
+    )
+    assert.match(calendar, /setTab\(desiredTab\)/)
+    assert.match(
+      calendar,
+      /getElementById\(`match-\$\{highlightMatchId\}`\)/,
+    )
+    assert.match(calendar, /\[loading, highlightMatchId, tab, items\]/)
+    assert.match(calendar, /pendingScrollToNextRef/)
+    assert.match(calendar, /tab === 'finished'/)
+    assert.match(calendar, /setTab\('upcoming'\)/)
+    assert.match(calendar, /getElementById\('prochain-match'\)/)
   })
 })
 
