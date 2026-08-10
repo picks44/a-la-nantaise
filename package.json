@@ -20,6 +20,9 @@
     "supabase:test:status": "node scripts/supabase-test-stack.mjs status",
     "test:sql:local": "node scripts/run-supabase-sql-tests.mjs",
     "test:sql:isolation": "node scripts/run-supabase-sql-isolation.mjs",
+    "db:setup:realistic": "node --experimental-strip-types scripts/db-setup-realistic.mjs",
+    "db:sync:fixtures:local": "node --experimental-strip-types scripts/sync-fixtures-local.mjs",
+    "db:seed:predictions:local": "node --experimental-strip-types scripts/seed-dev-predictions.mjs",
     "typecheck": "tsc -b --pretty false",
     "test": "node --experimental-strip-types --test tests/**/*.test.mjs"
   },

@@ -180,11 +180,53 @@ supabase db reset
 
 Cette commande cible uniquement la stack **locale** (ports `54xxx`). Elle efface les données manuelles de la base de dev. Ne jamais exécuter de reset sur une base liée ou distante. `supabase db reset` doit rester strictement local dans ce projet.
 
-**Contrat seed :** les scénarios temporels (calendrier, reveal, verrouillage) ne sont garantis qu’après un `supabase db reset` sur la stack **dev**. Le fichier n’est pas conçu pour rafraîchir des dates relatives sur une base déjà seedée (`ON CONFLICT DO NOTHING`).
+**Contrat seed (standard) :** codes d’accès locaux + 8 joueurs déterministes uniquement. Aucun match, aucun pronostic, aucun calendrier fictif. Compatible avec une sync Fixture Download ultérieure (setup réaliste, lot S2). Ne pas réintroduire de matchs `source=manual` / `external_id` `seed-j*` dans ce fichier.
 
 **Données protégées :** la section joueurs / codes d’accès / PIN du seed est figée — ne pas la modifier. Les identifiants de smoke restent documentés uniquement dans l’en-tête de `supabase/seed.sql` (ne pas les recopier ailleurs).
 
-**Scénarios disponibles après reset (dev) :** calendrier (victoire / nul / défaite / verrouillé / prochain ouvert / futur confirmé / TBC), pronostics (exact / issue / raté / absences / scores populaires), classement avec ex æquo `1,1,3,3,5,5,7,7`, reveal J1–J3, stats / trophées via `recalculate_season_achievements`.
+**Après reset (dev) :** login possible (groupe `ALN`, PIN documenté dans le seed, admin `ADMIN`) ; calendrier et classement matchs vides jusqu’au setup réaliste ci-dessous ou création manuelle admin. Les scénarios UI déterministes (locked, TBC, reveal, etc.) restent couverts par la stack **test** isolée (`--no-seed` + fixtures SQL), pas par ce seed.
+
+### Setup local réaliste (calendrier Fixture Download)
+
+Pour obtenir les **34 vrais matchs** FC Nantes (`source=fixturedownload`, vrais `external_id`) après le seed minimal :
+
+```bash
+# Stack dev déjà démarrée : supabase start
+npm run db:setup:realistic -- --yes
+```
+
+Cette commande (strictement locale) :
+
+1. vérifie la cible (`project_id=a-la-nantaise`, API `127.0.0.1:54321`, DB `54322`) ;
+2. refuse `--linked`, URLs distantes, stack test `55xxx`, et les variables CLI qui pourraient rediriger hors local ;
+3. exécute `supabase db reset --yes` (seed minimal S1) ;
+4. importe le calendrier depuis le JSON figé `tests/fixtures/ligue-2-2026-fc-nantes.json` (même référentiel Fixture Download) ;
+5. valide via `supabase/maintenance/verify_realistic_setup.sql` (34 matchs, 0 manual, 0 prediction).
+
+Resynchroniser sans reset :
+
+```bash
+npm run db:sync:fixtures:local
+npm run db:sync:fixtures:local -- --live   # fetch réseau du feed (local uniquement)
+```
+
+S2 ne crée **aucun** pronostic. Les données de dev (pronos) s’ajoutent ensuite :
+
+```bash
+npm run db:seed:predictions:local
+```
+
+Cette commande (strictement locale, post-S2) :
+
+1. réutilise les garde-fous dev (`127.0.0.1:54321` / DB `54322`, refus remote / linked / stack test) ;
+2. échoue clairement si les 34 matchs `fixturedownload` sont absents ;
+3. insère ~10 pronos sur J1/J2/J3 en ciblant uniquement `external_id` (aucun UUID match hardcodé, aucun UPDATE sur `matches`) ;
+4. appelle `recalculate_season_achievements` (points restent NULL tant qu’aucun match n’est `finished`) ;
+5. valide via `supabase/maintenance/verify_dev_predictions.sql` → notice `DEV_PREDICTIONS_OK`.
+
+Le snapshot JSON figé n’a pas encore de scores officiels : Home / Calendrier / reveal J1 sont utiles ; classement scoré et trophées à points apparaîtront après une sync `--live` quand le feed livrera des résultats (ou restent couverts par la stack test).
+
+Ne jamais lancer une sync live sur un ancien seed fictif : depuis S1 ce risque est retiré du seed standard.
 
 **Vérifier les invariants** (après reset validé, lecture seule, sans afficher de secrets) :
 
@@ -194,7 +236,28 @@ psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
   -f supabase/maintenance/verify_seed_invariants.sql
 ```
 
-Adapter l’URL si votre Postgres local diffère. Succès attendu : notice `SEED_INVARIANTS_OK`.
+Après setup réaliste :
+
+```bash
+psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+  -v ON_ERROR_STOP=1 \
+  -f supabase/maintenance/verify_realistic_setup.sql
+```
+
+Après seed pronos (S3) :
+
+```bash
+psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+  -v ON_ERROR_STOP=1 \
+  -f supabase/maintenance/verify_dev_predictions.sql
+```
+
+Adapter l’URL si votre Postgres local diffère. Succès attendu : notice `SEED_INVARIANTS_OK` (seed seul), `REALISTIC_SETUP_OK` (après S2), ou `DEV_PREDICTIONS_OK` (après S3).
+
+### Tests déterministes (CI / stack test)
+
+- `npm test` : suites Node, **sans** feed réseau Fixture Download ;
+- `npm run test:sql:local` : stack **test** isolée, `db reset --local --no-seed`, fixtures SQL propres.
 
 **Stacks :** le seed est chargé uniquement sur la stack **dev** (`[db.seed]` → `seed.sql`). La stack **test** utilise `sql_paths = []` et `db reset --local --no-seed` (`npm run test:sql:local`) — elle n’applique jamais ce seed.
 
@@ -342,7 +405,10 @@ npm run test:sql:isolation
 - `supabase/tests/` : suites SQL (14 fichiers) exécutées **uniquement** via `npm run test:sql:local`
 - `supabase-test/` : workdir CLI de la stack test (ports 55xxx, symlink vers les migrations)
 - `supabase/functions/` : Edge Functions `sync-fc-nantes` et `send-prediction-reminders`
-- `supabase/seed.sql` : seed de développement uniquement
+- `supabase/seed.sql` : seed de développement uniquement (codes + joueurs ; pas de calendrier)
+- `npm run db:setup:realistic -- --yes` : reset local + calendrier Fixture Download (34 matchs)
+- `npm run db:sync:fixtures:local` : resync calendrier sans reset (JSON figé ; `--live` optionnel)
+- `npm run db:seed:predictions:local` : pronos de dev sur external_id Fixture Download (post-S2)
 
 ### Tests frontend
 
