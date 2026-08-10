@@ -89,6 +89,7 @@ export type RecapMessageKey =
   | 'exact_scores_notable'
   | 'positive_day'
   | 'neutral_day'
+  | 'scoreless_day'
   | 'tough_day'
 
 export interface RoundStatusPayload {
@@ -174,6 +175,8 @@ export interface PlayerRoundRecap {
     rankDelta: number | null
     isNewToRanking: boolean
     gapToPrevious: number | null
+    /** True when at least one other player shares rankAfter. */
+    isTied: boolean
   }
   social: {
     championDisplayNames: string[]

@@ -38,24 +38,22 @@ export function SeasonTimelinePanel({
             {finishedLabel}
           </p>
         </div>
-        {timeline.bestRound ? (
-          <div className="px-1 py-0.5 sm:px-2 sm:py-1">
-            <p className="label-caps">Meilleure journée</p>
-            <p className="mt-0.5 text-base font-black sm:mt-1 sm:text-xl">
-              J{timeline.bestRound.roundNumber} ·{' '}
-              {formatTimelinePoints(timeline.bestRound.roundPoints)}
-            </p>
-          </div>
-        ) : null}
-        {timeline.bestRank ? (
-          <div className="px-1 py-0.5 sm:px-2 sm:py-1">
-            <p className="label-caps">Meilleure position</p>
-            <p className="mt-0.5 text-base font-black sm:mt-1 sm:text-xl">
-              {formatRankOrdinal(timeline.bestRank.rank)} · J
-              {timeline.bestRank.roundNumber}
-            </p>
-          </div>
-        ) : null}
+        <div className="px-1 py-0.5 sm:px-2 sm:py-1">
+          <p className="label-caps">Meilleure journée</p>
+          <p className="mt-0.5 text-base font-black sm:mt-1 sm:text-xl">
+            {timeline.bestRound
+              ? `J${timeline.bestRound.roundNumber} · ${formatTimelinePoints(timeline.bestRound.roundPoints)}`
+              : '—'}
+          </p>
+        </div>
+        <div className="px-1 py-0.5 sm:px-2 sm:py-1">
+          <p className="label-caps">Meilleure position</p>
+          <p className="mt-0.5 text-base font-black sm:mt-1 sm:text-xl">
+            {timeline.bestRank
+              ? `${formatRankOrdinal(timeline.bestRank.rank)} · J${timeline.bestRank.roundNumber}`
+              : '—'}
+          </p>
+        </div>
       </div>
 
       <ol className="season-timeline">

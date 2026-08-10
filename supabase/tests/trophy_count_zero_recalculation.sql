@@ -84,8 +84,8 @@ BEGIN
   WHERE player_id IN (v_player_zero, v_player_keep)
     AND season_id = v_season_id;
 
-  -- Joueur "zero" : exact sur A + exact sur B => first_exact + double_precision (+ first_participation).
-  -- Joueur "keep" : exact sur C => conserve au moins first_participation + first_exact après invalidation de zero.
+  -- Joueur "zero" : exact sur A + exact sur B => first_exact + double_precision.
+  -- Joueur "keep" : exact sur C => conserve first_exact après invalidation de zero.
   INSERT INTO public.predictions (player_id, match_id, predicted_home_score, predicted_away_score)
   VALUES
     (v_player_zero, v_match_a, 2, 0),

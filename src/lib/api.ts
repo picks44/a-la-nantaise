@@ -826,6 +826,7 @@ export async function fetchPlayerRoundRecap(input: {
       gapToPrevious: optionalNumber(
         ranking.gapToPrevious as number | string | null | undefined,
       ),
+      isTied: Boolean(ranking.isTied),
     },
     social: {
       championDisplayNames: toStringArray(social.championDisplayNames),

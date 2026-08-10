@@ -80,7 +80,10 @@ describe('trophy panel structure (T1)', () => {
 
   it('wires celebration anti-replay and significant confetti only', () => {
     assert.match(trophyPanelFile, /SIGNIFICANT_CONFETTI_TROPHY_KEYS/)
-    assert.match(trophyPanelFile, /first_participation/)
+    assert.doesNotMatch(
+      trophyPanelFile,
+      /SIGNIFICANT_CONFETTI_TROPHY_KEYS[\s\S]*?first_participation/,
+    )
     assert.match(trophyPanelFile, /first_exact_score/)
     assert.match(trophyPanelFile, /celebrationStorageKey/)
     assert.match(trophyPanelFile, /ConfettiBurst/)

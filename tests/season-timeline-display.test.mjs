@@ -102,6 +102,11 @@ describe('SeasonTimelinePanel wiring', () => {
     assert.match(panel, /Meilleure position/)
   })
 
+  it('renders an em dash when bestRound or bestRank is null', () => {
+    assert.match(panel, /timeline\.bestRound[\s\S]*\?[\s\S]*: '—'/)
+    assert.match(panel, /timeline\.bestRank[\s\S]*\?[\s\S]*: '—'/)
+  })
+
   it('lives outside RankingPage helper exports', () => {
     assert.doesNotMatch(page, /export function formatTimelinePoints/)
     assert.match(panel, /from '..\/lib\/seasonTimeline'/)

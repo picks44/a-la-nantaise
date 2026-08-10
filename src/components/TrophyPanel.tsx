@@ -48,9 +48,8 @@ function StatusCard({
 }
 
 const SIGNIFICANT_CONFETTI_TROPHY_KEYS = new Set<string>([
-  'first_participation',
   'first_exact_score',
-] )
+])
 
 function prefersReducedMotion(): boolean {
   if (typeof window === 'undefined') return false

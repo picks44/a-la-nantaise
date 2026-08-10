@@ -107,6 +107,62 @@ describe('formatRankChangeHuman', () => {
     )
   })
 
+  it('C1: new rank-1 tie uses ex æquo wording', () => {
+    assert.equal(
+      formatRankChangeHuman({
+        rankBefore: null,
+        rankAfter: 1,
+        rankDelta: null,
+        isNewToRanking: true,
+        isTied: true,
+        isLeader: false,
+      }),
+      'Tu entres 1er ex æquo',
+    )
+  })
+
+  it('C2: unique first place keeps classic wording', () => {
+    assert.equal(
+      formatRankChangeHuman({
+        rankBefore: null,
+        rankAfter: 1,
+        rankDelta: null,
+        isNewToRanking: true,
+        isTied: false,
+        isLeader: true,
+      }),
+      'Tu entres au classement à la 1re place',
+    )
+  })
+
+  it('C3: tied first place is not a sole leader conserve', () => {
+    assert.equal(
+      formatRankChangeHuman({
+        rankBefore: 1,
+        rankAfter: 1,
+        rankDelta: 0,
+        isNewToRanking: false,
+        isTied: true,
+        isLeader: false,
+      }),
+      'Tu restes 1er ex æquo',
+    )
+  })
+
+  it('does not treat rankAfter === 1 alone as unique leader', () => {
+    assert.equal(
+      formatRankChangeHuman({
+        rankBefore: 1,
+        rankAfter: 1,
+        rankDelta: 0,
+        isNewToRanking: false,
+        isTied: true,
+        isLeader: true,
+      }),
+      'Tu restes 1er ex æquo',
+    )
+  })
+
   it('does not invent entry when rankBefore is null without isNewToRanking', () => {
     assert.equal(
       formatRankChangeHuman({
@@ -268,6 +324,13 @@ describe('formatRecapMessage', () => {
     )
   })
 
+  it('uses scoreless_day copy for a definitive zero-point day', () => {
+    assert.equal(
+      formatRecapMessage('scoreless_day', { roundPoints: 0 }, true),
+      'Ton prono n’a pas rapporté de point sur cette journée.',
+    )
+  })
+
   it('does not invent ordinal from string paths', () => {
     assert.equal(formatRankOrdinal(1), '1re')
     assert.equal(formatRankOrdinal(3), '3e')
@@ -290,6 +353,8 @@ describe('RoundRecapCard editorial wiring', () => {
       'utf8',
     )
     assert.match(card, /formatRankChangeHuman/)
+    assert.match(card, /isTied/)
+    assert.match(card, /rankAfter === 1 && !isTied/)
     assert.match(card, /selectRecapIndicators/)
     assert.match(card, /formatRecapRoundPoints/)
     assert.match(card, /formatRecapMatchHeadline/)

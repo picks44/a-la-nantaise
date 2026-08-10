@@ -47,6 +47,8 @@ export function formatRecapMessage(
         : 'Journée en cours positive pour l’instant'
     case 'neutral_day':
       return isDefinitive ? 'Journée neutre' : 'Journée en cours sans grand mouvement'
+    case 'scoreless_day':
+      return 'Ton prono n’a pas rapporté de point sur cette journée.'
     case 'tough_day':
       return isDefinitive
         ? 'Une journée plus difficile'

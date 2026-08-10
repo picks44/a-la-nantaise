@@ -297,15 +297,15 @@ BEGIN
   FROM public.login_player('test-code-aln', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeee01', '1234') AS l;
   v_season_id := public.get_active_season_id();
 
-  -- Trophées initiaux et répétables.
+  -- Première participation n'est plus un trophée (jalon hors système).
   SELECT COUNT(*)::INTEGER INTO v_count
   FROM public.player_trophies AS pt
   WHERE pt.player_id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeee01'
     AND pt.season_id = v_season_id
     AND pt.is_active = TRUE
     AND pt.trophy_key = 'first_participation';
-  IF v_count <> 1 THEN
-    RAISE EXCEPTION 'TEST FAIL: first participation missing';
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'TEST FAIL: first_participation must not be an active trophy';
   END IF;
 
   SELECT COUNT(*)::INTEGER INTO v_count
@@ -389,10 +389,31 @@ BEGIN
   IF jsonb_array_length(v_payload->'pendingCelebrations') = 0 THEN
     RAISE EXCEPTION 'TEST FAIL: pending celebrations expected';
   END IF;
-  IF NOT EXISTS (
+  IF EXISTS (
     SELECT 1
     FROM jsonb_array_elements(v_payload->'earnedTrophies') AS trophy
     WHERE trophy.value->>'trophyKey' = 'first_participation'
+  ) THEN
+    RAISE EXCEPTION 'TEST FAIL: earned must not expose first_participation';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(v_payload->'lockedTrophies') AS trophy
+    WHERE trophy.value->>'trophyKey' = 'first_participation'
+  ) THEN
+    RAISE EXCEPTION 'TEST FAIL: locked must not expose first_participation';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(v_payload->'pendingCelebrations') AS trophy
+    WHERE trophy.value->>'trophyKey' = 'first_participation'
+  ) THEN
+    RAISE EXCEPTION 'TEST FAIL: pending must not expose first_participation';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(v_payload->'earnedTrophies') AS trophy
+    WHERE trophy.value->>'trophyKey' = 'first_exact_score'
       AND trophy.value->>'sourceMatchLabel' IS NOT NULL
   ) THEN
     RAISE EXCEPTION 'TEST FAIL: earned trophy should expose sourceMatchLabel';

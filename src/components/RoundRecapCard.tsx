@@ -35,12 +35,14 @@ export function RoundRecapCard({
     recap.isDefinitive,
   )
 
+  const isTied = recap.ranking.isTied
   const rankSentence = formatRankChangeHuman({
     rankBefore: recap.ranking.rankBefore,
     rankAfter: recap.ranking.rankAfter,
     rankDelta: recap.ranking.rankDelta,
     isNewToRanking: recap.ranking.isNewToRanking,
-    isLeader: recap.ranking.rankAfter === 1,
+    isTied,
+    isLeader: recap.ranking.rankAfter === 1 && !isTied,
   })
 
   const indicators = selectRecapIndicators({

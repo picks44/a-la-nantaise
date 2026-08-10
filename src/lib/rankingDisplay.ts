@@ -106,9 +106,16 @@ export function formatLiveRankingSecondaryLine(input: {
   return parts.length > 0 ? parts.join(' · ') : null
 }
 
+function formatRankStandingLabel(rank: number, isTied: boolean): string {
+  if (rank === 1 && isTied) return '1er ex æquo'
+  if (isTied) return `${formatRankOrdinal(rank)} ex æquo`
+  return formatRankOrdinal(rank)
+}
+
 /**
  * Formulation humaine du mouvement de rang (récap éditorial).
  * S’appuie sur les nombres — jamais « Stable », jamais null traité comme 0.
+ * Ne pas traiter `rankAfter === 1` comme une 1re place unique sans `isTied`.
  */
 export function formatRankChangeHuman(input: {
   rankBefore: number | null
@@ -116,11 +123,20 @@ export function formatRankChangeHuman(input: {
   rankDelta: number | null
   isNewToRanking: boolean
   isLeader?: boolean
+  isTied?: boolean
 }): string {
   const { rankAfter, rankDelta, isNewToRanking, isLeader } = input
+  const isTied = Boolean(input.isTied)
+  const soleLeader = Boolean(isLeader) && !isTied
 
   if (isNewToRanking) {
     if (rankAfter != null) {
+      if (rankAfter === 1 && isTied) {
+        return 'Tu entres 1er ex æquo'
+      }
+      if (isTied) {
+        return `Tu entres ${formatRankOrdinal(rankAfter)} ex æquo`
+      }
       return `Tu entres au classement à la ${formatRankOrdinal(rankAfter)} place`
     }
     return 'Classement indisponible'
@@ -130,7 +146,7 @@ export function formatRankChangeHuman(input: {
     return 'Classement indisponible'
   }
 
-  const afterLabel = formatRankOrdinal(rankAfter)
+  const afterLabel = formatRankStandingLabel(rankAfter, isTied)
 
   // rankBefore null + pas nouveau → neutre, pas d’« entrée »
   if (input.rankBefore == null || rankDelta === null) {
@@ -138,8 +154,11 @@ export function formatRankChangeHuman(input: {
   }
 
   if (rankDelta === 0) {
-    if (isLeader || rankAfter === 1) {
+    if (soleLeader || (rankAfter === 1 && !isTied)) {
       return `Tu conserves la ${formatRankOrdinal(1)} place`
+    }
+    if (rankAfter === 1 && isTied) {
+      return 'Tu restes 1er ex æquo'
     }
     return `Tu restes ${afterLabel}`
   }
