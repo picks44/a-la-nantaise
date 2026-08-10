@@ -1,9 +1,12 @@
 /**
- * Calendar secondary refresh: generation token, event coalescing, soft UI.
- * Does not own the reveal state machine.
+ * Soft / secondary page refresh: generation token, event coalescing, soft UI.
+ * Calendar reveal state machine stays outside this module.
  */
 
-export type CalendarRefreshMode = 'initial' | 'soft'
+export type SoftPageRefreshMode = 'initial' | 'soft'
+
+/** @deprecated Prefer SoftPageRefreshMode — alias conservé pour les imports Calendar. */
+export type CalendarRefreshMode = SoftPageRefreshMode
 
 export function createRefreshCoalescer(options: {
   delayMs?: number
@@ -54,8 +57,8 @@ export function createGenerationToken() {
   }
 }
 
-export async function runCalendarDataLoad<TBundle>(input: {
-  mode: CalendarRefreshMode
+export async function runSoftPageLoad<TBundle>(input: {
+  mode: SoftPageRefreshMode
   hasExistingData: boolean
   generation: number
   isCurrent: (generation: number) => boolean
@@ -92,3 +95,6 @@ export async function runCalendarDataLoad<TBundle>(input: {
     }
   }
 }
+
+/** Alias historique — même implémentation que runSoftPageLoad. */
+export const runCalendarDataLoad = runSoftPageLoad

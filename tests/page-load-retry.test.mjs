@@ -217,7 +217,7 @@ describe('page wiring (A1a)', () => {
   it('Ranking retry uses loadRankingBundle and does not gate on season?.id', () => {
     assert.match(rankingPage, /loadRankingBundle/)
     assert.match(rankingPage, /createInFlightGuard/)
-    assert.match(rankingPage, /function retry\(\) \{\s*void loadPage\(\)/)
+    assert.match(rankingPage, /function retry\(\) \{\s*void loadPage\('initial'\)/)
     assert.doesNotMatch(
       rankingPage,
       /function retry\(\) \{\s*if \(!sessionToken \|\| !season\?\.id\) return/,
@@ -230,7 +230,7 @@ describe('page wiring (A1a)', () => {
   it('Home and Calendar expose a real retry on the same load path', () => {
     assert.match(homePage, /loadHomeBundle/)
     assert.match(homePage, /createInFlightGuard/)
-    assert.match(homePage, /function retry\(\) \{\s*void loadPage\(\)/)
+    assert.match(homePage, /function retry\(\) \{\s*void loadPage\('initial'\)/)
     assert.match(homePage, /Réessayer/)
 
     assert.match(calendarPage, /loadCalendarBundle/)

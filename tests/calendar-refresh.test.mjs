@@ -8,6 +8,7 @@ import {
   createGenerationToken,
   createRefreshCoalescer,
   runCalendarDataLoad,
+  runSoftPageLoad,
 } from '../src/lib/calendarRefresh.ts'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -50,6 +51,10 @@ describe('createRefreshCoalescer', () => {
 })
 
 describe('runCalendarDataLoad', () => {
+  it('keeps the historical alias over runSoftPageLoad', () => {
+    assert.equal(runCalendarDataLoad, runSoftPageLoad)
+  })
+
   it('uses full loading on initial mode and applies success', async () => {
     const events = []
     const result = await runCalendarDataLoad({
@@ -114,9 +119,9 @@ describe('runCalendarDataLoad', () => {
 
 describe('CalendarPage refresh wiring (A2a)', () => {
   it('uses coalesced soft refresh with generation helpers', () => {
-    assert.match(calendarPage, /createRefreshCoalescer/)
+    assert.match(calendarPage, /attachSoftPageRefresh/)
     assert.match(calendarPage, /createGenerationToken/)
-    assert.match(calendarPage, /runCalendarDataLoad/)
+    assert.match(calendarPage, /runSoftPageLoad/)
     assert.match(calendarPage, /loadCalendarData\('soft'\)/)
     assert.match(calendarPage, /showInitialLoading/)
     assert.match(calendarPage, /reloadRevealsAfterData/)
@@ -125,7 +130,7 @@ describe('CalendarPage refresh wiring (A2a)', () => {
   it('does not blank the list on focus by resetting reveals before fetch', () => {
     // Reveal reset must happen after data lands, inside reloadRevealsAfterData.
     const refreshEffect = calendarPage.slice(
-      calendarPage.indexOf('createRefreshCoalescer'),
+      calendarPage.indexOf('attachSoftPageRefresh'),
       calendarPage.indexOf('const revealableMatchIds'),
     )
     assert.doesNotMatch(refreshEffect, /resetInFlight/)

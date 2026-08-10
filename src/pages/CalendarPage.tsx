@@ -15,9 +15,12 @@ import {
 } from '../lib/api'
 import {
   createGenerationToken,
-  createRefreshCoalescer,
-  runCalendarDataLoad,
+  runSoftPageLoad,
 } from '../lib/calendarRefresh'
+import {
+  attachSoftPageRefresh,
+  hasMatchAwaitingOfficialResult,
+} from '../lib/softPageRefresh'
 import { shouldShowJumpToNextMatch } from '../lib/matchOrder'
 import { toUserMessage, UNKNOWN_USER_MESSAGE } from '../lib/errors'
 import {
@@ -153,7 +156,7 @@ export function CalendarPage() {
         const generation = dataGenerationRef.current.next()
         const token = sessionToken
 
-        await runCalendarDataLoad({
+        await runSoftPageLoad({
           mode,
           hasExistingData: hasExistingDataRef.current,
           generation,
@@ -211,37 +214,23 @@ export function CalendarPage() {
     void loadCalendarData('initial')
   }
 
+  const awaitingOfficialResult = useMemo(
+    () => hasMatchAwaitingOfficialResult(matches, now),
+    [matches, now],
+  )
+
   useEffect(() => {
     if (!sessionToken || !playerId) return
 
-    const coalescer = createRefreshCoalescer({
-      delayMs: 50,
-      onFlush: () => {
+    const attachment = attachSoftPageRefresh({
+      onRefresh: () => {
         void loadCalendarData('soft')
       },
+      shouldPoll: awaitingOfficialResult,
     })
 
-    function requestRefresh() {
-      coalescer.request()
-    }
-
-    function handleVisibility() {
-      if (document.visibilityState === 'visible') requestRefresh()
-    }
-
-    window.addEventListener('focus', requestRefresh)
-    window.addEventListener('pageshow', requestRefresh)
-    window.addEventListener('online', requestRefresh)
-    document.addEventListener('visibilitychange', handleVisibility)
-
-    return () => {
-      coalescer.dispose()
-      window.removeEventListener('focus', requestRefresh)
-      window.removeEventListener('pageshow', requestRefresh)
-      window.removeEventListener('online', requestRefresh)
-      document.removeEventListener('visibilitychange', handleVisibility)
-    }
-  }, [loadCalendarData, playerId, sessionToken])
+    return () => attachment.dispose()
+  }, [awaitingOfficialResult, loadCalendarData, playerId, sessionToken])
 
   const revealableMatchIds = useMemo(
     () =>

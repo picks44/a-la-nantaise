@@ -50,7 +50,10 @@ export function MatchListItem({
   onRetryReveal,
 }: MatchListItemProps) {
   const isFinished = match.status === 'finished'
-  const isCompactFuture = !isFinished && !isNext
+  const isLocked = match.status === 'locked'
+  // Compacts = vrais futurs (ou reportés/annulés non-next) — jamais locked/finished.
+  // locked doit réutiliser la full card pour afficher RevealSection dès le kickoff.
+  const isCompactFuture = !isFinished && !isLocked && !isNext
   const isPredicted = match.status === 'predicted'
   const isUnconfirmed = match.status === 'kickoff_unconfirmed'
   const shouldLinkToPrediction =
@@ -67,7 +70,7 @@ export function MatchListItem({
       kickoffTimeConfirmed: match.kickoffTimeConfirmed,
     })
     const savedPrediction =
-      match.status === 'predicted' || match.status === 'locked'
+      match.status === 'predicted'
         ? formatSavedPrediction(
             prediction
               ? {

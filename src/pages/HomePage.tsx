@@ -24,11 +24,19 @@ import {
 import { getCompetitionRanks, selectHomeRanking } from '../lib/ranking'
 import { toUserMessage } from '../lib/errors'
 import {
+  createGenerationToken,
+  runSoftPageLoad,
+} from '../lib/calendarRefresh'
+import {
   createInFlightGuard,
   loadHomeBundle,
 } from '../lib/pageLoad'
 import { withPageLoadTimeout } from '../lib/pageLoadTimeout'
 import { isBrowserOnline, OFFLINE_USER_MESSAGE } from '../lib/pwa'
+import {
+  attachSoftPageRefresh,
+  hasMatchAwaitingOfficialResult,
+} from '../lib/softPageRefresh'
 import {
   formatCountdown,
   formatKickoff,
@@ -64,7 +72,23 @@ export function HomePage() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
   const loadGuardRef = useRef(createInFlightGuard())
-  const loadGenerationRef = useRef(0)
+  const dataGenerationRef = useRef(createGenerationToken())
+  const hasExistingDataRef = useRef(false)
+  const accessCodeRef = useRef(accessCode)
+  const playerIdRef = useRef(playerId)
+
+  useEffect(() => {
+    hasExistingDataRef.current =
+      matches.length > 0 || ranking.length > 0 || predictions.length > 0
+  }, [matches.length, ranking.length, predictions.length])
+
+  useEffect(() => {
+    accessCodeRef.current = accessCode
+  }, [accessCode])
+
+  useEffect(() => {
+    playerIdRef.current = playerId
+  }, [playerId])
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 1000)
@@ -77,91 +101,149 @@ export function HomePage() {
     return () => window.clearTimeout(timer)
   }, [justSaved])
 
-  const loadPage = useCallback(async () => {
-    if (!sessionToken || !playerId) return
-    await loadGuardRef.current.run(async () => {
-      const generation = ++loadGenerationRef.current
-      setLoading(true)
+  const applyHomeBundle = useCallback(
+    async (input: {
+      season: Season
+      matches: Match[]
+      predictions: Prediction[]
+      ranking: Player[]
+      sessionToken: string
+      generation: number
+    }) => {
+      setMatches(input.matches)
+      setPredictions(input.predictions)
+      setRanking(input.ranking)
       setError(null)
-      try {
-        const bundle = await loadHomeBundle({
-          sessionToken,
-          fetchActiveSeason,
-          fetchMatches,
-          fetchMyPredictions,
-          fetchLiveSeasonRanking,
-        })
-        if (generation !== loadGenerationRef.current) return
 
-        const season = bundle.season as Season
-        const matchRows = bundle.matches as Match[]
-        const predictionRows = bundle.predictions as Prediction[]
-        const rankingRows = bundle.ranking as Player[]
-        setMatches(matchRows)
-        setPredictions(predictionRows)
-        setRanking(rankingRows)
+      const activePlayerId = playerIdRef.current
+      if (!activePlayerId) return
 
-        const referenceRound = rankingRows.find(
-          (row) => row.referenceRoundNumber != null,
-        )?.referenceRoundNumber
-        if (referenceRound != null) {
-          try {
-            const recapPayload = await withPageLoadTimeout(
-              fetchPlayerRoundRecap({
-                sessionToken,
-                seasonId: season.id,
-                roundNumber: referenceRound,
-              }),
-            )
-            if (generation !== loadGenerationRef.current) return
-            setRecap(recapPayload)
+      const referenceRound = input.ranking.find(
+        (row) => row.referenceRoundNumber != null,
+      )?.referenceRoundNumber
+      if (referenceRound != null) {
+        try {
+          const recapPayload = await withPageLoadTimeout(
+            fetchPlayerRoundRecap({
+              sessionToken: input.sessionToken,
+              seasonId: input.season.id,
+              roundNumber: referenceRound,
+            }),
+          )
+          if (!dataGenerationRef.current.isCurrent(input.generation)) return
+          setRecap(recapPayload)
 
-            const groupId = accessCode ?? 'group'
-            const seenKey = celebrationStorageKey({
-              groupId,
-              playerId,
-              seasonId: season.id,
-              eventType: 'day_recap',
-              eventId: `${referenceRound}:${recapPayload.isDefinitive ? 'def' : 'prov'}`,
-            })
-            const alreadySeen = getCelebrationFlag(seenKey)
-            if (recapPayload.isDefinitive && !alreadySeen) {
-              setShowRecap(true)
-              setCelebrationFlag(seenKey)
-            } else if (!recapPayload.isDefinitive) {
-              setShowRecap(true)
-            }
-          } catch {
-            if (generation === loadGenerationRef.current) {
-              setRecap(null)
-              setShowRecap(false)
-            }
+          const groupId = accessCodeRef.current ?? 'group'
+          const seenKey = celebrationStorageKey({
+            groupId,
+            playerId: activePlayerId,
+            seasonId: input.season.id,
+            eventType: 'day_recap',
+            eventId: `${referenceRound}:${recapPayload.isDefinitive ? 'def' : 'prov'}`,
+          })
+          const alreadySeen = getCelebrationFlag(seenKey)
+          if (recapPayload.isDefinitive && !alreadySeen) {
+            setShowRecap(true)
+            setCelebrationFlag(seenKey)
+          } else if (!recapPayload.isDefinitive) {
+            setShowRecap(true)
           }
-        } else if (generation === loadGenerationRef.current) {
-          setRecap(null)
-          setShowRecap(false)
+        } catch {
+          if (dataGenerationRef.current.isCurrent(input.generation)) {
+            setRecap(null)
+            setShowRecap(false)
+          }
         }
-      } catch (err) {
-        if (generation === loadGenerationRef.current) {
-          setError(toUserMessage(err))
-        }
-      } finally {
-        if (generation === loadGenerationRef.current) {
-          setLoading(false)
-        }
+      } else if (dataGenerationRef.current.isCurrent(input.generation)) {
+        setRecap(null)
+        setShowRecap(false)
       }
-    })
-  }, [sessionToken, playerId, accessCode])
+    },
+    [],
+  )
+
+  const loadPage = useCallback(
+    async (mode: 'initial' | 'soft') => {
+      if (!sessionToken || !playerId) return
+      await loadGuardRef.current.run(async () => {
+        const generation = dataGenerationRef.current.next()
+        const token = sessionToken
+
+        await runSoftPageLoad({
+          mode,
+          hasExistingData: hasExistingDataRef.current,
+          generation,
+          isCurrent: (gen) => dataGenerationRef.current.isCurrent(gen),
+          load: async () => {
+            const bundle = await loadHomeBundle({
+              sessionToken: token,
+              fetchActiveSeason,
+              fetchMatches,
+              fetchMyPredictions,
+              fetchLiveSeasonRanking,
+            })
+            return {
+              season: bundle.season as Season,
+              matches: bundle.matches as Match[],
+              predictions: bundle.predictions as Prediction[],
+              ranking: bundle.ranking as Player[],
+            }
+          },
+          onFullLoading: () => {
+            setLoading(true)
+            setError(null)
+          },
+          onSoftStart: () => {
+            setError(null)
+          },
+          onSuccess: (bundle) => {
+            void applyHomeBundle({
+              ...bundle,
+              sessionToken: token,
+              generation,
+            })
+          },
+          onError: (err) => {
+            if (!hasExistingDataRef.current) {
+              setError(toUserMessage(err))
+            }
+          },
+          onSettled: () => {
+            setLoading(false)
+          },
+        })
+      })
+    },
+    [applyHomeBundle, playerId, sessionToken],
+  )
 
   useEffect(() => {
-    const generationRef = loadGenerationRef
+    const generation = dataGenerationRef.current
     const guard = loadGuardRef.current
-    void loadPage()
+    void loadPage('initial')
     return () => {
-      generationRef.current += 1
+      generation.bump()
       guard.reset()
     }
   }, [loadPage])
+
+  const awaitingOfficialResult = useMemo(
+    () => hasMatchAwaitingOfficialResult(matches, now),
+    [matches, now],
+  )
+
+  useEffect(() => {
+    if (!sessionToken || !playerId) return
+
+    const attachment = attachSoftPageRefresh({
+      onRefresh: () => {
+        void loadPage('soft')
+      },
+      shouldPoll: awaitingOfficialResult,
+    })
+
+    return () => attachment.dispose()
+  }, [awaitingOfficialResult, loadPage, playerId, sessionToken])
 
   const nextMatch = useMemo(() => {
     const base = findNextOpenMatch(matches, now)
@@ -234,7 +316,7 @@ export function HomePage() {
   }
 
   function retry() {
-    void loadPage()
+    void loadPage('initial')
   }
 
   if (loading) {

@@ -73,8 +73,12 @@ describe('MatchListItem future compact wiring (K4)', () => {
   )
   const compact = item.slice(compactStart, fullCardStart)
 
-  it('uses an explicit compact branch for non-finished non-next matches', () => {
-    assert.match(item, /const isCompactFuture = !isFinished && !isNext/)
+  it('uses an explicit compact branch for future non-next matches only', () => {
+    assert.match(item, /const isLocked = match\.status === 'locked'/)
+    assert.match(
+      item,
+      /const isCompactFuture = !isFinished && !isLocked && !isNext/,
+    )
     assert.match(compact, /future-match-row/)
     assert.match(compact, /formatFutureMatchMeta/)
     assert.match(compact, /formatSavedPrediction/)
@@ -83,11 +87,23 @@ describe('MatchListItem future compact wiring (K4)', () => {
     assert.match(compact, /data-match-id=\{match\.id\}/)
   })
 
-  it('keeps next and finished on the full card path', () => {
+  it('keeps next, locked and finished on the full card path', () => {
     assert.match(item, /id="prochain-match"/)
     assert.match(item, /isFinished/)
+    assert.match(item, /isLocked/)
     assert.match(item, /getCalendarPersonalPredictionView/)
     assert.match(item, /match-reveal-details/)
+    // RevealSection is only on the full-card path (after compact early return).
+    assert.match(item.slice(fullCardStart), /<RevealSection/)
+  })
+
+  it('routes locked matches out of the future compact branch', () => {
+    assert.match(
+      item,
+      /const isCompactFuture = !isFinished && !isLocked && !isNext/,
+    )
+    assert.doesNotMatch(compact, /match\.status === 'locked'/)
+    assert.match(item.slice(fullCardStart), /RevealSection/)
   })
 
   it('omits group teaser, reveal copy, venue and actions from compact rows', () => {
@@ -101,8 +117,9 @@ describe('MatchListItem future compact wiring (K4)', () => {
     assert.doesNotMatch(compact, /RevealSection/)
   })
 
-  it('shows saved prediction only for predicted and locked compact rows', () => {
-    assert.match(
+  it('shows saved prediction only for predicted compact rows', () => {
+    assert.match(compact, /match\.status === 'predicted'/)
+    assert.doesNotMatch(
       compact,
       /match\.status === 'predicted' \|\| match\.status === 'locked'/,
     )

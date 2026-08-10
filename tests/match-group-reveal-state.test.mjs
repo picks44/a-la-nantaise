@@ -390,7 +390,7 @@ describe('CalendarPage / MatchListItem reveal wiring', () => {
     assert.match(calendar, /createRevealLoader/)
     assert.match(calendar, /retryReveal/)
     assert.match(calendar, /resetInFlight/)
-    assert.match(calendar, /createRefreshCoalescer/)
+    assert.match(calendar, /attachSoftPageRefresh/)
     assert.doesNotMatch(calendar, /revealLoadingIds/)
     assert.doesNotMatch(calendar, /if \(!cancelled\) \{\s*setRevealLoadingIds/)
     assert.doesNotMatch(

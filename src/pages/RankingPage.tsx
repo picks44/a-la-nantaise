@@ -27,12 +27,20 @@ import {
 } from '../lib/ranking'
 import { toUserMessage, UNKNOWN_USER_MESSAGE } from '../lib/errors'
 import {
+  createGenerationToken,
+  runSoftPageLoad,
+} from '../lib/calendarRefresh'
+import {
   createInFlightGuard,
   loadRankingBundle,
   resolveRecapViewState,
 } from '../lib/pageLoad'
 import { withPageLoadTimeout } from '../lib/pageLoadTimeout'
 import { formatProvisionalBadge } from '../lib/rankingDisplay'
+import {
+  attachSoftPageRefresh,
+  hasMatchAwaitingOfficialResult,
+} from '../lib/softPageRefresh'
 import type {
   Match,
   Player,
@@ -71,53 +79,103 @@ export function RankingPage() {
   const [trophyError, setTrophyError] = useState<string | null>(null)
   const [timelineError, setTimelineError] = useState<string | null>(null)
   const [acknowledging, setAcknowledging] = useState(false)
+  const [now, setNow] = useState(() => new Date())
   const loadGuardRef = useRef(createInFlightGuard())
-  const loadGenerationRef = useRef(0)
-
-  const loadPage = useCallback(async () => {
-    if (!sessionToken) return
-    await loadGuardRef.current.run(async () => {
-      const generation = ++loadGenerationRef.current
-      setLoading(true)
-      setError(null)
-      try {
-        const bundle = await loadRankingBundle({
-          sessionToken,
-          fetchActiveSeason,
-          fetchLiveSeasonRanking,
-          fetchMatches,
-        })
-        if (generation !== loadGenerationRef.current) return
-        const seasonRow = bundle.season as Season
-        const rankingRows = bundle.ranking as Player[]
-        const matchRows = bundle.matches as Match[]
-        setSeason(seasonRow)
-        setRanking(rankingRows)
-        setMatches(matchRows)
-        setSelectedRound((current) =>
-          current ?? selectDefaultRoundNumber(matchRows),
-        )
-      } catch (err) {
-        if (generation === loadGenerationRef.current) {
-          setError(toUserMessage(err))
-        }
-      } finally {
-        if (generation === loadGenerationRef.current) {
-          setLoading(false)
-        }
-      }
-    })
-  }, [sessionToken])
+  const dataGenerationRef = useRef(createGenerationToken())
+  const hasExistingDataRef = useRef(false)
 
   useEffect(() => {
-    const generationRef = loadGenerationRef
+    hasExistingDataRef.current = ranking.length > 0 || matches.length > 0
+  }, [ranking.length, matches.length])
+
+  // Horloge légère pour détecter un résultat attendu (pas de polling réseau ici).
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  const loadPage = useCallback(
+    async (mode: 'initial' | 'soft') => {
+      if (!sessionToken) return
+      await loadGuardRef.current.run(async () => {
+        const generation = dataGenerationRef.current.next()
+        const token = sessionToken
+
+        await runSoftPageLoad({
+          mode,
+          hasExistingData: hasExistingDataRef.current,
+          generation,
+          isCurrent: (gen) => dataGenerationRef.current.isCurrent(gen),
+          load: async () => {
+            const bundle = await loadRankingBundle({
+              sessionToken: token,
+              fetchActiveSeason,
+              fetchLiveSeasonRanking,
+              fetchMatches,
+            })
+            return {
+              season: bundle.season as Season,
+              ranking: bundle.ranking as Player[],
+              matches: bundle.matches as Match[],
+            }
+          },
+          onFullLoading: () => {
+            setLoading(true)
+            setError(null)
+          },
+          onSoftStart: () => {
+            setError(null)
+          },
+          onSuccess: (bundle) => {
+            setSeason(bundle.season)
+            setRanking(bundle.ranking)
+            setMatches(bundle.matches)
+            setSelectedRound((current) =>
+              current ?? selectDefaultRoundNumber(bundle.matches),
+            )
+            setError(null)
+          },
+          onError: (err) => {
+            if (!hasExistingDataRef.current) {
+              setError(toUserMessage(err))
+            }
+          },
+          onSettled: () => {
+            setLoading(false)
+          },
+        })
+      })
+    },
+    [sessionToken],
+  )
+
+  useEffect(() => {
+    const generation = dataGenerationRef.current
     const guard = loadGuardRef.current
-    void loadPage()
+    void loadPage('initial')
     return () => {
-      generationRef.current += 1
+      generation.bump()
       guard.reset()
     }
   }, [loadPage])
+
+  const awaitingOfficialResult = useMemo(
+    () => hasMatchAwaitingOfficialResult(matches, now),
+    [matches, now],
+  )
+
+  useEffect(() => {
+    if (!sessionToken) return
+
+    const attachment = attachSoftPageRefresh({
+      onRefresh: () => {
+        void loadPage('soft')
+      },
+      shouldPoll: awaitingOfficialResult,
+    })
+
+    return () => attachment.dispose()
+  }, [awaitingOfficialResult, loadPage, sessionToken])
 
   const referenceRoundNumber =
     ranking.find((row) => row.referenceRoundNumber != null)
@@ -281,7 +339,7 @@ export function RankingPage() {
   })
 
   function retry() {
-    void loadPage()
+    void loadPage('initial')
   }
 
   function retryRecap() {
