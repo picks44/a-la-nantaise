@@ -480,10 +480,10 @@ function RevealSection({
             <button
               type="button"
               className={[
-                'min-h-10 rounded-[var(--radius-sm)] border px-2.5 text-xs font-extrabold tracking-[0.06em] uppercase',
+                'btn-secondary min-h-10 w-auto px-2.5 text-xs',
                 isFinishedShell
-                  ? 'border-white/25 text-yellow'
-                  : 'border-border text-green-dark',
+                  ? 'border-white/35 bg-white/10 text-yellow hover:bg-white/20 hover:text-yellow'
+                  : 'hover:border-green-dark hover:bg-green-dark hover:text-yellow',
               ].join(' ')}
               aria-expanded={detailsOpen}
               aria-controls={detailsId}

@@ -30,7 +30,10 @@ import {
   attachSoftPageRefresh,
   hasMatchAwaitingOfficialResult,
 } from '../lib/softPageRefresh'
-import { shouldShowJumpToNextMatch } from '../lib/matchOrder'
+import {
+  findHomeGroupRevealMatch,
+  shouldShowJumpToNextMatch,
+} from '../lib/matchOrder'
 import { toUserMessage, UNKNOWN_USER_MESSAGE } from '../lib/errors'
 import {
   createInFlightGuard,
@@ -295,6 +298,11 @@ export function CalendarPage() {
     return next?.id ?? null
   }, [matches, now])
 
+  const groupRevealId = useMemo(
+    () => findHomeGroupRevealMatch(matches, now)?.id ?? null,
+    [matches, now],
+  )
+
   const lastFinishedId = useMemo(
     () => findLastFinishedMatch(matches)?.id ?? null,
     [matches],
@@ -392,6 +400,13 @@ export function CalendarPage() {
   const showInitialLoading = loading && matches.length === 0
   const showInitialError = Boolean(error) && matches.length === 0
 
+  const liveItems = useMemo(
+    () =>
+      groupRevealId
+        ? items.filter(({ match }) => match.id === groupRevealId)
+        : [],
+    [items, groupRevealId],
+  )
   const nextItems = useMemo(
     () =>
       nextOpenId
@@ -403,9 +418,11 @@ export function CalendarPage() {
     () =>
       items.filter(
         ({ match }) =>
-          match.status !== 'finished' && match.id !== nextOpenId,
+          match.status !== 'finished' &&
+          match.id !== nextOpenId &&
+          match.id !== groupRevealId,
       ),
-    [items, nextOpenId],
+    [items, nextOpenId, groupRevealId],
   )
   const finishedItems = useMemo(
     () => items.filter(({ match }) => match.status === 'finished'),
@@ -418,10 +435,11 @@ export function CalendarPage() {
   )
   const upcomingDisplayOrderIds = useMemo(
     () => [
+      ...liveItems.map(({ match }) => match.id),
       ...nextItems.map(({ match }) => match.id),
       ...upcomingItems.map(({ match }) => match.id),
     ],
-    [nextItems, upcomingItems],
+    [liveItems, nextItems, upcomingItems],
   )
   const showJumpInFinished = nextOpenId != null
   const showJumpInUpcoming = shouldShowJumpToNextMatch(
@@ -482,7 +500,8 @@ export function CalendarPage() {
     )
   }
 
-  const hasUpcomingContent = nextItems.length > 0 || upcomingItems.length > 0
+  const hasUpcomingContent =
+    liveItems.length > 0 || nextItems.length > 0 || upcomingItems.length > 0
 
   return (
     <div className="page-stack">
@@ -547,6 +566,25 @@ export function CalendarPage() {
                 <EmptyCard message="Aucun match à venir." />
               ) : (
                 <>
+                  {liveItems.length > 0 ? (
+                    <section
+                      aria-labelledby="calendar-live-heading"
+                      className="space-y-2.5"
+                    >
+                      <h2
+                        id="calendar-live-heading"
+                        className="text-[11px] font-bold tracking-[0.12em] text-ink/55 uppercase"
+                      >
+                        Match en cours
+                      </h2>
+                      <ul className="space-y-2.5">
+                        {liveItems.map(({ match, prediction }) =>
+                          renderMatchRow(match, prediction),
+                        )}
+                      </ul>
+                    </section>
+                  ) : null}
+
                   {nextItems.length > 0 ? (
                     <section
                       aria-labelledby="calendar-next-heading"

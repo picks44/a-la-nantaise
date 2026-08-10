@@ -529,7 +529,7 @@ function AwaitingPrimaryCard({
         <div className="mt-4 flex justify-center sm:mt-5">
           <Link
             to={`/calendrier?match=${match.id}`}
-            className="btn-ghost min-h-10"
+            className="btn-ink w-auto min-w-[14rem]"
           >
             Voir les pronos du groupe
           </Link>
