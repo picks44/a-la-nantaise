@@ -3,7 +3,11 @@ import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { findHomeGroupRevealMatch } from '../src/lib/matchOrder.ts'
+import {
+  findHomeGroupRevealMatch,
+  findLastFinishedMatch,
+  findNextOpenMatch,
+} from '../src/lib/matchOrder.ts'
 import { shouldOpenDetailsForDeepLink } from '../src/lib/pageLoadTimeout.ts'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -19,6 +23,9 @@ function baseMatch(partial) {
     kickoffAt: partial.kickoffAt,
     kickoffTimeConfirmed: partial.kickoffTimeConfirmed ?? true,
     dbStatus: partial.dbStatus ?? 'scheduled',
+    finalScore: partial.finalScore,
+    homeTeam: partial.homeTeam ?? 'Home',
+    awayTeam: partial.awayTeam ?? 'Away',
   }
 }
 
@@ -100,26 +107,87 @@ describe('findHomeGroupRevealMatch', () => {
   })
 })
 
+describe('Home primary match priority J1/J2/J3', () => {
+  const now = new Date('2026-08-10T12:00:00.000Z')
+
+  const j1Finished = baseMatch({
+    id: 'j1-finished',
+    matchday: 1,
+    kickoffAt: '2026-08-01T18:45:00.000Z',
+    dbStatus: 'finished',
+    finalScore: { home: 2, away: 1 },
+  })
+  const j2Awaiting = baseMatch({
+    id: 'j2-awaiting',
+    matchday: 2,
+    kickoffAt: '2026-08-08T18:45:00.000Z',
+    dbStatus: 'scheduled',
+  })
+  const j3Open = baseMatch({
+    id: 'j3-open',
+    matchday: 3,
+    kickoffAt: '2026-08-14T18:45:00.000Z',
+    dbStatus: 'scheduled',
+  })
+
+  it('keeps J2 as group reveal, J3 as next open, J1 as last finished', () => {
+    const matches = [j1Finished, j2Awaiting, j3Open]
+    assert.equal(findHomeGroupRevealMatch(matches, now)?.id, 'j2-awaiting')
+    assert.equal(findNextOpenMatch(matches, now)?.id, 'j3-open')
+    assert.equal(findLastFinishedMatch(matches)?.id, 'j1-finished')
+  })
+
+  it('after J2 finishes, primary open becomes J3 and last finished becomes J2', () => {
+    const j2Finished = baseMatch({
+      id: 'j2-awaiting',
+      matchday: 2,
+      kickoffAt: '2026-08-08T18:45:00.000Z',
+      dbStatus: 'finished',
+      finalScore: { home: 1, away: 0 },
+    })
+    const matches = [j1Finished, j2Finished, j3Open]
+    assert.equal(findHomeGroupRevealMatch(matches, now), null)
+    assert.equal(findNextOpenMatch(matches, now)?.id, 'j3-open')
+    assert.equal(findLastFinishedMatch(matches)?.id, 'j2-awaiting')
+  })
+})
+
 describe('Home group reveal CTA wiring', () => {
   const home = read('src/pages/HomePage.tsx')
   const calendar = read('src/pages/CalendarPage.tsx')
   const matchOrder = read('src/lib/matchOrder.ts')
 
-  it('wires locked CTA via findHomeGroupRevealMatch and exact calendrier deeplink', () => {
+  it('wires primaryMatch priority: groupRevealMatch over nextOpenMatch', () => {
     assert.match(matchOrder, /export function findHomeGroupRevealMatch/)
     assert.match(matchOrder, /matchAwaitsOfficialResult/)
     assert.match(home, /findHomeGroupRevealMatch/)
-    assert.match(home, /GroupRevealCta/)
-    assert.match(home, /Voir les pronos du groupe/)
-    assert.match(home, /to=\{`\/calendrier\?match=\$\{matchId\}`\}/)
-    assert.match(home, /groupRevealMatch \? \(/)
-    assert.doesNotMatch(home, /RevealSection/)
+    assert.match(home, /findNextOpenMatch/)
+    assert.match(home, /const primaryMatch = useMemo/)
+    assert.match(
+      home,
+      /if \(groupRevealMatch\)[\s\S]*return withPredictionStatus\([\s\S]*groupRevealMatch/,
+    )
+    assert.match(home, /return nextOpenMatch/)
+    assert.match(home, /isAwaitingPrimary/)
+    assert.match(home, /AwaitingPrimaryCard/)
   })
 
-  it('wires finished CTA inside LastMatchBlock with the same deeplink', () => {
+  it('puts group CTA inside awaiting primary card with groupRevealMatch id', () => {
+    const awaitingStart = home.indexOf('function AwaitingPrimaryCard')
+    const awaitingEnd = home.indexOf('function OpenPrimaryCard')
+    const awaiting = home.slice(awaitingStart, awaitingEnd)
+    assert.match(awaiting, /Voir les pronos du groupe/)
+    assert.match(awaiting, /to=\{`\/calendrier\?match=\$\{match\.id\}`\}/)
+    assert.doesNotMatch(awaiting, /Valider mon prono/)
+    assert.doesNotMatch(awaiting, /Modifier mon prono/)
+    assert.doesNotMatch(awaiting, /ScoreInput/)
+  })
+
+  it('removes floating GroupRevealCta and LastMatchBlock group CTA', () => {
+    assert.doesNotMatch(home, /function GroupRevealCta/)
+    assert.doesNotMatch(home, /<GroupRevealCta/)
     const lastBlock = home.slice(home.indexOf('function LastMatchBlock'))
-    assert.match(lastBlock, /Voir les pronos du groupe/)
-    assert.match(lastBlock, /to=\{`\/calendrier\?match=\$\{match\.id\}`\}/)
+    assert.doesNotMatch(lastBlock, /Voir les pronos du groupe/)
   })
 
   it('keeps Calendar deeplink and no-match navigation unchanged', () => {

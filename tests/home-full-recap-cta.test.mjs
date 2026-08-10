@@ -13,22 +13,19 @@ function read(relativePath) {
 describe('Home full recap CTA', () => {
   const home = read('src/pages/HomePage.tsx')
 
-  it('shows Voir le résumé complet only when recap matches lastMatch matchday', () => {
-    assert.match(home, /showFullRecapCta/)
-    assert.match(
-      home,
-      /recap\.roundNumber === lastMatch\.matchday/,
-    )
-    assert.match(home, /Voir le résumé complet/)
-    assert.match(home, /to="\/classement#recap"/)
+  it('always deep-links Voir le résumé complet to calendrier finished match', () => {
+    const lastBlock = home.slice(home.indexOf('function LastMatchBlock'))
+    assert.match(lastBlock, /Voir le résumé complet/)
+    assert.match(lastBlock, /to=\{`\/calendrier\?match=\$\{match\.id\}`\}/)
+    assert.doesNotMatch(lastBlock, /classement#recap/)
+    assert.doesNotMatch(lastBlock, /showFullRecapCta/)
+    assert.doesNotMatch(home, /recap\.roundNumber === lastMatch\.matchday/)
+    assert.doesNotMatch(home, /to="\/classement#recap"/)
   })
 
-  it('keeps group-reveal and full-recap CTAs as peer secondary actions', () => {
+  it('does not keep group-reveal CTA inside LastMatchBlock', () => {
     const lastBlock = home.slice(home.indexOf('function LastMatchBlock'))
-    assert.match(
-      lastBlock,
-      /flex flex-col items-center gap-1[\s\S]*Voir les pronos du groupe[\s\S]*showFullRecapCta[\s\S]*Voir le résumé complet/,
-    )
+    assert.doesNotMatch(lastBlock, /Voir les pronos du groupe/)
   })
 })
 

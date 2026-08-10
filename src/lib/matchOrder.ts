@@ -53,15 +53,9 @@ export function findLastFinishedMatch(matches: Match[]): Match | null {
  * Réutilise `matchAwaitsOfficialResult` ; si plusieurs, le kickoff le plus récent.
  * Indépendant de `findNextOpenMatch` (qui exclut tout kickoff passé).
  */
-export function findHomeGroupRevealMatch(
-  matches: ReadonlyArray<
-    Pick<Match, 'id' | 'kickoffAt' | 'kickoffTimeConfirmed' | 'dbStatus'>
-  >,
-  now: Date = new Date(),
-): Pick<
-  Match,
-  'id' | 'kickoffAt' | 'kickoffTimeConfirmed' | 'dbStatus'
-> | null {
+export function findHomeGroupRevealMatch<
+  T extends Pick<Match, 'id' | 'kickoffAt' | 'kickoffTimeConfirmed' | 'dbStatus'>,
+>(matches: ReadonlyArray<T>, now: Date = new Date()): T | null {
   const awaiting = matches
     .filter((match) => matchAwaitsOfficialResult(match, now))
     .sort(
