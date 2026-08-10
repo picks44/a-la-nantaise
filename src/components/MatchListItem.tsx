@@ -122,15 +122,20 @@ export function MatchListItem({
   }
 
   // Jaune fort réservé au prochain match encore à jouer ; prono enregistré = surface claire.
-  const shellClass = highlighted
-    ? 'border-green bg-success-soft ring-2 ring-green/40'
-    : isFinished
-      ? 'border-green-dark bg-green-dark text-white'
-      : isPredicted
-        ? 'border-green/35 bg-yellow-soft'
-        : isNext
-          ? 'border-ink bg-yellow'
-          : 'border-border bg-surface'
+  // Highlight additif : ne remplace jamais le fond d’une card terminée.
+  const baseShell = isFinished
+    ? 'border-green-dark bg-green-dark text-white'
+    : isPredicted
+      ? 'border-green/35 bg-yellow-soft'
+      : isNext
+        ? 'border-ink bg-yellow'
+        : 'border-border bg-surface'
+  const highlightShell = highlighted
+    ? isFinished
+      ? 'ring-2 ring-yellow/50'
+      : 'border-green bg-success-soft ring-2 ring-green/40'
+    : ''
+  const shellClass = [baseShell, highlightShell].filter(Boolean).join(' ')
 
   const cardClassName = [
     'overflow-hidden rounded-[var(--radius-md)] border scroll-mt-24 ui-motion',
@@ -172,7 +177,7 @@ export function MatchListItem({
         </span>
       </div>
 
-      <div className="px-3 py-2.5 sm:py-3">
+      <div className="px-3 py-2 sm:py-3">
         <p
           className={[
             'mb-1.5 text-center text-[10px] font-bold tracking-[0.12em] uppercase',
@@ -317,20 +322,22 @@ function FinishedPersonalPrediction({
 
   if (view.kind === 'missing') {
     return (
-      <p className="mt-3 text-sm font-semibold text-white/85">{view.label}</p>
+      <p className="mt-2 text-sm font-semibold text-white/85 sm:mt-3">
+        {view.label}
+      </p>
     )
   }
 
   if (view.kind === 'pending') {
     return (
-      <p className="mt-3 text-sm font-semibold tabular-nums text-white">
+      <p className="mt-2 text-sm font-semibold tabular-nums text-white sm:mt-3">
         {view.scoreLine}
       </p>
     )
   }
 
   return (
-    <div className="mt-3 space-y-0.5 text-center sm:text-left">
+    <div className="mt-2 space-y-0.5 text-center sm:mt-3 sm:text-left">
       <p className="text-sm font-semibold tabular-nums text-white">
         {view.scoreLine}
       </p>
@@ -377,7 +384,9 @@ function RevealSection({
 
   if (isBeforeReveal) {
     return (
-      <div className={`mt-3 border-t ${borderClass} pt-3 text-sm ${mutedClass}`}>
+      <div
+        className={`mt-2 border-t ${borderClass} pt-2 text-sm sm:mt-3 sm:pt-3 ${mutedClass}`}
+      >
         <p className={`font-semibold ${titleClass}`}>Les pronos du groupe</p>
         <p className="mt-1">
           Les pronostics des autres seront révélés automatiquement au coup
@@ -420,7 +429,7 @@ function RevealSection({
   if (loading && !reveal) {
     return (
       <div
-        className={`mt-3 space-y-2 border-t ${borderClass} pt-3 text-sm ${mutedClass} transition-all duration-300`}
+        className={`mt-2 space-y-2 border-t ${borderClass} pt-2 text-sm sm:mt-3 sm:pt-3 ${mutedClass} transition-all duration-300`}
       >
         <RevealError />
         <p>Chargement des pronostics du groupe…</p>
@@ -430,7 +439,7 @@ function RevealSection({
 
   if (error && !reveal) {
     return (
-      <div className={`mt-3 border-t ${borderClass} pt-3`}>
+      <div className={`mt-2 border-t ${borderClass} pt-2 sm:mt-3 sm:pt-3`}>
         <RevealError />
       </div>
     )
@@ -439,7 +448,7 @@ function RevealSection({
   if (!reveal?.revealed) {
     return (
       <div
-        className={`mt-3 space-y-2 border-t ${borderClass} pt-3 text-sm ${mutedClass} transition-all duration-300`}
+        className={`mt-2 space-y-2 border-t ${borderClass} pt-2 text-sm sm:mt-3 sm:pt-3 ${mutedClass} transition-all duration-300`}
       >
         <RevealError />
         <p>Pronostics collectifs encore verrouillés.</p>
@@ -462,7 +471,7 @@ function RevealSection({
 
   return (
     <section
-      className={`mt-3 space-y-2 border-t ${borderClass} pt-3 transition-all duration-300`}
+      className={`mt-2 space-y-2 border-t ${borderClass} pt-2 transition-all duration-300 sm:mt-3 sm:pt-3`}
     >
       <RevealError />
 
@@ -473,7 +482,7 @@ function RevealSection({
             <button
               type="button"
               className={[
-                'min-h-11 rounded-[var(--radius-sm)] border px-2.5 text-xs font-extrabold tracking-[0.06em] uppercase',
+                'min-h-10 rounded-[var(--radius-sm)] border px-2.5 text-xs font-extrabold tracking-[0.06em] uppercase',
                 isFinishedShell
                   ? 'border-white/25 text-yellow'
                   : 'border-border text-green-dark',
@@ -503,7 +512,7 @@ function RevealSection({
           id={detailsId}
           hidden={!detailsOpen}
           className={[
-            detailsOpen ? 'space-y-5' : undefined,
+            detailsOpen ? 'space-y-3 sm:space-y-5' : undefined,
             isFinishedShell && detailsOpen
               ? 'match-reveal-details -mx-3 -mb-2.5 mt-3 px-3 pt-3 pb-3 sm:-mb-3'
               : detailsOpen

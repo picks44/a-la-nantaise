@@ -24,6 +24,10 @@ describe('TabList shared component', () => {
     assert.match(tabs, /role="tab"/)
     assert.match(tabs, /ArrowRight/)
     assert.match(tabs, /ArrowLeft/)
+    assert.match(tabs, /fill\?: boolean/)
+    assert.match(tabs, /min-h-10/)
+    assert.match(tabs, /sm:min-h-11/)
+    assert.match(tabs, /fill \? 'min-w-0 flex-1'/)
   })
 
   it('is reused by Ranking and Calendar without local TabButton', () => {
@@ -31,5 +35,12 @@ describe('TabList shared component', () => {
     assert.match(calendar, /from '..\/components\/TabList'/)
     assert.doesNotMatch(ranking, /function TabButton/)
     assert.doesNotMatch(calendar, /function TabButton/)
+  })
+
+  it('gives Calendar equal-width tabs via fill; Ranking keeps scroll layout', () => {
+    assert.match(calendar, /fill/)
+    assert.match(calendar, /controls="panel-upcoming"[\s\S]*fill/)
+    assert.match(calendar, /controls="panel-finished"[\s\S]*fill/)
+    assert.doesNotMatch(ranking, /\bfill\b/)
   })
 })

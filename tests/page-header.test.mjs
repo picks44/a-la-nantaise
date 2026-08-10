@@ -31,7 +31,7 @@ describe('PageHeader pattern', () => {
       calendar,
       /Les matchs à venir, tes pronostics et les résultats\./,
     )
-    assert.match(calendar, /actions=\{/)
+    assert.doesNotMatch(calendar, /actions=\{/)
     assert.match(settings, /<PageHeader/)
     assert.match(settings, /Gère tes préférences et ton profil\./)
 

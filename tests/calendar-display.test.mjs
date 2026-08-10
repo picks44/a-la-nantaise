@@ -270,13 +270,29 @@ describe('MatchListItem closed summary wiring (K1)', () => {
       calendar.indexOf('id="panel-finished"'),
     )
     assert.match(finishedPanel, /finishedItemsNewestFirst\.map/)
-    assert.match(finishedPanel, /calendar-finished-heading/)
+    assert.match(finishedPanel, /aria-label="Matchs terminés"/)
+    assert.match(finishedPanel, /showJumpInFinished \? renderJumpToNextLink/)
+    assert.doesNotMatch(finishedPanel, /calendar-finished-heading/)
     const upcomingPanel = calendar.slice(
       calendar.indexOf('id="panel-upcoming"'),
       calendar.indexOf('id="panel-finished"'),
     )
     assert.doesNotMatch(upcomingPanel, /finishedItemsNewestFirst/)
     assert.doesNotMatch(upcomingPanel, /calendar-finished-heading/)
+    assert.match(upcomingPanel, /showJumpInUpcoming \? renderJumpToNextLink/)
+  })
+
+  it('keeps jump link out of PageHeader and inside tab panels', () => {
+    const headerBlock = calendar.slice(
+      calendar.indexOf('<PageHeader'),
+      calendar.indexOf('/>', calendar.indexOf('<PageHeader')) + 2,
+    )
+    assert.doesNotMatch(headerBlock, /actions=/)
+    assert.doesNotMatch(headerBlock, /Aller au prochain match/)
+    assert.match(calendar, /renderJumpToNextLink/)
+    assert.match(calendar, /handleJumpToNextMatch/)
+    assert.match(calendar, /showJumpInFinished/)
+    assert.match(calendar, /showJumpInUpcoming/)
   })
 
   it('switches tab for deep-link and defers scroll until the target is mounted', () => {
@@ -420,6 +436,20 @@ describe('MatchListItem visual hierarchy (K3)', () => {
     const detailsId = item.indexOf('id={detailsId}', revealStart)
     const toggle = item.indexOf('Afficher les détails', revealStart)
     assert.ok(toggle >= 0 && detailsId > toggle)
+  })
+
+  it('keeps finished deep-link highlight additive without replacing bg-green-dark', () => {
+    assert.match(item, /const baseShell = isFinished/)
+    assert.match(item, /border-green-dark bg-green-dark text-white/)
+    assert.match(item, /ring-2 ring-yellow\/50/)
+    assert.match(
+      item,
+      /const highlightShell = highlighted[\s\S]*isFinished[\s\S]*ring-2 ring-yellow\/50/,
+    )
+    assert.doesNotMatch(
+      item,
+      /const shellClass = highlighted\s*\?\s*'border-green bg-success-soft/,
+    )
   })
 })
 
