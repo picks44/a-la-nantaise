@@ -249,12 +249,20 @@ export function MatchListItem({
                 <Link
                   to="/"
                   className="btn-ghost min-h-10 whitespace-nowrap"
-                  aria-label="Voir mon prono sur l’accueil"
+                  aria-label="Modifier mon prono sur l’accueil"
                 >
-                  Voir mon prono
+                  Modifier mon prono
                 </Link>
               ) : null}
             </div>
+          </div>
+        ) : null}
+
+        {shouldLinkToPrediction ? (
+          <div className="mt-2.5 flex justify-center">
+            <span className="btn-ghost min-h-10 pointer-events-none" aria-hidden="true">
+              Pronostiquer
+            </span>
           </div>
         ) : null}
 
@@ -278,7 +286,7 @@ export function MatchListItem({
         id={`match-${match.id}`}
         data-match-id={match.id}
         className={cardClassName}
-        aria-label="Ouvrir la saisie du pronostic"
+        aria-label="Pronostiquer"
       >
         {cardInner}
       </Link>

@@ -91,6 +91,7 @@ export function RankingPage() {
   const loadGuardRef = useRef(createInFlightGuard())
   const dataGenerationRef = useRef(createGenerationToken())
   const hasExistingDataRef = useRef(false)
+  const scrolledToRecapRef = useRef(false)
 
   useEffect(() => {
     hasExistingDataRef.current = ranking.length > 0 || matches.length > 0
@@ -345,6 +346,16 @@ export function RankingPage() {
     recap,
     hasReferenceRound: referenceRound != null,
   })
+
+  useEffect(() => {
+    if (scrolledToRecapRef.current) return
+    if (recapView.status !== 'success') return
+    if (window.location.hash !== '#recap') return
+    const el = document.getElementById('recap')
+    if (!el) return
+    scrolledToRecapRef.current = true
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [recapView.status])
 
   function retry() {
     void loadPage('initial')

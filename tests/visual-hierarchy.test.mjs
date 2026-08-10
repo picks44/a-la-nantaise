@@ -35,29 +35,31 @@ describe('visual hierarchy polish', () => {
     assert.match(item, /id="prochain-match"/)
     assert.match(item, /bg-yellow/)
     assert.match(item, /Ton prono/)
-    assert.match(item, /Voir mon prono/)
+    assert.match(item, /Modifier mon prono/)
     assert.match(item, /Prono enregistré|statusLabel/)
     assert.doesNotMatch(item, /border-l-4 border-l-yellow/)
     assert.doesNotMatch(item, /border-l-4 border-l-green/)
     assert.doesNotMatch(item, /font-black tracking-tight uppercase/)
   })
 
-  it('removes to_predict CTA and group teaser', () => {
+  it('shows Pronostiquer for to_predict prediction target without nested link', () => {
     const item = read('src/components/MatchListItem.tsx')
-    assert.doesNotMatch(item, /Faire mon prono/)
+    assert.match(item, /Pronostiquer/)
+    assert.match(item, /shouldLinkToPrediction \? \(/)
     assert.match(
       item,
       /function RevealSection[\s\S]*match\.status === 'to_predict' \|\| match\.status === 'kickoff_unconfirmed'/,
     )
   })
 
-  it('shows Voir mon prono only for predicted + isPredictionTarget', () => {
+  it('shows Modifier mon prono only for predicted + isPredictionTarget', () => {
     const item = read('src/components/MatchListItem.tsx')
     assert.match(
       item,
       /const canShowModifier[\s\S]*match\.status === 'predicted' && isPredictionTarget/,
     )
-    assert.match(item, /<Link[\s\S]*>\s*Voir mon prono\s*<\/Link>/)
+    assert.match(item, /<Link[\s\S]*>\s*Modifier mon prono\s*<\/Link>/)
+    assert.doesNotMatch(item, /Voir mon prono/)
   })
 
   it('renders score + "Ton prono" for predicted and locked', () => {

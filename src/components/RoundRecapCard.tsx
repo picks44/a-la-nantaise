@@ -59,7 +59,8 @@ export function RoundRecapCard({
 
   return (
     <section
-      className="panel section-stack overflow-hidden p-4 sm:p-5"
+      id="recap"
+      className="panel section-stack overflow-hidden p-4 sm:p-5 scroll-mt-24"
       aria-label="Récap de journée"
     >
       <header className="space-y-2">

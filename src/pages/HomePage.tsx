@@ -366,7 +366,13 @@ export function HomePage() {
           participantCount={homeRanking.participantCount}
           live
         />
-        <LastMatchBlock match={lastMatch} prediction={lastPrediction} />
+        <LastMatchBlock
+          match={lastMatch}
+          prediction={lastPrediction}
+          showFullRecapCta={Boolean(
+            recap && lastMatch && recap.roundNumber === lastMatch.matchday,
+          )}
+        />
       </div>
     )
   }
@@ -560,7 +566,13 @@ export function HomePage() {
         participantCount={homeRanking.participantCount}
         live
       />
-      <LastMatchBlock match={lastMatch} prediction={lastPrediction} />
+      <LastMatchBlock
+        match={lastMatch}
+        prediction={lastPrediction}
+        showFullRecapCta={Boolean(
+          recap && lastMatch && recap.roundNumber === lastMatch.matchday,
+        )}
+      />
     </div>
   )
 }
@@ -590,9 +602,11 @@ function lastMatchRewardClass(tone: 'exact' | 'good' | 'miss'): {
 function LastMatchBlock({
   match,
   prediction,
+  showFullRecapCta = false,
 }: {
   match: Match | null
   prediction?: Prediction
+  showFullRecapCta?: boolean
 }) {
   if (!match?.finalScore) return null
 
@@ -679,13 +693,21 @@ function LastMatchBlock({
           ) : null}
         </div>
 
-        <div className="mt-4 flex justify-center">
+        <div className="mt-4 flex flex-col items-center gap-1">
           <Link
             to={`/calendrier?match=${match.id}`}
             className="btn-ghost min-h-10 text-yellow hover:bg-white/10"
           >
             Voir les pronos du groupe
           </Link>
+          {showFullRecapCta ? (
+            <Link
+              to="/classement#recap"
+              className="btn-ghost min-h-10 text-yellow hover:bg-white/10"
+            >
+              Voir le résumé complet
+            </Link>
+          ) : null}
         </div>
       </div>
     </section>
