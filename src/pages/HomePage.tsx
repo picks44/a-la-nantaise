@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { RaceLeaders } from '../components/Podium'
 import { RoundRecapCard } from '../components/RoundRecapCard'
 import { ScoreInput } from '../components/ScoreInput'
@@ -37,6 +38,7 @@ import {
   attachSoftPageRefresh,
   hasMatchAwaitingOfficialResult,
 } from '../lib/softPageRefresh'
+import { findHomeGroupRevealMatch } from '../lib/matchOrder'
 import {
   formatCountdown,
   formatKickoff,
@@ -257,6 +259,10 @@ export function HomePage() {
     if (!lastMatch || !playerId) return undefined
     return getPredictionForMatch(predictions, lastMatch.id, playerId)
   }, [lastMatch, predictions, playerId])
+  const groupRevealMatch = useMemo(
+    () => findHomeGroupRevealMatch(matches, now),
+    [matches, now],
+  )
 
   const homeRanking = useMemo(() => {
     const ranks = ranking.every((player) => player.rank != null)
@@ -341,6 +347,9 @@ export function HomePage() {
           title="Accueil"
           message="Aucun prochain match ouvert aux pronostics pour le moment."
         />
+        {groupRevealMatch ? (
+          <GroupRevealCta matchId={groupRevealMatch.id} />
+        ) : null}
         {showRecap && recap ? (
           <RoundRecapCard
             recap={recap}
@@ -530,6 +539,10 @@ export function HomePage() {
         </div>
       </section>
 
+      {groupRevealMatch ? (
+        <GroupRevealCta matchId={groupRevealMatch.id} />
+      ) : null}
+
       {showRecap && recap ? (
         <RoundRecapCard
           recap={recap}
@@ -665,8 +678,30 @@ function LastMatchBlock({
             </div>
           ) : null}
         </div>
+
+        <div className="mt-4 flex justify-center">
+          <Link
+            to={`/calendrier?match=${match.id}`}
+            className="btn-ghost min-h-10 text-yellow hover:bg-white/10"
+          >
+            Voir les pronos du groupe
+          </Link>
+        </div>
       </div>
     </section>
+  )
+}
+
+function GroupRevealCta({ matchId }: { matchId: string }) {
+  return (
+    <div className="flex justify-center">
+      <Link
+        to={`/calendrier?match=${matchId}`}
+        className="btn-ghost min-h-10"
+      >
+        Voir les pronos du groupe
+      </Link>
+    </div>
   )
 }
 
