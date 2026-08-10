@@ -242,24 +242,22 @@ export function MatchListItem({
 
         {(match.status === 'predicted' || match.status === 'locked') &&
         prediction ? (
-          <div className="mt-2.5 rounded-[var(--radius-sm)] border border-border bg-canvas/70 px-3 py-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex min-w-0 flex-1 items-baseline gap-3">
-                <span className="label-caps shrink-0">Ton prono</span>
-                <span className="font-black tabular-nums text-green-dark text-lg">
-                  {prediction.homeScore} – {prediction.awayScore}
-                </span>
-              </div>
-              {canShowModifier ? (
-                <Link
-                  to="/"
-                  className="btn-ghost min-h-10 whitespace-nowrap"
-                  aria-label="Modifier mon prono sur l’accueil"
-                >
-                  Modifier mon prono
-                </Link>
-              ) : null}
+          <div className="mt-2.5 flex items-center justify-between gap-3 border-t border-border/70 pt-2.5">
+            <div className="flex min-w-0 items-baseline gap-2.5">
+              <span className="label-caps shrink-0">Ton prono</span>
+              <span className="whitespace-nowrap font-black tabular-nums text-green-dark text-lg">
+                {prediction.homeScore} – {prediction.awayScore}
+              </span>
             </div>
+            {canShowModifier ? (
+              <Link
+                to="/"
+                className="shrink-0 text-xs font-extrabold tracking-[0.06em] text-green-dark uppercase underline-offset-2 hover:underline"
+                aria-label="Modifier mon prono sur l’accueil"
+              >
+                Modifier
+              </Link>
+            ) : null}
           </div>
         ) : null}
 

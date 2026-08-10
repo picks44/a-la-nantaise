@@ -58,7 +58,8 @@ describe('visual hierarchy polish', () => {
       item,
       /const canShowModifier[\s\S]*match\.status === 'predicted' && isPredictionTarget/,
     )
-    assert.match(item, /<Link[\s\S]*>\s*Modifier mon prono\s*<\/Link>/)
+    assert.match(item, /aria-label="Modifier mon prono sur l’accueil"/)
+    assert.match(item, /<Link[\s\S]*>\s*Modifier\s*<\/Link>/)
     assert.doesNotMatch(item, /Voir mon prono/)
   })
 
