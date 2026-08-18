@@ -40,7 +40,7 @@ import { withPageLoadTimeout } from '../lib/pageLoadTimeout'
 import { formatProvisionalBadge } from '../lib/rankingDisplay'
 import {
   attachSoftPageRefresh,
-  hasMatchAwaitingOfficialResult,
+  shouldPollForOfficialResult,
 } from '../lib/softPageRefresh'
 import type {
   Match,
@@ -168,8 +168,8 @@ export function RankingPage() {
     }
   }, [loadPage])
 
-  const awaitingOfficialResult = useMemo(
-    () => hasMatchAwaitingOfficialResult(matches, now),
+  const shouldPollOfficialResult = useMemo(
+    () => shouldPollForOfficialResult(matches, now),
     [matches, now],
   )
 
@@ -180,11 +180,11 @@ export function RankingPage() {
       onRefresh: () => {
         void loadPage('soft')
       },
-      shouldPoll: awaitingOfficialResult,
+      shouldPoll: shouldPollOfficialResult,
     })
 
     return () => attachment.dispose()
-  }, [awaitingOfficialResult, loadPage, sessionToken])
+  }, [shouldPollOfficialResult, loadPage, sessionToken])
 
   const referenceRoundNumber =
     ranking.find((row) => row.referenceRoundNumber != null)

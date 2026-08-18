@@ -232,6 +232,28 @@ Deno.serve(async (req) => {
   // révoquée à la fin de l’appel. Une session fournie par le client
   // (admin_session_token) reste active — elle appartient à l’admin connecté.
   let ownsSession = false
+  let authenticated = false
+  let attempt: {
+    ok: boolean
+    errorCode: string | null
+    errorMessage: string | null
+    summary: Record<string, unknown> | null
+  } | null = null
+
+  async function recordAttemptIfPossible() {
+    if (!authenticated || !sessionToken || !attempt) return
+    try {
+      await supabase.rpc('record_fixture_sync_attempt', {
+        p_admin_session_token: sessionToken,
+        p_ok: attempt.ok,
+        p_error_code: attempt.errorCode,
+        p_error_message: attempt.errorMessage,
+        p_summary: attempt.summary,
+      })
+    } catch {
+      console.error('record_fixture_sync_attempt failed')
+    }
+  }
 
   try {
     // 1. Authentification AVANT tout appel externe.
@@ -283,6 +305,8 @@ Deno.serve(async (req) => {
       ownsSession = true
     }
 
+    authenticated = true
+
     // 2. Télécharger et valider le flux (tout-ou-rien).
     const payload = await fetchFixtureFeed()
     const fixtures = validateFixtureFeed(payload)
@@ -295,6 +319,12 @@ Deno.serve(async (req) => {
 
     if (matchesError) {
       const cleaned = cleanClientError(matchesError)
+      attempt = {
+        ok: false,
+        errorCode: cleaned.code,
+        errorMessage: cleaned.message,
+        summary: null,
+      }
       return publicError(cleaned.code, cleaned.message)
     }
 
@@ -304,6 +334,18 @@ Deno.serve(async (req) => {
     const plan = planFixtureSync(existing, fixtures)
 
     if (plan.conflicts.length > 0) {
+      attempt = {
+        ok: false,
+        errorCode: 'SYNC_CONFLICT',
+        errorMessage: frenchMessage('SYNC_CONFLICT'),
+        summary: {
+          created: plan.summary.created,
+          updated: plan.summary.updated,
+          new_results: plan.summary.newResults,
+          points_recalculated: 0,
+          protected: plan.summary.protected,
+        },
+      }
       return jsonResponse(
         {
           ok: false,
@@ -329,23 +371,47 @@ Deno.serve(async (req) => {
 
     if (commitError) {
       const cleaned = cleanClientError(commitError)
+      attempt = {
+        ok: false,
+        errorCode: cleaned.code,
+        errorMessage: cleaned.message,
+        summary: null,
+      }
       return publicError(cleaned.code, cleaned.message)
     }
 
     const result = (commitResult ?? {}) as Record<string, unknown>
+    const created = Number(result.created ?? plan.summary.created)
+    const updated = Number(result.updated ?? plan.summary.updated)
+    const newResults = Number(result.new_results ?? plan.summary.newResults)
+    const pointsRecalculated = Number(result.points_recalculated ?? 0)
+    const protectedCount = Number(result.protected ?? plan.summary.protected)
+
+    attempt = {
+      ok: true,
+      errorCode: null,
+      errorMessage: null,
+      summary: {
+        created,
+        updated,
+        new_results: newResults,
+        points_recalculated: pointsRecalculated,
+        protected: protectedCount,
+      },
+    }
 
     return jsonResponse({
       ok: true,
       source: 'Fixture Download',
       feed_url: FIXTURE_FEED_URL,
       fixture_count: fixtures.length,
-      created: Number(result.created ?? plan.summary.created),
-      updated: Number(result.updated ?? plan.summary.updated),
+      created,
+      updated,
       unchanged: Number(result.unchanged ?? plan.summary.unchanged),
-      new_results: Number(result.new_results ?? plan.summary.newResults),
-      points_recalculated: Number(result.points_recalculated ?? 0),
+      new_results: newResults,
+      points_recalculated: pointsRecalculated,
       conflicts: [],
-      protected: Number(result.protected ?? plan.summary.protected),
+      protected: protectedCount,
       protected_details: plan.updates
         .filter((item) => item.protected)
         .map((item) => ({
@@ -365,6 +431,14 @@ Deno.serve(async (req) => {
         error instanceof FixtureValidationError ? error.code : 'SYNC_FAILED',
     })
     const cleaned = cleanClientError(error)
+    if (authenticated) {
+      attempt = {
+        ok: false,
+        errorCode: cleaned.code,
+        errorMessage: cleaned.message,
+        summary: null,
+      }
+    }
     const status =
       cleaned.code === 'INVALID_ADMIN_CODE' ||
       cleaned.code === 'ADMIN_CODE_NOT_CONFIGURED' ||
@@ -374,6 +448,7 @@ Deno.serve(async (req) => {
         : 400
     return publicError(cleaned.code, cleaned.message, status)
   } finally {
+    await recordAttemptIfPossible()
     // Nettoyage best-effort de la session créée pour ce cycle (legacy
     // admin_code, ex. cron). Ne touche jamais une session fournie par le
     // client — elle appartient à l’admin encore connecté.

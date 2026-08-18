@@ -4,40 +4,16 @@
  */
 
 import { createRefreshCoalescer } from './calendarRefresh.ts'
-import type { Match } from '../types'
+export {
+  hasMatchAwaitingOfficialResult,
+  matchAwaitsOfficialResult,
+  shouldPollForOfficialResult,
+} from './matchLifecycle.ts'
 
 /** Cadence réseau pour un résultat attendu — distincte du tick horloge Home (1s). */
 export const SOFT_RESULT_POLL_MS = 30_000
 
 const DEFAULT_COALESCE_MS = 50
-
-/**
- * Match dont le résultat officiel devrait bientôt arriver / être rafraîchi :
- * kickoff confirmé passé, pas encore finished, pas reporté/annulé.
- */
-export function matchAwaitsOfficialResult(
-  match: Pick<Match, 'kickoffAt' | 'kickoffTimeConfirmed' | 'dbStatus'>,
-  now: Date,
-): boolean {
-  if (!match.kickoffTimeConfirmed) return false
-  if (
-    match.dbStatus === 'finished' ||
-    match.dbStatus === 'postponed' ||
-    match.dbStatus === 'cancelled'
-  ) {
-    return false
-  }
-  return now.getTime() >= new Date(match.kickoffAt).getTime()
-}
-
-export function hasMatchAwaitingOfficialResult(
-  matches: ReadonlyArray<
-    Pick<Match, 'kickoffAt' | 'kickoffTimeConfirmed' | 'dbStatus'>
-  >,
-  now: Date = new Date(),
-): boolean {
-  return matches.some((match) => matchAwaitsOfficialResult(match, now))
-}
 
 /**
  * Branche focus / pageshow / online / visibility + polling conditionnel

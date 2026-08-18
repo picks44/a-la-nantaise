@@ -28,12 +28,10 @@ import {
 } from '../lib/calendarRefresh'
 import {
   attachSoftPageRefresh,
-  hasMatchAwaitingOfficialResult,
+  shouldPollForOfficialResult,
 } from '../lib/softPageRefresh'
-import {
-  findHomeGroupRevealMatch,
-  shouldShowJumpToNextMatch,
-} from '../lib/matchOrder'
+import { shouldShowJumpToNextMatch } from '../lib/matchOrder'
+import { classifyMatchPhase } from '../lib/matchLifecycle'
 import { toUserMessage, UNKNOWN_USER_MESSAGE } from '../lib/errors'
 import {
   createInFlightGuard,
@@ -233,8 +231,8 @@ export function CalendarPage() {
     void loadCalendarData('initial')
   }
 
-  const awaitingOfficialResult = useMemo(
-    () => hasMatchAwaitingOfficialResult(matches, now),
+  const shouldPollOfficialResult = useMemo(
+    () => shouldPollForOfficialResult(matches, now),
     [matches, now],
   )
 
@@ -245,11 +243,11 @@ export function CalendarPage() {
       onRefresh: () => {
         void loadCalendarData('soft')
       },
-      shouldPoll: awaitingOfficialResult,
+      shouldPoll: shouldPollOfficialResult,
     })
 
     return () => attachment.dispose()
-  }, [awaitingOfficialResult, loadCalendarData, playerId, sessionToken])
+  }, [shouldPollOfficialResult, loadCalendarData, playerId, sessionToken])
 
   const revealableMatchIds = useMemo(
     () =>
@@ -297,11 +295,6 @@ export function CalendarPage() {
     const next = findNextOpenMatch(matches, now)
     return next?.id ?? null
   }, [matches, now])
-
-  const groupRevealId = useMemo(
-    () => findHomeGroupRevealMatch(matches, now)?.id ?? null,
-    [matches, now],
-  )
 
   const lastFinishedId = useMemo(
     () => findLastFinishedMatch(matches)?.id ?? null,
@@ -402,10 +395,17 @@ export function CalendarPage() {
 
   const liveItems = useMemo(
     () =>
-      groupRevealId
-        ? items.filter(({ match }) => match.id === groupRevealId)
-        : [],
-    [items, groupRevealId],
+      items.filter(
+        ({ match }) => classifyMatchPhase(match, now) === 'live',
+      ),
+    [items, now],
+  )
+  const awaitingItems = useMemo(
+    () =>
+      items.filter(
+        ({ match }) => classifyMatchPhase(match, now) === 'awaiting_result',
+      ),
+    [items, now],
   )
   const nextItems = useMemo(
     () =>
@@ -420,9 +420,10 @@ export function CalendarPage() {
         ({ match }) =>
           match.status !== 'finished' &&
           match.id !== nextOpenId &&
-          match.id !== groupRevealId,
+          classifyMatchPhase(match, now) !== 'live' &&
+          classifyMatchPhase(match, now) !== 'awaiting_result',
       ),
-    [items, nextOpenId, groupRevealId],
+    [items, nextOpenId, now],
   )
   const finishedItems = useMemo(
     () => items.filter(({ match }) => match.status === 'finished'),
@@ -436,10 +437,11 @@ export function CalendarPage() {
   const upcomingDisplayOrderIds = useMemo(
     () => [
       ...liveItems.map(({ match }) => match.id),
+      ...awaitingItems.map(({ match }) => match.id),
       ...nextItems.map(({ match }) => match.id),
       ...upcomingItems.map(({ match }) => match.id),
     ],
-    [liveItems, nextItems, upcomingItems],
+    [liveItems, awaitingItems, nextItems, upcomingItems],
   )
   const showJumpInFinished = nextOpenId != null
   const showJumpInUpcoming = shouldShowJumpToNextMatch(
@@ -501,7 +503,10 @@ export function CalendarPage() {
   }
 
   const hasUpcomingContent =
-    liveItems.length > 0 || nextItems.length > 0 || upcomingItems.length > 0
+    liveItems.length > 0 ||
+    awaitingItems.length > 0 ||
+    nextItems.length > 0 ||
+    upcomingItems.length > 0
 
   return (
     <div className="page-stack">
@@ -579,6 +584,25 @@ export function CalendarPage() {
                       </h2>
                       <ul className="space-y-2.5">
                         {liveItems.map(({ match, prediction }) =>
+                          renderMatchRow(match, prediction),
+                        )}
+                      </ul>
+                    </section>
+                  ) : null}
+
+                  {awaitingItems.length > 0 ? (
+                    <section
+                      aria-labelledby="calendar-awaiting-heading"
+                      className="space-y-2.5"
+                    >
+                      <h2
+                        id="calendar-awaiting-heading"
+                        className="text-[11px] font-bold tracking-[0.12em] text-ink/55 uppercase"
+                      >
+                        Résultat en attente
+                      </h2>
+                      <ul className="space-y-2.5">
+                        {awaitingItems.map(({ match, prediction }) =>
                           renderMatchRow(match, prediction),
                         )}
                       </ul>

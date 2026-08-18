@@ -15,7 +15,8 @@
 --   daily       15 5 * * *   → sync toujours (filet calendrier + résultats)
 --   conditional */15 * * * * → sync-fc-nantes SEULEMENT si
 --                              public.fixture_result_sync_is_needed()
---                              (kickoff confirmé + 105 min .. + 8 h, non terminal)
+--                              (kickoff confirmé + 105 min, non terminal,
+--                               sans plafond : rattrapage hors fenêtre soir)
 --
 -- Source de vérité : matches.kickoff_at (TIMESTAMPTZ) + kickoff_time_confirmed.
 -- Aucune dépendance à l’heure locale Paris ni au DST.
@@ -138,7 +139,7 @@ END
 $replace_conditional$;
 
 -- Toutes les 15 minutes UTC : appelle sync-fc-nantes seulement si un match
--- est dans la fenêtre résultat (WHERE court-circuite net.http_post).
+-- est passé de 105 min sans statut terminal (rattrapage inclus).
 SELECT cron.schedule(
   'a-la-nantaise-conditional-fixture-sync',
   '*/15 * * * *',
@@ -183,6 +184,22 @@ WHERE jobname IN (
   'a-la-nantaise-conditional-fixture-sync'
 )
 ORDER BY jobname;
+
+-- Santé sync (lecture seule, aucune secret) :
+-- cron.job_run_details = succeeded confirme seulement net.http_post,
+-- pas le succès HTTP ni le commit applicatif.
+SELECT key, left(value, 120) AS value_preview, updated_at
+FROM public.app_settings
+WHERE key LIKE 'fixture_sync_%'
+ORDER BY key;
+
+SELECT public.fixture_result_sync_is_needed();
+
+-- Checklist Vault (présence uniquement, jamais les valeurs) :
+--   project_url
+--   function_anon_key          → même JWT anon que l’Edge Function
+--   fixture_sync_admin_code    → même code que admin_code_hash (login_admin)
+-- Un code Vault incorrect incrémente admin_auth_state et peut locker l’admin.
 
 -- Rollback ciblé (conditional uniquement) :
 -- SELECT cron.unschedule('a-la-nantaise-conditional-fixture-sync');

@@ -443,6 +443,50 @@ describe('fixture_result_sync_is_needed migration', () => {
     assert.match(sqlTest, /postponed/)
     assert.match(sqlTest, /cancelled/)
     assert.match(sqlTest, /après kickoff \+ 8 h/)
+    assert.match(sqlTest, /catch-up/)
     assert.match(sqlTest, /changement de kickoff/)
+  })
+})
+
+describe('fixture_sync catch-up and health', () => {
+  const catchup = readFileSync(
+    join(root, 'supabase/migrations/20260818100000_fixture_sync_catchup_and_health.sql'),
+    'utf8',
+  )
+  const sqlTest = readFileSync(
+    join(root, 'supabase/tests/fixture_sync_catchup_and_health.sql'),
+    'utf8',
+  )
+  const edge = readFileSync(edgePath, 'utf8')
+  const adminApi = readFileSync(join(root, 'src/lib/adminApi.ts'), 'utf8')
+  const adminPage = readFileSync(join(root, 'src/pages/AdminPage.tsx'), 'utf8')
+
+  it('replaces the +8h ceiling with unbounded catch-up', () => {
+    assert.match(catchup, /CREATE OR REPLACE FUNCTION public\.fixture_result_sync_is_needed\(\)/)
+    assert.match(catchup, /interval '105 minutes'/)
+    assert.doesNotMatch(catchup, /interval '8 hours'/)
+    assert.match(catchup, /record_fixture_sync_attempt/)
+    assert.match(catchup, /fixture_sync_last_attempt_at/)
+    assert.match(catchup, /admin_get_fixture_sync_meta/)
+  })
+
+  it('records Edge attempts without blocking a successful commit', () => {
+    assert.match(edge, /record_fixture_sync_attempt/)
+    assert.match(edge, /recordAttemptIfPossible/)
+    assert.match(edge, /authenticated = true/)
+    const recordIndex = edge.indexOf('await recordAttemptIfPossible()')
+    const logoutIndex = edge.indexOf("'logout_admin'")
+    assert.ok(recordIndex > 0)
+    assert.ok(logoutIndex > recordIndex)
+  })
+
+  it('exposes attempt meta in admin API and health banner', () => {
+    assert.match(adminApi, /lastAttemptAt/)
+    assert.match(adminApi, /lastAttemptOk/)
+    assert.match(adminApi, /lastErrorCode/)
+    assert.match(adminPage, /shouldShowFixtureSyncHealthAlert/)
+    assert.match(adminPage, /Dernière tentative/)
+    assert.match(sqlTest, /last_attempt_ok devrait être true/)
+    assert.match(sqlTest, /FEED_TIMEOUT/)
   })
 })

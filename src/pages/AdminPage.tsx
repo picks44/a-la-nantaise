@@ -36,10 +36,12 @@ import {
   type AdminMatch,
   type AdminPlayer,
   type AdminStats,
+  type FixtureSyncMeta,
   type FixtureSyncResult,
   TRACKED_TEAM,
 } from '../lib/adminApi'
 import { sortMatchesForList } from '../lib/matchOrder'
+import { shouldShowFixtureSyncHealthAlert } from '../lib/matchLifecycle'
 import {
   clearAdminSessionToken,
   readAdminSessionToken,
@@ -672,6 +674,7 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
   const [pending, setPending] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null)
+  const [syncMeta, setSyncMeta] = useState<FixtureSyncMeta | null>(null)
   const [syncSummary, setSyncSummary] = useState<FixtureSyncResult | null>(null)
   const [confirmResult, setConfirmResult] = useState<null | {
     mode: 'create' | 'update' | 'result'
@@ -692,6 +695,7 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
         if (!cancelled) {
           setMatches(rows)
           setLastSyncedAt(meta.lastSyncedAt)
+          setSyncMeta(meta)
         }
       } catch (err) {
         if (!cancelled) setError(toUserMessage(err))
@@ -715,6 +719,7 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
       ])
       setMatches(rows)
       setLastSyncedAt(meta.lastSyncedAt)
+      setSyncMeta(meta)
     } catch (err) {
       setError(toUserMessage(err))
     } finally {
@@ -857,6 +862,11 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
   }
 
   const sorted = useMemo(() => sortMatchesForList(matches), [matches])
+  const showSyncHealthAlert = shouldShowFixtureSyncHealthAlert({
+    lastSyncedAt: syncMeta?.lastSyncedAt ?? lastSyncedAt,
+    lastAttemptOk: syncMeta?.lastAttemptOk,
+    matches,
+  })
 
   return (
     <div className="space-y-4">
@@ -889,13 +899,45 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
           Fixture Download
         </p>
         <p className="text-muted">
-          Dernière synchronisation :{' '}
+          Dernière synchronisation réussie :{' '}
           {lastSyncedAt
             ? new Date(lastSyncedAt).toLocaleString('fr-FR', {
                 timeZone: 'Europe/Paris',
               })
             : 'jamais'}
         </p>
+        <p className="text-muted">
+          Dernière tentative :{' '}
+          {syncMeta?.lastAttemptAt
+            ? new Date(syncMeta.lastAttemptAt).toLocaleString('fr-FR', {
+                timeZone: 'Europe/Paris',
+              })
+            : 'jamais'}
+          {syncMeta?.lastAttemptOk === true
+            ? ' · OK'
+            : syncMeta?.lastAttemptOk === false
+              ? ' · échec'
+              : ''}
+        </p>
+        {syncMeta?.lastAttemptOk === false && syncMeta.lastErrorMessage ? (
+          <p className="font-semibold text-danger">
+            {syncMeta.lastErrorCode
+              ? `${syncMeta.lastErrorCode} · ${syncMeta.lastErrorMessage}`
+              : syncMeta.lastErrorMessage}
+          </p>
+        ) : null}
+        {syncMeta?.lastSummary ? (
+          <p className="text-muted">
+            Dernier résumé : {syncMeta.lastSummary.updated ?? 0} mis à jour ·{' '}
+            {syncMeta.lastSummary.newResults ?? 0} nouveau(x) résultat(s)
+          </p>
+        ) : null}
+        {showSyncHealthAlert ? (
+          <p role="alert" className="font-semibold text-danger">
+            La synchronisation automatique semble bloquée. Vérifier Vault
+            (admin_code, clé anon) puis relancer une sync manuelle.
+          </p>
+        ) : null}
       </section>
 
       {error ? (

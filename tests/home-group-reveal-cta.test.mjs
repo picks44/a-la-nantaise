@@ -5,8 +5,10 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   findHomeGroupRevealMatch,
+  findHomePendingResultMatch,
   findLastFinishedMatch,
   findNextOpenMatch,
+  selectHomePrimaryMatch,
 } from '../src/lib/matchOrder.ts'
 import { shouldOpenDetailsForDeepLink } from '../src/lib/pageLoadTimeout.ts'
 
@@ -137,6 +139,15 @@ describe('Home primary match priority J1/J2/J3', () => {
     assert.equal(findLastFinishedMatch(matches)?.id, 'j1-finished')
   })
 
+  it('promotes J3 to primary while J2 is a stale awaiting pending block', () => {
+    const matches = [j1Finished, j2Awaiting, j3Open]
+    assert.equal(selectHomePrimaryMatch(matches, now)?.id, 'j3-open')
+    assert.equal(
+      findHomePendingResultMatch(matches, 'j3-open', now)?.id,
+      'j2-awaiting',
+    )
+  })
+
   it('after J2 finishes, primary open becomes J3 and last finished becomes J2', () => {
     const j2Finished = baseMatch({
       id: 'j2-awaiting',
@@ -148,7 +159,74 @@ describe('Home primary match priority J1/J2/J3', () => {
     const matches = [j1Finished, j2Finished, j3Open]
     assert.equal(findHomeGroupRevealMatch(matches, now), null)
     assert.equal(findNextOpenMatch(matches, now)?.id, 'j3-open')
+    assert.equal(selectHomePrimaryMatch(matches, now)?.id, 'j3-open')
     assert.equal(findLastFinishedMatch(matches)?.id, 'j2-awaiting')
+  })
+
+  it('keeps a live match as primary over the next open match', () => {
+    const liveNow = new Date('2026-08-08T19:15:00.000Z')
+    const j2Live = baseMatch({
+      id: 'j2-live',
+      matchday: 2,
+      kickoffAt: '2026-08-08T18:45:00.000Z',
+      dbStatus: 'scheduled',
+    })
+    const matches = [j1Finished, j2Live, j3Open]
+    assert.equal(selectHomePrimaryMatch(matches, liveNow)?.id, 'j2-live')
+    assert.equal(findNextOpenMatch(matches, liveNow)?.id, 'j3-open')
+  })
+
+  it('uses stale awaiting as primary when no next open match exists', () => {
+    const matches = [j1Finished, j2Awaiting]
+    assert.equal(selectHomePrimaryMatch(matches, now)?.id, 'j2-awaiting')
+    assert.equal(findHomePendingResultMatch(matches, 'j2-awaiting', now), null)
+  })
+
+  it('does not treat last finished as pending or primary when a next match is open', () => {
+    const j2Finished = baseMatch({
+      id: 'j2-finished',
+      matchday: 2,
+      kickoffAt: '2026-08-08T18:45:00.000Z',
+      dbStatus: 'finished',
+      finalScore: { home: 2, away: 1 },
+    })
+    const matches = [j1Finished, j2Finished, j3Open]
+    assert.equal(selectHomePrimaryMatch(matches, now)?.id, 'j3-open')
+    assert.equal(findLastFinishedMatch(matches)?.id, 'j2-finished')
+    assert.equal(findHomePendingResultMatch(matches, 'j3-open', now), null)
+  })
+})
+
+describe('Home incident non-regression J2 stale + J3 open', () => {
+  it('makes J3 primary and keeps J2 as awaiting reveal, not live', () => {
+    const now = new Date('2026-08-18T19:00:00.000Z')
+    const j2 = baseMatch({
+      id: 'j2-laval',
+      matchday: 2,
+      kickoffAt: '2026-08-14T18:45:00.000Z',
+      homeTeam: 'Stade Lavallois MFC',
+      awayTeam: 'FC Nantes',
+      dbStatus: 'scheduled',
+    })
+    const j3 = baseMatch({
+      id: 'j3-rodez',
+      matchday: 3,
+      kickoffAt: '2026-08-22T12:00:00.000Z',
+      homeTeam: 'FC Nantes',
+      awayTeam: 'Rodez Aveyron Football',
+      dbStatus: 'scheduled',
+    })
+    const matches = [j2, j3]
+    assert.equal(selectHomePrimaryMatch(matches, now)?.id, 'j3-rodez')
+    assert.equal(findHomePendingResultMatch(matches, 'j3-rodez', now)?.id, 'j2-laval')
+    const home = read('src/pages/HomePage.tsx')
+    assert.match(home, /function PendingResultBlock/)
+    assert.match(home, /matchPhaseHeadline/)
+    assert.match(home, /Résultat en attente/)
+    const awaitingStart = home.indexOf('function AwaitingPrimaryCard')
+    const awaitingEnd = home.indexOf('function OpenPrimaryCard')
+    const awaiting = home.slice(awaitingStart, awaitingEnd)
+    assert.doesNotMatch(awaiting, /Match en cours/)
   })
 })
 
@@ -157,22 +235,21 @@ describe('Home group reveal CTA wiring', () => {
   const calendar = read('src/pages/CalendarPage.tsx')
   const matchOrder = read('src/lib/matchOrder.ts')
 
-  it('wires primaryMatch priority: groupRevealMatch over nextOpenMatch', () => {
+  it('wires primaryMatch priority: live, then nextOpen, then awaiting', () => {
     assert.match(matchOrder, /export function findHomeGroupRevealMatch/)
-    assert.match(matchOrder, /matchAwaitsOfficialResult/)
-    assert.match(home, /findHomeGroupRevealMatch/)
-    assert.match(home, /findNextOpenMatch/)
+    assert.match(matchOrder, /export function selectHomePrimaryMatch/)
+    assert.match(matchOrder, /findLiveMatch/)
+    assert.match(matchOrder, /findNextOpenMatch/)
+    assert.match(matchOrder, /findAwaitingResultMatch/)
+    assert.match(home, /selectHomePrimaryMatch/)
+    assert.match(home, /findHomePendingResultMatch/)
     assert.match(home, /const primaryMatch = useMemo/)
-    assert.match(
-      home,
-      /if \(groupRevealMatch\)[\s\S]*return withPredictionStatus\([\s\S]*groupRevealMatch/,
-    )
-    assert.match(home, /return nextOpenMatch/)
+    assert.match(home, /PendingResultBlock/)
     assert.match(home, /isAwaitingPrimary/)
     assert.match(home, /AwaitingPrimaryCard/)
   })
 
-  it('puts group CTA inside awaiting primary card with groupRevealMatch id', () => {
+  it('puts group CTA inside awaiting primary card and pending result block', () => {
     const awaitingStart = home.indexOf('function AwaitingPrimaryCard')
     const awaitingEnd = home.indexOf('function OpenPrimaryCard')
     const awaiting = home.slice(awaitingStart, awaitingEnd)
@@ -181,6 +258,8 @@ describe('Home group reveal CTA wiring', () => {
     assert.doesNotMatch(awaiting, /Valider mon prono/)
     assert.doesNotMatch(awaiting, /Modifier mon prono/)
     assert.doesNotMatch(awaiting, /ScoreInput/)
+    const pending = home.slice(home.indexOf('function PendingResultBlock'))
+    assert.match(pending, /Voir les pronos du groupe/)
   })
 
   it('removes floating GroupRevealCta and LastMatchBlock group CTA', () => {

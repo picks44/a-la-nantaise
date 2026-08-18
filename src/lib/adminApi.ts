@@ -40,9 +40,22 @@ export interface AdminStats {
   supabaseOk: boolean
 }
 
+export interface FixtureSyncSummary {
+  created?: number
+  updated?: number
+  newResults?: number
+  pointsRecalculated?: number
+  protected?: number
+}
+
 export interface FixtureSyncMeta {
   lastSyncedAt: string | null
   sourceLabel: string
+  lastAttemptAt: string | null
+  lastAttemptOk: boolean | null
+  lastErrorCode: string | null
+  lastErrorMessage: string | null
+  lastSummary: FixtureSyncSummary | null
 }
 
 export interface FixtureSyncProtectedDetail {
@@ -110,6 +123,17 @@ interface DbStatsRow {
 interface DbSyncMetaRow {
   last_synced_at: string | null
   source_label: string
+  last_attempt_at?: string | null
+  last_attempt_ok?: boolean | null
+  last_error_code?: string | null
+  last_error_message?: string | null
+  last_summary?: {
+    created?: number
+    updated?: number
+    new_results?: number
+    points_recalculated?: number
+    protected?: number
+  } | null
 }
 
 async function adminRpc<T>(
@@ -403,9 +427,28 @@ export async function adminGetFixtureSyncMeta(
     p_admin_session_token: sessionToken,
   })
   const row = rows?.[0]
+  const summary = row?.last_summary
   return {
     lastSyncedAt: row?.last_synced_at ?? null,
     sourceLabel: row?.source_label ?? 'Fixture Download',
+    lastAttemptAt: row?.last_attempt_at ?? null,
+    lastAttemptOk:
+      row?.last_attempt_ok === true
+        ? true
+        : row?.last_attempt_ok === false
+          ? false
+          : null,
+    lastErrorCode: row?.last_error_code ?? null,
+    lastErrorMessage: row?.last_error_message ?? null,
+    lastSummary: summary
+      ? {
+          created: summary.created,
+          updated: summary.updated,
+          newResults: summary.new_results,
+          pointsRecalculated: summary.points_recalculated,
+          protected: summary.protected,
+        }
+      : null,
   }
 }
 

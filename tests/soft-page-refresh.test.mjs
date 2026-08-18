@@ -18,6 +18,7 @@ import {
   attachSoftPageRefresh,
   hasMatchAwaitingOfficialResult,
   matchAwaitsOfficialResult,
+  shouldPollForOfficialResult,
 } from '../src/lib/softPageRefresh.ts'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -109,7 +110,36 @@ describe('matchAwaitsOfficialResult / hasMatchAwaitingOfficialResult', () => {
     )
   })
 
+  it('does not poll a match awaiting a result for several days', () => {
+    const now = new Date('2026-08-18T19:00:00.000Z')
+    assert.equal(
+      shouldPollForOfficialResult(
+        [
+          baseMatch({
+            kickoffAt: '2026-08-14T18:45:00.000Z',
+            dbStatus: 'scheduled',
+          }),
+        ],
+        now,
+      ),
+      false,
+    )
+    assert.equal(
+      hasMatchAwaitingOfficialResult(
+        [
+          baseMatch({
+            kickoffAt: '2026-08-14T18:45:00.000Z',
+            dbStatus: 'scheduled',
+          }),
+        ],
+        now,
+      ),
+      true,
+    )
+  })
+
   it('detects at least one awaiting match in a list', () => {
+    const now = new Date('2026-08-10T12:00:00.000Z')
     assert.equal(
       hasMatchAwaitingOfficialResult(
         [
@@ -151,7 +181,7 @@ describe('SOFT_RESULT_POLL_MS', () => {
   it('uses a 30s network cadence distinct from Home 1s clock', () => {
     assert.equal(SOFT_RESULT_POLL_MS, 30_000)
     assert.match(homePage, /setInterval\(\(\) => setNow\(new Date\(\)\), 1000\)/)
-    assert.match(homePage, /shouldPoll: awaitingOfficialResult/)
+    assert.match(homePage, /shouldPoll: shouldPollOfficialResult/)
     assert.doesNotMatch(
       homePage,
       /setInterval\(\(\) => \{\s*setNow[\s\S]{0,80}loadPage\('soft'\)/,
@@ -318,16 +348,16 @@ describe('runSoftPageLoad soft success replaces stale match state', () => {
 describe('page soft-refresh wiring (F5)', () => {
   it('Calendar uses attachSoftPageRefresh with conditional poll', () => {
     assert.match(calendarPage, /attachSoftPageRefresh/)
-    assert.match(calendarPage, /hasMatchAwaitingOfficialResult/)
-    assert.match(calendarPage, /shouldPoll: awaitingOfficialResult/)
+    assert.match(calendarPage, /shouldPollForOfficialResult/)
+    assert.match(calendarPage, /shouldPoll: shouldPollOfficialResult/)
     assert.match(calendarPage, /loadCalendarData\('soft'\)/)
     assert.match(calendarPage, /runSoftPageLoad/)
   })
 
   it('Home soft-refreshes on resume and polls only when result expected', () => {
     assert.match(homePage, /attachSoftPageRefresh/)
-    assert.match(homePage, /hasMatchAwaitingOfficialResult/)
-    assert.match(homePage, /shouldPoll: awaitingOfficialResult/)
+    assert.match(homePage, /shouldPollForOfficialResult/)
+    assert.match(homePage, /shouldPoll: shouldPollOfficialResult/)
     assert.match(homePage, /loadPage\('soft'\)/)
     assert.match(homePage, /loadHomeBundle/)
     assert.match(homePage, /runSoftPageLoad/)
@@ -336,8 +366,8 @@ describe('page soft-refresh wiring (F5)', () => {
 
   it('Ranking soft-refreshes on resume and polls when matches await a result', () => {
     assert.match(rankingPage, /attachSoftPageRefresh/)
-    assert.match(rankingPage, /hasMatchAwaitingOfficialResult/)
-    assert.match(rankingPage, /shouldPoll: awaitingOfficialResult/)
+    assert.match(rankingPage, /shouldPollForOfficialResult/)
+    assert.match(rankingPage, /shouldPoll: shouldPollOfficialResult/)
     assert.match(rankingPage, /loadPage\('soft'\)/)
     assert.match(rankingPage, /loadRankingBundle/)
     assert.match(rankingPage, /runSoftPageLoad/)

@@ -11,8 +11,6 @@ import {
   setCelebrationFlag,
 } from '../lib/celebrations'
 import {
-  findLastFinishedMatch,
-  findNextOpenMatch,
   getPredictionForMatch,
   fetchActiveSeason,
   fetchLiveSeasonRanking,
@@ -36,9 +34,18 @@ import { withPageLoadTimeout } from '../lib/pageLoadTimeout'
 import { isBrowserOnline, OFFLINE_USER_MESSAGE } from '../lib/pwa'
 import {
   attachSoftPageRefresh,
-  hasMatchAwaitingOfficialResult,
+  shouldPollForOfficialResult,
 } from '../lib/softPageRefresh'
-import { findHomeGroupRevealMatch } from '../lib/matchOrder'
+import {
+  findHomePendingResultMatch,
+  findLastFinishedMatch,
+  findNextOpenMatch,
+  selectHomePrimaryMatch,
+} from '../lib/matchOrder'
+import {
+  classifyMatchPhase,
+  matchPhaseHeadline,
+} from '../lib/matchLifecycle'
 import {
   formatCountdown,
   formatKickoff,
@@ -229,8 +236,8 @@ export function HomePage() {
     }
   }, [loadPage])
 
-  const awaitingOfficialResult = useMemo(
-    () => hasMatchAwaitingOfficialResult(matches, now),
+  const shouldPollOfficialResult = useMemo(
+    () => shouldPollForOfficialResult(matches, now),
     [matches, now],
   )
 
@@ -241,16 +248,11 @@ export function HomePage() {
       onRefresh: () => {
         void loadPage('soft')
       },
-      shouldPoll: awaitingOfficialResult,
+      shouldPoll: shouldPollOfficialResult,
     })
 
     return () => attachment.dispose()
-  }, [awaitingOfficialResult, loadPage, playerId, sessionToken])
-
-  const groupRevealMatch = useMemo(
-    () => findHomeGroupRevealMatch(matches, now),
-    [matches, now],
-  )
+  }, [shouldPollOfficialResult, loadPage, playerId, sessionToken])
 
   const nextOpenMatch = useMemo(() => {
     const base = findNextOpenMatch(matches, now)
@@ -261,25 +263,22 @@ export function HomePage() {
 
   const primaryMatch = useMemo(() => {
     if (!playerId) return null
-    if (groupRevealMatch) {
-      const prediction = getPredictionForMatch(
-        predictions,
-        groupRevealMatch.id,
-        playerId,
-      )
-      return withPredictionStatus(
-        groupRevealMatch,
-        Boolean(prediction),
-        now,
-      )
-    }
-    return nextOpenMatch
-  }, [groupRevealMatch, nextOpenMatch, predictions, playerId, now])
+    const selected = selectHomePrimaryMatch(matches, now)
+    if (!selected) return null
+    const prediction = getPredictionForMatch(predictions, selected.id, playerId)
+    return withPredictionStatus(selected, Boolean(prediction), now)
+  }, [matches, predictions, playerId, now])
 
-  const isAwaitingPrimary = Boolean(
-    groupRevealMatch &&
-      primaryMatch &&
-      groupRevealMatch.id === primaryMatch.id,
+  const primaryPhase = primaryMatch
+    ? classifyMatchPhase(primaryMatch, now)
+    : null
+  const isAwaitingPrimary =
+    primaryPhase === 'live' || primaryPhase === 'awaiting_result'
+
+  const pendingResultMatch = useMemo(
+    () =>
+      findHomePendingResultMatch(matches, primaryMatch?.id ?? null, now),
+    [matches, primaryMatch?.id, now],
   )
 
   const lastMatch = useMemo(() => findLastFinishedMatch(matches), [matches])
@@ -383,6 +382,9 @@ export function HomePage() {
           title="Accueil"
           message="Aucun prochain match ouvert aux pronostics pour le moment."
         />
+        {pendingResultMatch ? (
+          <PendingResultBlock match={pendingResultMatch} now={now} />
+        ) : null}
         {showRecap && recap ? (
           <RoundRecapCard
             recap={recap}
@@ -410,6 +412,7 @@ export function HomePage() {
         <AwaitingPrimaryCard
           match={primaryMatch}
           prediction={primaryPrediction}
+          now={now}
         />
       ) : (
         <OpenPrimaryCard
@@ -437,6 +440,10 @@ export function HomePage() {
         />
       )}
 
+      {pendingResultMatch ? (
+        <PendingResultBlock match={pendingResultMatch} now={now} />
+      ) : null}
+
       {showRecap && recap ? (
         <RoundRecapCard
           recap={recap}
@@ -462,11 +469,14 @@ export function HomePage() {
 function AwaitingPrimaryCard({
   match,
   prediction,
+  now,
 }: {
   match: Match
   prediction?: Prediction
+  now: Date
 }) {
   const stadium = venueSecondaryLabel(match.venue)
+  const phaseHeadline = matchPhaseHeadline(classifyMatchPhase(match, now))
 
   return (
     <section
@@ -541,7 +551,7 @@ function AwaitingPrimaryCard({
           Pronostics verrouillés
         </p>
         <p className="text-lg font-black tracking-wide text-yellow">
-          Match en cours
+          {phaseHeadline}
         </p>
       </div>
     </section>
@@ -726,6 +736,51 @@ function OpenPrimaryCard({
         <p className="text-lg font-black tracking-wide text-yellow tabular-nums">
           {isUnconfirmed ? 'Bientôt disponible' : formatCountdown(countdown)}
         </p>
+      </div>
+    </section>
+  )
+}
+
+function PendingResultBlock({
+  match,
+  now,
+}: {
+  match: Match
+  now: Date
+}) {
+  const phase = classifyMatchPhase(match, now)
+  const headline = matchPhaseHeadline(phase)
+
+  return (
+    <section
+      aria-labelledby="pending-result-title"
+      className="overflow-hidden rounded-[var(--radius-md)] border border-ink bg-yellow"
+    >
+      <div className="flex items-center justify-between gap-3 border-b border-ink/15 px-4 py-3">
+        <h2
+          id="pending-result-title"
+          className="text-sm font-black tracking-[0.06em] uppercase"
+        >
+          {headline}
+        </h2>
+        <p className="text-[11px] font-bold tracking-wider text-ink/60 uppercase">
+          J{match.matchday} · {formatKickoff(match.kickoffAt)}
+        </p>
+      </div>
+      <div className="px-4 py-4 text-center">
+        <p className="text-sm font-semibold leading-snug text-ink">
+          {match.homeTeam}
+          <span className="mx-2 text-ink/35">–</span>
+          {match.awayTeam}
+        </p>
+        <div className="mt-4 flex justify-center">
+          <Link
+            to={`/calendrier?match=${match.id}`}
+            className="btn-ink w-auto min-w-[14rem]"
+          >
+            Voir les pronos du groupe
+          </Link>
+        </div>
       </div>
     </section>
   )

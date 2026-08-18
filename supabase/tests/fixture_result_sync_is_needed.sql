@@ -14,7 +14,8 @@ WHERE external_id LIKE 'test-result-sync-%'
      'f1111111-1111-1111-1111-111111111106',
      'f1111111-1111-1111-1111-111111111107',
      'f1111111-1111-1111-1111-111111111108',
-     'f1111111-1111-1111-1111-111111111109'
+     'f1111111-1111-1111-1111-111111111109',
+     'f1111111-1111-1111-1111-111111111110'
    );
 
 -- ---------------------------------------------------------------------------
@@ -228,7 +229,7 @@ END;
 $$;
 
 -- ---------------------------------------------------------------------------
--- 8) après kickoff + 8 h → false
+-- 8) après kickoff + 8 h → true (catch-up, plus de plafond)
 -- ---------------------------------------------------------------------------
 DO $$
 BEGIN
@@ -247,11 +248,39 @@ BEGIN
     'scheduled'
   );
 
-  IF public.fixture_result_sync_is_needed() THEN
-    RAISE EXCEPTION 'TEST FAIL: après +8h doit être false';
+  IF NOT public.fixture_result_sync_is_needed() THEN
+    RAISE EXCEPTION 'TEST FAIL: après +8h doit rester true (catch-up)';
   END IF;
 
   DELETE FROM public.matches WHERE id = 'f1111111-1111-1111-1111-111111111108';
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 8b) après plusieurs jours sans résultat → true (rattrapage)
+-- ---------------------------------------------------------------------------
+DO $$
+BEGIN
+  INSERT INTO public.matches (
+    id, external_id, round_number, home_team, away_team,
+    kickoff_at, kickoff_time_confirmed, kickoff_confirmation_source, status
+  ) VALUES (
+    'f1111111-1111-1111-1111-111111111110',
+    'test-result-sync-stale-days',
+    91,
+    'FC Nantes',
+    'Test Stale Days',
+    now() - interval '4 days',
+    TRUE,
+    'feed',
+    'scheduled'
+  );
+
+  IF NOT public.fixture_result_sync_is_needed() THEN
+    RAISE EXCEPTION 'TEST FAIL: après plusieurs jours doit rester true (catch-up)';
+  END IF;
+
+  DELETE FROM public.matches WHERE id = 'f1111111-1111-1111-1111-111111111110';
 END;
 $$;
 

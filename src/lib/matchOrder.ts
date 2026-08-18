@@ -1,5 +1,8 @@
 import type { Match } from '../types'
-import { matchAwaitsOfficialResult } from './softPageRefresh.ts'
+import {
+  classifyMatchPhase,
+  matchAwaitsOfficialResult,
+} from './matchLifecycle.ts'
 
 /** Ordre liste calendrier / admin : journée → coup d’envoi → id. */
 export function compareMatchesForList(
@@ -19,6 +22,16 @@ export function sortMatchesForList<
   T extends Pick<Match, 'id' | 'matchday' | 'kickoffAt'>,
 >(matches: T[]): T[] {
   return [...matches].sort(compareMatchesForList)
+}
+
+function pickLatestKickoff<T extends Pick<Match, 'kickoffAt'>>(
+  matches: ReadonlyArray<T>,
+): T | null {
+  if (matches.length === 0) return null
+  return [...matches].sort(
+    (a, b) =>
+      new Date(b.kickoffAt).getTime() - new Date(a.kickoffAt).getTime(),
+  )[0] ?? null
 }
 
 export function findNextOpenMatch(matches: Match[], now = new Date()): Match | null {
@@ -48,6 +61,24 @@ export function findLastFinishedMatch(matches: Match[]): Match | null {
   return finished[0] ?? null
 }
 
+export function findLiveMatch<
+  T extends Pick<Match, 'id' | 'kickoffAt' | 'kickoffTimeConfirmed' | 'dbStatus'>,
+>(matches: ReadonlyArray<T>, now: Date = new Date()): T | null {
+  return pickLatestKickoff(
+    matches.filter((match) => classifyMatchPhase(match, now) === 'live'),
+  )
+}
+
+export function findAwaitingResultMatch<
+  T extends Pick<Match, 'id' | 'kickoffAt' | 'kickoffTimeConfirmed' | 'dbStatus'>,
+>(matches: ReadonlyArray<T>, now: Date = new Date()): T | null {
+  return pickLatestKickoff(
+    matches.filter(
+      (match) => classifyMatchPhase(match, now) === 'awaiting_result',
+    ),
+  )
+}
+
 /**
  * Match dont les pronos du groupe sont consultables post-kickoff (CTA Home).
  * Réutilise `matchAwaitsOfficialResult` ; si plusieurs, le kickoff le plus récent.
@@ -56,13 +87,42 @@ export function findLastFinishedMatch(matches: Match[]): Match | null {
 export function findHomeGroupRevealMatch<
   T extends Pick<Match, 'id' | 'kickoffAt' | 'kickoffTimeConfirmed' | 'dbStatus'>,
 >(matches: ReadonlyArray<T>, now: Date = new Date()): T | null {
-  const awaiting = matches
-    .filter((match) => matchAwaitsOfficialResult(match, now))
-    .sort(
-      (a, b) =>
-        new Date(b.kickoffAt).getTime() - new Date(a.kickoffAt).getTime(),
-    )
-  return awaiting[0] ?? null
+  return pickLatestKickoff(
+    matches.filter((match) => matchAwaitsOfficialResult(match, now)),
+  )
+}
+
+/**
+ * Carte principale Home :
+ * 1. match réellement en cours
+ * 2. prochain match ouvert
+ * 3. résultat en attente (si aucun prochain ouvert)
+ */
+export function selectHomePrimaryMatch(
+  matches: Match[],
+  now: Date = new Date(),
+): Match | null {
+  return (
+    findLiveMatch(matches, now) ??
+    findNextOpenMatch(matches, now) ??
+    findAwaitingResultMatch(matches, now)
+  )
+}
+
+/**
+ * Surface secondaire Home : reveal / résultat en attente, distinct du primary.
+ */
+export function findHomePendingResultMatch<
+  T extends Pick<Match, 'id' | 'kickoffAt' | 'kickoffTimeConfirmed' | 'dbStatus'>,
+>(
+  matches: ReadonlyArray<T>,
+  primaryId: string | null,
+  now: Date = new Date(),
+): T | null {
+  const reveal = findHomeGroupRevealMatch(matches, now)
+  if (!reveal) return null
+  if (primaryId && reveal.id === primaryId) return null
+  return reveal
 }
 
 /**
