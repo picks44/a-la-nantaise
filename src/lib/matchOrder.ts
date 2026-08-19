@@ -50,6 +50,26 @@ export function findNextOpenMatch(matches: Match[], now = new Date()): Match | n
   return upcoming[0] ?? null
 }
 
+/** Prochain scheduled TBC encore dans le futur — fallback Home, pas de saisie. */
+export function findNextUnconfirmedUpcoming(
+  matches: Match[],
+  now = new Date(),
+): Match | null {
+  const upcoming = matches
+    .filter(
+      (match) =>
+        match.dbStatus === 'scheduled' &&
+        match.kickoffTimeConfirmed === false &&
+        new Date(match.kickoffAt).getTime() > now.getTime(),
+    )
+    .sort(
+      (a, b) =>
+        new Date(a.kickoffAt).getTime() - new Date(b.kickoffAt).getTime(),
+    )
+
+  return upcoming[0] ?? null
+}
+
 export function findLastFinishedMatch(matches: Match[]): Match | null {
   const finished = matches
     .filter((match) => match.dbStatus === 'finished' && match.finalScore)
@@ -95,8 +115,9 @@ export function findHomeGroupRevealMatch<
 /**
  * Carte principale Home :
  * 1. match réellement en cours
- * 2. prochain match ouvert
- * 3. résultat en attente (si aucun prochain ouvert)
+ * 2. prochain match ouvert (horaire confirmé)
+ * 3. prochain TBC futur (si rien n’est pronostiquable)
+ * 4. résultat en attente
  */
 export function selectHomePrimaryMatch(
   matches: Match[],
@@ -105,6 +126,7 @@ export function selectHomePrimaryMatch(
   return (
     findLiveMatch(matches, now) ??
     findNextOpenMatch(matches, now) ??
+    findNextUnconfirmedUpcoming(matches, now) ??
     findAwaitingResultMatch(matches, now)
   )
 }

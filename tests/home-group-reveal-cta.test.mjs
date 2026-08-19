@@ -235,11 +235,12 @@ describe('Home group reveal CTA wiring', () => {
   const calendar = read('src/pages/CalendarPage.tsx')
   const matchOrder = read('src/lib/matchOrder.ts')
 
-  it('wires primaryMatch priority: live, then nextOpen, then awaiting', () => {
+  it('wires primaryMatch priority: live, then nextOpen, then TBC, then awaiting', () => {
     assert.match(matchOrder, /export function findHomeGroupRevealMatch/)
     assert.match(matchOrder, /export function selectHomePrimaryMatch/)
     assert.match(matchOrder, /findLiveMatch/)
     assert.match(matchOrder, /findNextOpenMatch/)
+    assert.match(matchOrder, /findNextUnconfirmedUpcoming/)
     assert.match(matchOrder, /findAwaitingResultMatch/)
     assert.match(home, /selectHomePrimaryMatch/)
     assert.match(home, /findHomePendingResultMatch/)

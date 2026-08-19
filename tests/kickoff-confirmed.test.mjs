@@ -4,7 +4,7 @@ import { describe, it } from 'node:test'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { formatKickoff, formatKickoffDisplay } from '../src/lib/format.ts'
-import { findNextOpenMatch } from '../src/lib/matchOrder.ts'
+import { findNextOpenMatch, selectHomePrimaryMatch } from '../src/lib/matchOrder.ts'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -107,6 +107,72 @@ describe('findNextOpenMatch skips unconfirmed kickoffs', () => {
       },
     ]
     assert.equal(findNextOpenMatch(matches, now), null)
+  })
+})
+
+describe('selectHomePrimaryMatch TBC fallback', () => {
+  const now = new Date('2026-08-01T00:00:00.000Z')
+
+  it('uses a future TBC only when no confirmed open match exists', () => {
+    const matches = [
+      {
+        id: 'only-unconfirmed',
+        matchday: 1,
+        kickoffAt: '2026-08-02T00:00:00.000Z',
+        kickoffTimeConfirmed: false,
+        homeTeam: 'FC Nantes',
+        awayTeam: 'X',
+        venue: 'home',
+        dbStatus: 'scheduled',
+        status: 'kickoff_unconfirmed',
+      },
+    ]
+    assert.equal(selectHomePrimaryMatch(matches, now)?.id, 'only-unconfirmed')
+  })
+
+  it('prefers a later confirmed open match over an earlier TBC', () => {
+    const matches = [
+      {
+        id: 'unconfirmed',
+        matchday: 1,
+        kickoffAt: '2026-08-02T00:00:00.000Z',
+        kickoffTimeConfirmed: false,
+        homeTeam: 'FC Nantes',
+        awayTeam: 'X',
+        venue: 'home',
+        dbStatus: 'scheduled',
+        status: 'kickoff_unconfirmed',
+      },
+      {
+        id: 'confirmed',
+        matchday: 2,
+        kickoffAt: '2026-08-05T00:00:00.000Z',
+        kickoffTimeConfirmed: true,
+        homeTeam: 'FC Nantes',
+        awayTeam: 'Y',
+        venue: 'home',
+        dbStatus: 'scheduled',
+        status: 'to_predict',
+      },
+    ]
+    assert.equal(selectHomePrimaryMatch(matches, now)?.id, 'confirmed')
+  })
+
+  it('does not surface a TBC whose placeholder kickoff is already past', () => {
+    const matches = [
+      {
+        id: 'stale-tbc',
+        matchday: 1,
+        kickoffAt: '2026-07-30T00:00:00.000Z',
+        kickoffTimeConfirmed: false,
+        homeTeam: 'FC Nantes',
+        awayTeam: 'X',
+        venue: 'home',
+        dbStatus: 'scheduled',
+        status: 'kickoff_unconfirmed',
+      },
+    ]
+    assert.equal(selectHomePrimaryMatch(matches, now), null)
   })
 })
 
