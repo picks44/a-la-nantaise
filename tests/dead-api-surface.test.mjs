@@ -50,4 +50,17 @@ describe('dead frontend API surface removed (A3)', () => {
     assert.match(api, /get_live_season_ranking/)
     assert.match(api, /get_match_group_reveal/)
   })
+
+  it('drops the legacy public recalculate_match_points RPC', () => {
+    const drop = readFileSync(
+      join(root, 'supabase/migrations/20260819160000_drop_recalculate_match_points.sql'),
+      'utf8',
+    )
+    assert.match(drop, /DROP FUNCTION IF EXISTS public\.recalculate_match_points\(TEXT, UUID\)/)
+    const sqlTest = readFileSync(
+      join(root, 'supabase/tests/drop_recalculate_match_points.sql'),
+      'utf8',
+    )
+    assert.match(sqlTest, /recalculate_match_points\(text, uuid\) must be dropped/)
+  })
 })
