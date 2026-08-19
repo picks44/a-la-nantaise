@@ -118,9 +118,12 @@ BEGIN
     RAISE EXCEPTION 'TEST FAIL: session invalide acceptée';
   EXCEPTION
     WHEN OTHERS THEN
-      IF SQLERRM NOT LIKE '%INVALID_ADMIN_SESSION%'
-         AND SQLERRM NOT LIKE '%admin%'
-         AND SQLERRM NOT LIKE '%session%' THEN
+      -- hash_session_token lève INVALID_SESSION (jeton non hex-64) ;
+      -- une session admin absente lève INVALID_ADMIN_SESSION. Les deux
+      -- sont SQLSTATE 28000. LIKE '%session%' est sensible à la casse.
+      IF SQLSTATE <> '28000'
+         AND SQLERRM NOT LIKE '%INVALID_ADMIN_SESSION%'
+         AND SQLERRM NOT LIKE '%INVALID_SESSION%' THEN
         RAISE;
       END IF;
   END;
