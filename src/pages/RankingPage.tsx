@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { GroupRanking } from '../components/Podium'
 import { PageHeader } from '../components/PageHeader'
 import { RoundRecapCard } from '../components/RoundRecapCard'
@@ -37,7 +38,7 @@ import {
   resolveRecapViewState,
 } from '../lib/pageLoad'
 import { withPageLoadTimeout } from '../lib/pageLoadTimeout'
-import { formatProvisionalBadge } from '../lib/rankingDisplay'
+import { formatProvisionalBadge, parseRankingTab } from '../lib/rankingDisplay'
 import {
   attachSoftPageRefresh,
   shouldPollForOfficialResult,
@@ -63,7 +64,10 @@ const RANKING_TAB_ORDER: readonly RankingTab[] = [
 
 export function RankingPage() {
   const { sessionToken, activePlayer, accessCode, playerId } = useSession()
-  const [tab, setTab] = useState<RankingTab>('general')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [tab, setTab] = useState<RankingTab>(() =>
+    parseRankingTab(searchParams.get('tab')),
+  )
   const [ranking, setRanking] = useState<Player[]>([])
   const [matches, setMatches] = useState<Match[]>([])
   const [participation, setParticipation] = useState<RoundParticipationRow[]>(
@@ -167,6 +171,19 @@ export function RankingPage() {
       guard.reset()
     }
   }, [loadPage])
+
+  useEffect(() => {
+    setTab(parseRankingTab(searchParams.get('tab')))
+  }, [searchParams])
+
+  function selectRankingTab(next: RankingTab) {
+    setTab(next)
+    if (next === 'general') {
+      setSearchParams({}, { replace: true })
+    } else {
+      setSearchParams({ tab: next }, { replace: true })
+    }
+  }
 
   const shouldPollOfficialResult = useMemo(
     () => shouldPollForOfficialResult(matches, now),
@@ -376,12 +393,12 @@ export function RankingPage() {
         <TabList
           label="Vues du classement"
           value={tab}
-          onChange={setTab}
+          onChange={selectRankingTab}
           order={RANKING_TAB_ORDER}
         >
           <TabButton
             selected={tab === 'general'}
-            onSelect={() => setTab('general')}
+            onSelect={() => selectRankingTab('general')}
             id="tab-general"
             controls="panel-general"
           >
@@ -389,7 +406,7 @@ export function RankingPage() {
           </TabButton>
           <TabButton
             selected={tab === 'participation'}
-            onSelect={() => setTab('participation')}
+            onSelect={() => selectRankingTab('participation')}
             id="tab-participation"
             controls="panel-participation"
           >
@@ -397,7 +414,7 @@ export function RankingPage() {
           </TabButton>
           <TabButton
             selected={tab === 'trophies'}
-            onSelect={() => setTab('trophies')}
+            onSelect={() => selectRankingTab('trophies')}
             id="tab-trophies"
             controls="panel-trophies"
           >
@@ -405,7 +422,7 @@ export function RankingPage() {
           </TabButton>
           <TabButton
             selected={tab === 'parcours'}
-            onSelect={() => setTab('parcours')}
+            onSelect={() => selectRankingTab('parcours')}
             id="tab-parcours"
             controls="panel-parcours"
           >

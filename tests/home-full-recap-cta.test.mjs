@@ -44,7 +44,7 @@ describe('Ranking #recap deep-link', () => {
     assert.match(ranking, /scrolledToRecapRef\.current = true/)
     assert.match(ranking, /recapView\.status !== 'success'/)
     assert.match(ranking, /\[recapView\.status\]/)
-    assert.match(ranking, /useState<RankingTab>\('general'\)/)
+    assert.match(ranking, /parseRankingTab\(searchParams\.get\('tab'\)\)/)
     assert.doesNotMatch(ranking, /searchParams\.get\('round'\)/)
     assert.doesNotMatch(ranking, /searchParams\.get\('match'\)/)
   })

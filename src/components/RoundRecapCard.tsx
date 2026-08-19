@@ -111,7 +111,7 @@ export function RoundRecapCard({
       {trophyCount > 0 ? (
         <p className="border-t border-border/70 pt-3 text-xs font-medium text-ink/55">
           <Link
-            to="/classement"
+            to="/classement?tab=trophies"
             className="font-semibold text-green-dark underline-offset-2 hover:underline"
           >
             {trophyCount === 1

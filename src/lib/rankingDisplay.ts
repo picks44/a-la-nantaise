@@ -171,3 +171,22 @@ export function formatRankChangeHuman(input: {
   const retreat = n === 1 ? 'd’une place' : `de ${n} places`
   return `Tu recules ${retreat} et passes ${afterLabel}`
 }
+
+export type RankingTabId =
+  | 'general'
+  | 'participation'
+  | 'trophies'
+  | 'parcours'
+
+/** Query `?tab=` — valeurs inconnues / absentes → Général. */
+export function parseRankingTab(raw: string | null): RankingTabId {
+  if (
+    raw === 'general' ||
+    raw === 'participation' ||
+    raw === 'trophies' ||
+    raw === 'parcours'
+  ) {
+    return raw
+  }
+  return 'general'
+}
