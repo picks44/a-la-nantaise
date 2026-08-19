@@ -14,7 +14,7 @@ Le frontend est une SPA React/Vite. L’application n’utilise pas **Supabase A
 - **Trophées & séries** : progression, célébrations anti-replay, confetti ciblé
 - **Parcours de saison** (timeline) : journées, jalons, trophées
 - **PWA** : installable, bannières hors-ligne / mise à jour
-- **Notifications push** (optionnelles) : rappels de pronostic si VAPID + Edge Function configurés
+- **Notifications push** (optionnelles) : quatre événements (`24h`, `2h`, `kickoff_5m`, `results_available`) si VAPID + Edge Function configurés
 - **Admin** : joueurs, matchs / résultats, sync fixtures, code d’accès, session admin opaque
 
 ## Stack
@@ -85,7 +85,7 @@ Elles n’affichent jamais de clé.
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
-- `VITE_VAPID_PUBLIC_KEY` (uniquement si les rappels push sont activés)
+- `VITE_VAPID_PUBLIC_KEY` (uniquement si les notifications push sont activées)
 
 Règles :
 
@@ -100,13 +100,15 @@ Règles :
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY` (suffisant : les écritures passent par des RPC admin `SECURITY DEFINER`, authentifiées via session admin ou code legacy)
 
-`send-prediction-reminders` :
+`send-prediction-reminders` (nom historique : l’Edge Function envoie désormais toutes les notifications Web Push liées aux matchs, pas seulement les rappels de pronostic) :
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `PUSH_CRON_SECRET`
 - `VAPID_KEYS_JSON`
 - `VAPID_SUBJECT`
+
+Cron pg_cron en production : job `a-la-nantaise-push-reminders`, `*/5 * * * *`, `active = true`. Voir `supabase/schedule_push_reminders.example.sql`.
 
 ### Secrets Vault Supabase
 
@@ -119,7 +121,7 @@ Règles :
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
-- `VITE_VAPID_PUBLIC_KEY` si les rappels push sont utilisés
+- `VITE_VAPID_PUBLIC_KEY` si les notifications push sont utilisées
 
 Ne jamais configurer dans Vercel :
 
@@ -402,9 +404,9 @@ npm run test:sql:isolation
 ### Backend
 
 - `supabase/migrations/` : schéma, RPC, sécurité SQL
-- `supabase/tests/` : suites SQL (14 fichiers) exécutées **uniquement** via `npm run test:sql:local`
+- `supabase/tests/` : suites SQL (20 fichiers) exécutées **uniquement** via `npm run test:sql:local`
 - `supabase-test/` : workdir CLI de la stack test (ports 55xxx, symlink vers les migrations)
-- `supabase/functions/` : Edge Functions `sync-fc-nantes` et `send-prediction-reminders`
+- `supabase/functions/` : Edge Functions `sync-fc-nantes` et `send-prediction-reminders` (nom historique : toutes les notifs match)
 - `supabase/seed.sql` : seed de développement uniquement (codes + joueurs ; pas de calendrier)
 - `npm run db:setup:realistic -- --yes` : reset local + calendrier Fixture Download (34 matchs)
 - `npm run db:sync:fixtures:local` : resync calendrier sans reset (JSON figé ; `--live` optionnel)
@@ -426,6 +428,7 @@ npm run test:sql:isolation
 - **Classement compétition** : les ex æquo partagent le même rang lorsque les points et le nombre de scores exacts sont identiques ; le pseudo ne sert qu’à stabiliser l’ordre d’affichage (`getCompetitionRanks`).
 - **Trophées** : overview + ack côté RPC ; célébrations anti-replay en `localStorage` (clés scopées groupe/joueur/saison).
 - **Subscriptions push** : un joueur peut avoir au maximum 5 endpoints actifs ; un endpoint déjà connu peut être réactivé sans consommer un nouveau slot ; les endpoints définitivement invalides sont désactivés lors des envois.
+- **Notifications push** : `24h` et `2h` (prono manquant), `kickoff_5m` (horaire confirmé, avec ou sans prono), `results_available` (match terminé). Job cron `a-la-nantaise-push-reminders` toutes les **5 minutes**. Deep-link `/calendrier?match=`.
 - **Session joueur** : token opaque en `localStorage` ; expiration de session peut conserver le code d’accès valide (`needs_player`) ; code d’accès invalide force un clear complet.
 - **Deep-link** `?match=` : ouverture des détails pour matchs terminés / verrouillés ; scroll pour prochain / compact.
 

@@ -1,4 +1,9 @@
--- Planification des rappels de pronostic (Web Push) — EXEMPLE, non activé.
+-- Planification Web Push (matchs) — EXEMPLE.
+--
+-- Historical name : l’Edge Function s’appelle encore send-prediction-reminders.
+-- Elle gère désormais les quatre types : 24h, 2h, kickoff_5m, results_available.
+--
+-- Cadence réelle (prod) : */5 * * * *  job a-la-nantaise-push-reminders  active = true
 --
 -- Prérequis Vault (noms uniquement) :
 --   project_url
@@ -58,10 +63,10 @@ BEGIN
 END
 $replace_job$;
 
--- Toutes les 15 minutes. Laisser commenté jusqu’à validation manuelle.
+-- Toutes les 5 minutes (fenêtre kickoff_5m). Laisser commenté jusqu’à validation manuelle.
 -- SELECT cron.schedule(
 --   'a-la-nantaise-push-reminders',
---   '*/15 * * * *',
+--   '*/5 * * * *',
 --   $job$
 --   SELECT net.http_post(
 --     url := (

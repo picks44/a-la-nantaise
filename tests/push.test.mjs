@@ -332,6 +332,8 @@ describe('push edge function', () => {
     assert.match(schedule, /a-la-nantaise-push-reminders/)
     assert.match(schedule, /push_reminders_cron_secret/)
     assert.match(schedule, /-- SELECT cron\.schedule/)
+    assert.match(schedule, /'\*\/5 \* \* \* \*'/)
+    assert.match(schedule, /24h, 2h, kickoff_5m, results_available/)
     assert.ok(
       existsSync(join(root, 'supabase/migrations/20260803170000_web_push.sql')),
     )
