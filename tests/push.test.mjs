@@ -218,6 +218,8 @@ describe('push edge function', () => {
     assert.ok(dryBlockEnd > dryBlockStart)
     const dryBlock = index.slice(dryBlockStart, dryBlockEnd)
     assert.match(dryBlock, /preview_push_reminder_batch/)
+    assert.match(dryBlock, /candidates_kickoff_5m/)
+    assert.match(dryBlock, /candidates_results_available/)
     assert.doesNotMatch(dryBlock, /prepare_push_reminder_batch/)
     assert.doesNotMatch(dryBlock, /claim_push_deliveries/)
     assert.doesNotMatch(dryBlock, /createWebPushSender/)
@@ -438,6 +440,7 @@ describe('push SQL regression scripts', () => {
     assert.match(reminders, /claim_push_deliveries\(50, 300/)
 
     const resultsAvailable = read('supabase/tests/push_results_available.sql')
+    assert.match(resultsAvailable, /preview should count 2 results_available reminders/)
     assert.match(resultsAvailable, /prepare should create 3 results deliveries/)
     assert.match(resultsAvailable, /expected 3 claimed results deliveries/)
     assert.match(resultsAvailable, /must not claim results for non-finished match/)
@@ -467,6 +470,15 @@ describe('push SQL regression scripts', () => {
     assert.match(kickoffMigration, /ON CONFLICT \(match_id, player_id, reminder_type\) DO UPDATE/)
     assert.match(kickoffMigration, /ON CONFLICT \(reminder_id, subscription_id\) DO UPDATE/)
     assert.match(kickoffMigration, /candidates_kickoff_5m/)
+
+    const previewMigration = read(
+      'supabase/migrations/20260819150000_push_preview_results_available.sql',
+    )
+    assert.match(previewMigration, /candidates_results_available/)
+    assert.match(
+      previewMigration,
+      /DROP FUNCTION IF EXISTS public\.preview_push_reminder_batch/,
+    )
     assert.match(kickoffMigration, /r\.kickoff_snapshot = m\.kickoff_at/)
 
     const subscriptions = read('supabase/tests/push_subscriptions.sql')

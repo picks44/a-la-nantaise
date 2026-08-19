@@ -163,9 +163,11 @@ BEGIN
 
   SELECT * INTO prev FROM public.preview_push_reminder_batch(now());
 
-  IF prev.candidates_24h <> 0 OR prev.candidates_2h <> 0 THEN
-    RAISE EXCEPTION 'TEST_FAIL: preview must exclude existing reminders (got 24h=%, 2h=%)',
-      prev.candidates_24h, prev.candidates_2h;
+  IF prev.candidates_24h <> 0
+     OR prev.candidates_2h <> 0
+     OR COALESCE(prev.candidates_results_available, 0) <> 0 THEN
+    RAISE EXCEPTION 'TEST_FAIL: preview must exclude existing reminders (got 24h=%, 2h=%, results=%)',
+      prev.candidates_24h, prev.candidates_2h, prev.candidates_results_available;
   END IF;
 
   IF prev.candidate_deliveries <> 0 THEN
@@ -322,9 +324,13 @@ BEGIN
     RAISE EXCEPTION 'TEST_FAIL: preview returned null';
   END IF;
 
-  IF prev.candidates_24h <> 0 OR prev.candidates_2h <> 0 OR prev.candidate_deliveries <> 0 THEN
-    RAISE EXCEPTION 'TEST_FAIL: preview nets should stay 0 after prepare (24h=%, 2h=%, del=%)',
-      prev.candidates_24h, prev.candidates_2h, prev.candidate_deliveries;
+  IF prev.candidates_24h <> 0
+     OR prev.candidates_2h <> 0
+     OR COALESCE(prev.candidates_results_available, 0) <> 0
+     OR prev.candidate_deliveries <> 0 THEN
+    RAISE EXCEPTION 'TEST_FAIL: preview nets should stay 0 after prepare (24h=%, 2h=%, results=%, del=%)',
+      prev.candidates_24h, prev.candidates_2h, prev.candidates_results_available,
+      prev.candidate_deliveries;
   END IF;
 
   SELECT count(*)::integer INTO after_r FROM public.push_reminders;

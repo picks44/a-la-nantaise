@@ -33,6 +33,7 @@ DECLARE
   v_recalc INTEGER;
   v_failed BOOLEAN;
   v_prep RECORD;
+  v_preview RECORD;
   v_claimed INTEGER;
   v_del_id UUID;
   v_sub_status TEXT;
@@ -295,6 +296,20 @@ BEGIN
     RAISE EXCEPTION 'TEST FAIL: recalc must not create deliveries, got %', v_deliveries;
   END IF;
 
+  SELECT * INTO v_preview FROM public.preview_push_reminder_batch(now());
+
+  IF v_preview.candidates_results_available <> 2 THEN
+    RAISE EXCEPTION
+      'TEST FAIL: preview should count 2 results_available reminders, got %',
+      v_preview.candidates_results_available;
+  END IF;
+
+  IF v_preview.candidate_deliveries <> 3 THEN
+    RAISE EXCEPTION
+      'TEST FAIL: preview should count 3 results deliveries (2+1), got %',
+      v_preview.candidate_deliveries;
+  END IF;
+
   SELECT * INTO v_prep FROM public.prepare_push_reminder_batch(now());
 
   IF v_prep.deliveries_created <> 3 THEN
@@ -310,6 +325,16 @@ BEGIN
 
   IF v_deliveries <> 3 THEN
     RAISE EXCEPTION 'TEST FAIL: expected 3 deliveries for match A, got %', v_deliveries;
+  END IF;
+
+  SELECT * INTO v_preview FROM public.preview_push_reminder_batch(now());
+
+  IF v_preview.candidates_results_available <> 0
+     OR v_preview.candidate_deliveries <> 0 THEN
+    RAISE EXCEPTION
+      'TEST FAIL: preview nets should stay 0 after prepare (results=%, del=%)',
+      v_preview.candidates_results_available,
+      v_preview.candidate_deliveries;
   END IF;
 
   -- B) disabled / expired subscriptions → no delivery

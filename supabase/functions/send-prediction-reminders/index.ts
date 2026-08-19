@@ -299,6 +299,8 @@ Deno.serve(async (req) => {
       candidates: row ?? {
         candidates_24h: 0,
         candidates_2h: 0,
+        candidates_kickoff_5m: 0,
+        candidates_results_available: 0,
         candidate_deliveries: 0,
       },
     })
