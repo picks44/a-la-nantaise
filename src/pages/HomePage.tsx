@@ -159,8 +159,10 @@ export function HomePage() {
           if (recapPayload.isDefinitive && !alreadySeen) {
             setShowRecap(true)
             setCelebrationFlag(seenKey)
-          } else if (!recapPayload.isDefinitive) {
+          } else if (!recapPayload.isDefinitive && !alreadySeen) {
             setShowRecap(true)
+          } else if (!recapPayload.isDefinitive) {
+            setShowRecap(false)
           }
         } catch {
           if (dataGenerationRef.current.isCurrent(input.generation)) {
@@ -369,6 +371,21 @@ export function HomePage() {
     }
   }
 
+  function dismissHomeRecap() {
+    if (recap && !recap.isDefinitive && playerId) {
+      setCelebrationFlag(
+        celebrationStorageKey({
+          groupId: accessCode ?? 'group',
+          playerId,
+          seasonId: recap.seasonId,
+          eventType: 'day_recap',
+          eventId: `${recap.roundNumber}:prov`,
+        }),
+      )
+    }
+    setShowRecap(false)
+  }
+
   function retry() {
     void loadPage('initial')
   }
@@ -401,7 +418,7 @@ export function HomePage() {
         {showRecap && recap ? (
           <RoundRecapCard
             recap={recap}
-            onDismiss={() => setShowRecap(false)}
+            onDismiss={dismissHomeRecap}
           />
         ) : null}
         <RaceLeaders
@@ -460,7 +477,7 @@ export function HomePage() {
       {showRecap && recap ? (
         <RoundRecapCard
           recap={recap}
-          onDismiss={() => setShowRecap(false)}
+          onDismiss={dismissHomeRecap}
         />
       ) : null}
 
