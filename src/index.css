@@ -29,6 +29,8 @@
   --color-muted: #5c5c56;
   --color-border: #d0d0c8;
   --color-on-green: #ffffff;
+  /* Inactif sur fond vert : opaque, pour ne pas délaver les traits fins. */
+  --color-on-green-muted: #cbd8d3;
   --color-on-yellow: #191919;
   --color-disabled: #9a9a92;
   --color-success: #055d46;

@@ -1,11 +1,11 @@
 import { Link, NavLink } from 'react-router-dom'
-import { CalendarDays, Home, Settings, Trophy } from 'lucide-react'
+import { Calendar, Home, Settings, Trophy } from 'lucide-react'
 import { BrandMark } from './BrandMark'
 import { useSession } from '../context/useSession'
 
 const navItems = [
   { to: '/', label: 'Accueil', icon: Home, end: true },
-  { to: '/calendrier', label: 'Calendrier', icon: CalendarDays, end: false },
+  { to: '/calendrier', label: 'Calendrier', icon: Calendar, end: false },
   { to: '/classement', label: 'Classement', icon: Trophy, end: false },
 ] as const
 
@@ -23,7 +23,7 @@ function mobileNavClass({ isActive }: { isActive: boolean }): string {
     'flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 mx-0.5 my-1 rounded-[var(--radius-sm)] px-2 py-1.5 text-[11px] font-bold tracking-[0.08em] uppercase transition-[color,background-color] duration-150 ease-out',
     isActive
       ? 'bg-white/12 text-yellow'
-      : 'text-white/65 hover:bg-white/5 hover:text-white',
+      : 'text-on-green-muted hover:bg-white/5 hover:text-white',
   ].join(' ')
 }
 
@@ -96,7 +96,8 @@ export function BottomNav() {
         <div className="mx-auto flex max-w-lg px-1">
           {navItems.map(({ to, label, icon: Icon, end }) => (
             <NavLink key={to} to={to} end={end} className={mobileNavClass}>
-              <Icon aria-hidden="true" className="size-5" strokeWidth={2.25} />
+              {/* 24px + trait 2 = grille native Lucide, donc traits alignés sur les pixels. */}
+              <Icon aria-hidden="true" className="size-6" strokeWidth={2} />
               <span>{label}</span>
             </NavLink>
           ))}
