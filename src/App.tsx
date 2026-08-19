@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { BrandMark } from './components/BrandMark'
 import { PwaOfflineBanner } from './components/PwaOfflineBanner'
+import { PushReminderBanner } from './components/PushReminderBanner'
 import { PwaUpdateBanner } from './components/PwaUpdateBanner'
 import { SessionProvider } from './context/SessionProvider'
 import { CalendarPage } from './pages/CalendarPage'
@@ -21,6 +22,7 @@ export default function App() {
       <BrowserRouter>
         <PwaUpdateBanner />
         <PwaOfflineBanner />
+        <PushReminderBanner />
         <Routes>
           <Route
             path="admin"

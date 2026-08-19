@@ -1,8 +1,11 @@
 import { OFFLINE_USER_MESSAGE } from '../lib/pwa'
 import { useOnlineStatus } from '../hooks/useOnlineStatus'
+import { usePwaUpdate } from '../hooks/usePwaUpdate'
 
 export function PwaOfflineBanner() {
+  const { visible: updateVisible } = usePwaUpdate()
   const online = useOnlineStatus()
+  if (updateVisible) return null
   if (online) return null
 
   return (

@@ -4,6 +4,7 @@ import {
   shouldShowIosInstallHelp,
 } from './pwa'
 import { isVapidPublicKeyConfigured } from './vapid'
+import { getPushSubscriptionStatus } from './api'
 
 export type PushUiState =
   | 'unsupported'
@@ -17,6 +18,12 @@ export type PushUiState =
   | 'active'
   | 'pending'
   | 'error'
+
+export type PushActivationState = 'active' | 'activatable' | 'hidden'
+
+export function isPushActivatableGate(gate: PushUiState): boolean {
+  return gate === 'default' || gate === 'granted_inactive'
+}
 
 export function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -85,6 +92,35 @@ export function resolvePushGateState(): PushUiState {
   if (permission === 'denied') return 'denied'
   if (permission === 'granted') return 'granted_inactive'
   return 'default'
+}
+
+export async function resolvePushActivationState(
+  sessionToken: string,
+  playerId: string,
+): Promise<PushActivationState> {
+  const gate = resolvePushGateState()
+  if (!isPushActivatableGate(gate)) {
+    return 'hidden'
+  }
+
+  try {
+    const subscription = await getExistingPushSubscription()
+    if (!subscription) {
+      return 'activatable'
+    }
+
+    const status = await getPushSubscriptionStatus(
+      sessionToken,
+      subscription.endpoint,
+    )
+    if (status?.active && status.playerId === playerId) {
+      return 'active'
+    }
+
+    return 'activatable'
+  } catch {
+    return 'activatable'
+  }
 }
 
 export async function getExistingPushSubscription(): Promise<PushSubscription | null> {

@@ -2,12 +2,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { Bell, BellOff, LoaderCircle } from 'lucide-react'
 import {
   deactivatePushSubscription,
-  getPushSubscriptionStatus,
   registerPushSubscription,
 } from '../lib/api'
 import { toUserMessage } from '../lib/errors'
 import {
   getExistingPushSubscription,
+  resolvePushActivationState,
   resolvePushGateState,
   serializationFromSubscription,
   subscribeToPush,
@@ -50,24 +50,22 @@ export function PushNotificationsSection({
     }
 
     try {
-      const subscription = await getExistingPushSubscription()
-      if (!subscription) {
-        setUiState(
-          Notification.permission === 'granted' ? 'granted_inactive' : 'default',
-        )
+      const activation = await resolvePushActivationState(
+        sessionToken,
+        playerId,
+      )
+      if (activation === 'hidden') {
+        setUiState(gate)
         return
       }
-
-      const status = await getPushSubscriptionStatus(
-        sessionToken,
-        subscription.endpoint,
-      )
-      if (status?.active && status.playerId === playerId) {
+      if (activation === 'active') {
         setUiState('active')
         return
       }
 
-      setUiState('granted_inactive')
+      setUiState(
+        Notification.permission === 'granted' ? 'granted_inactive' : 'default',
+      )
     } catch {
       setUiState(gate === 'granted_inactive' ? 'granted_inactive' : 'default')
     }
@@ -150,8 +148,8 @@ export function PushNotificationsSection({
         Rappels de pronostic
       </h2>
       <p className="mt-1 text-sm text-muted">
-        Reçois un rappel environ 24 h puis 2 h avant un match si tu n’as pas
-        encore enregistré ton prono.
+        Reçois des rappels avant les matchs, juste avant le coup d’envoi et
+        lorsque les résultats sont disponibles.
       </p>
 
       {uiState === 'ios_install_required' ? (
