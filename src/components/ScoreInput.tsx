@@ -29,17 +29,18 @@ export function ScoreInput({
         'min-w-0',
         isBoard
           ? // subgrid : la case du score partage la même ligne que le séparateur du parent
-            'row-span-2 grid grid-rows-subgrid items-end justify-items-center self-stretch'
+            'row-span-2 grid grid-cols-[minmax(0,1fr)] grid-rows-subgrid items-end justify-items-center self-stretch'
           : 'flex flex-1 flex-col items-center gap-2',
       ].join(' ')}
     >
       <label
         htmlFor={inputId}
         className={[
-          'max-w-full text-center leading-snug text-balance',
+          'text-center leading-snug text-balance',
           isBoard
-            ? 'text-xs font-bold text-ink sm:text-sm'
-            : 'label-caps',
+            ? // Le nom peut dépasser la colonne étroite de la case, sans toucher celui d’en face.
+              'w-max max-w-[6.5rem] text-xs font-bold text-ink sm:max-w-[8rem] sm:text-sm'
+            : 'max-w-full label-caps',
         ].join(' ')}
       >
         {label}

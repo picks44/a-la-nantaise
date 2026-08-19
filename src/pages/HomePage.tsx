@@ -667,7 +667,8 @@ function OpenPrimaryCard({
             onSave()
           }}
         >
-          <div className="grid w-full grid-cols-[minmax(0,7rem)_auto_minmax(0,7rem)] grid-rows-[auto_auto] items-end justify-center gap-x-2 gap-y-1 sm:grid-cols-[minmax(0,8.5rem)_auto_minmax(0,8.5rem)] sm:gap-x-3 sm:gap-y-1.5">
+          {/* Colonnes calées sur la largeur des cases : l’écart ne dépend que du gap. */}
+          <div className="grid w-full grid-cols-[minmax(0,5.5rem)_auto_minmax(0,5.5rem)] grid-rows-[auto_auto] items-end justify-center gap-x-2 gap-y-1 sm:grid-cols-[minmax(0,6.5rem)_auto_minmax(0,6.5rem)] sm:gap-x-3 sm:gap-y-1.5">
             <ScoreInput
               label={match.homeTeam}
               value={draft.home}

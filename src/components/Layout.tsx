@@ -33,8 +33,8 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-ink bg-yellow pt-[env(safe-area-inset-top)]">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-2.5">
-        <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+      <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-2 sm:gap-3 sm:px-6 sm:py-2.5">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-3.5">
           <Link
             to="/"
             className="inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--radius-sm)]"
@@ -49,10 +49,10 @@ export function Header() {
             >
               À la Nantaise
             </Link>
-            <p className="hidden truncate text-[10px] font-bold tracking-[0.06em] text-ink/70 min-[400px]:block">
+            <p className="hidden truncate text-[10px] font-semibold tracking-[0.06em] text-ink/60 min-[400px]:block">
               <span className="normal-case">{pseudo}</span>
-              <span className="mx-1.5 text-ink/30">·</span>
-              <span className="tracking-[0.12em] text-green-dark uppercase">
+              <span className="mx-1.5 text-ink/25">·</span>
+              <span className="tracking-[0.12em] text-green-dark/75 uppercase">
                 Saison 26/27
               </span>
             </p>
@@ -73,7 +73,7 @@ export function Header() {
 
           <Link
             to="/parametres"
-            className="inline-flex size-11 items-center justify-center border border-ink/25 text-ink transition-[color,background-color,border-color] duration-150 ease-out hover:border-ink hover:bg-green-dark hover:text-yellow"
+            className="inline-flex size-11 items-center justify-center rounded-[var(--radius-sm)] text-ink/75 transition-[color,background-color] duration-150 ease-out hover:bg-ink/10 hover:text-ink"
             aria-label="Paramètres"
             title="Paramètres"
           >
