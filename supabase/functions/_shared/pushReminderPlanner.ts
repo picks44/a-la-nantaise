@@ -1,6 +1,6 @@
 /** Fenêtres et textes de rappels push (UTC côté serveur, affichage Europe/Paris). */
 
-export type ReminderType = '24h' | '2h' | 'results_available'
+export type ReminderType = '24h' | '2h' | 'results_available' | 'kickoff_5m'
 
 export interface ReminderClaim {
   delivery_id: string
@@ -51,6 +51,17 @@ export function buildNotificationPayload(claim: ReminderClaim): {
     }
   }
 
+  if (claim.reminder_type === 'kickoff_5m') {
+    return {
+      title: "Coup d'envoi dans 5 min",
+      body: `${claim.home_team} - ${claim.away_team} va commencer. À l'ouverture du match, découvre les pronos du groupe.`,
+      matchId: claim.match_id,
+      reminderType: 'kickoff_5m',
+      url,
+      tag: `aln-kickoff-5m-${claim.match_id}`,
+    }
+  }
+
   if (claim.reminder_type === '24h') {
     const time = formatKickoffTimeParis(claim.kickoff_at)
     return {
@@ -75,6 +86,9 @@ export function buildNotificationPayload(claim: ReminderClaim): {
 
 /** Topic Web Push déterministe (ASCII court). */
 export function webPushTopic(claim: ReminderClaim): string {
+  if (claim.reminder_type === 'kickoff_5m') {
+    return `kickoff5-${claim.match_id.replace(/-/g, '').slice(0, 16)}`.slice(0, 32)
+  }
   const compact = `${claim.reminder_type}-${claim.match_id.replace(/-/g, '').slice(0, 16)}`
   return compact.slice(0, 32)
 }

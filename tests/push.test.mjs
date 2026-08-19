@@ -313,6 +313,18 @@ describe('push edge function', () => {
     assert.match(planner, /\/calendrier\?match=\$\{claim\.match_id\}/)
   })
 
+  it('builds kickoff_5m payload with calendar deep link', () => {
+    const planner = read('supabase/functions/_shared/pushReminderPlanner.ts')
+    assert.match(planner, /'kickoff_5m'/)
+    assert.match(planner, /Coup d'envoi dans 5 min/)
+    assert.match(
+      planner,
+      /va commencer\. À l'ouverture du match, découvre les pronos du groupe\./,
+    )
+    assert.match(planner, /aln-kickoff-5m-\$\{claim\.match_id\}/)
+    assert.match(planner, /kickoff5-\$\{claim\.match_id\.replace/)
+  })
+
   it('ships an inactive cron example', () => {
     const schedule = read('supabase/schedule_push_reminders.example.sql')
     assert.match(schedule, /a-la-nantaise-push-reminders/)
@@ -432,12 +444,30 @@ describe('push SQL regression scripts', () => {
     assert.match(resultsAvailable, /503 should set next_attempt_at/)
     assert.match(resultsAvailable, /410 should expire subscription/)
 
+    const kickoff5m = read('supabase/tests/push_kickoff_5m.sql')
+    assert.match(kickoff5m, /kickoff_5m/)
+    assert.match(kickoff5m, /due_at must be kickoff - 5 min/)
+    assert.match(kickoff5m, /stale delivery must be skipped after kickoff change/)
+    assert.match(kickoff5m, /T\+1 must not claim kickoff_5m/)
+    assert.match(kickoff5m, /503 should set next_attempt_at for kickoff_5m/)
+
     const sendMigration = read(
       'supabase/migrations/20260819120000_push_results_available_send.sql',
     )
     assert.match(sendMigration, /results_available/)
     assert.match(sendMigration, /reminder_type IN \('24h', '2h'\)/)
     assert.match(sendMigration, /kickoff_snapshot > p_now/)
+
+    const kickoffMigration = read(
+      'supabase/migrations/20260819140000_push_kickoff_5m_send.sql',
+    )
+    assert.match(kickoffMigration, /kickoff_5m/)
+    assert.match(kickoffMigration, /status = 'skipped'/)
+    assert.match(kickoffMigration, /DROP FUNCTION IF EXISTS public\.preview_push_reminder_batch/)
+    assert.match(kickoffMigration, /ON CONFLICT \(match_id, player_id, reminder_type\) DO UPDATE/)
+    assert.match(kickoffMigration, /ON CONFLICT \(reminder_id, subscription_id\) DO UPDATE/)
+    assert.match(kickoffMigration, /candidates_kickoff_5m/)
+    assert.match(kickoffMigration, /r\.kickoff_snapshot = m\.kickoff_at/)
 
     const subscriptions = read('supabase/tests/push_subscriptions.sql')
     assert.match(subscriptions, /PUBLIC must not execute register_push_subscription/)
