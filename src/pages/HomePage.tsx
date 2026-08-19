@@ -294,6 +294,13 @@ export function HomePage() {
     return getPredictionForMatch(predictions, lastMatch.id, playerId)
   }, [lastMatch, predictions, playerId])
 
+  const showLastMatchBlock = !(
+    showRecap &&
+    recap != null &&
+    lastMatch != null &&
+    recap.roundNumber === lastMatch.matchday
+  )
+
   const primaryPrediction = useMemo(() => {
     if (!primaryMatch || !playerId) return undefined
     return getPredictionForMatch(predictions, primaryMatch.id, playerId)
@@ -431,7 +438,9 @@ export function HomePage() {
           participantCount={homeRanking.participantCount}
           live
         />
-        <LastMatchBlock match={lastMatch} prediction={lastPrediction} />
+        {showLastMatchBlock ? (
+          <LastMatchBlock match={lastMatch} prediction={lastPrediction} />
+        ) : null}
       </div>
     )
   }
@@ -491,7 +500,9 @@ export function HomePage() {
         participantCount={homeRanking.participantCount}
         live
       />
-      <LastMatchBlock match={lastMatch} prediction={lastPrediction} />
+      {showLastMatchBlock ? (
+        <LastMatchBlock match={lastMatch} prediction={lastPrediction} />
+      ) : null}
     </div>
   )
 }

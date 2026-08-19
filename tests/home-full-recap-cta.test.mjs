@@ -19,13 +19,21 @@ describe('Home full recap CTA', () => {
     assert.match(lastBlock, /to=\{`\/calendrier\?match=\$\{match\.id\}`\}/)
     assert.doesNotMatch(lastBlock, /classement#recap/)
     assert.doesNotMatch(lastBlock, /showFullRecapCta/)
-    assert.doesNotMatch(home, /recap\.roundNumber === lastMatch\.matchday/)
+    assert.match(home, /recap\.roundNumber === lastMatch\.matchday/)
+    assert.match(home, /showLastMatchBlock/)
     assert.doesNotMatch(home, /to="\/classement#recap"/)
   })
 
   it('does not keep group-reveal CTA inside LastMatchBlock', () => {
     const lastBlock = home.slice(home.indexOf('function LastMatchBlock'))
     assert.doesNotMatch(lastBlock, /Voir les pronos du groupe/)
+  })
+
+  it('hides LastMatchBlock only while a recap for that matchday is visible', () => {
+    assert.match(
+      home,
+      /showLastMatchBlock = !\(\s*showRecap &&\s*recap != null &&\s*lastMatch != null &&\s*recap\.roundNumber === lastMatch\.matchday/,
+    )
   })
 })
 
