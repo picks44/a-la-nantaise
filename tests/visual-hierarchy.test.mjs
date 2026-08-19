@@ -131,7 +131,14 @@ describe('visual hierarchy polish', () => {
 
   it('compacts board score inputs and keeps font-size mobile-safe', () => {
     const score = read('src/components/ScoreInput.tsx')
+    const home = read('src/pages/HomePage.tsx')
     assert.match(score, /max-w-\[5\.5rem\]/)
+    assert.match(score, /inputMode="numeric"/)
+    assert.match(score, /pattern="\[0-9\]\*"/)
+    assert.match(score, /onFocus=\{\(event\) => event\.currentTarget\.select\(\)\}/)
+    assert.match(score, /value=\{value \?\? ''\}/)
+    assert.match(home, /scoreIncomplete/)
+    assert.match(home, /disabled=\{inputsLocked \|\| saving \|\| scoreIncomplete\}/)
     assert.doesNotMatch(score, /sm:text-5xl/)
     assert.doesNotMatch(score, /font-black tracking-tight uppercase/)
   })

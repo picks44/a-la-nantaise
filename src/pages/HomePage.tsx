@@ -47,6 +47,7 @@ import {
   matchPhaseHeadline,
 } from '../lib/matchLifecycle'
 import {
+  clampScore,
   formatCountdown,
   formatKickoff,
   formatMatchDate,
@@ -60,9 +61,13 @@ import type {
   Player,
   PlayerRoundRecap,
   Prediction,
-  Score,
   Season,
 } from '../types'
+
+interface DraftScore {
+  home: number | null
+  away: number | null
+}
 
 export function HomePage() {
   const { sessionToken, playerId, activePlayer, accessCode } = useSession()
@@ -74,7 +79,7 @@ export function HomePage() {
   const [showRecap, setShowRecap] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [draft, setDraft] = useState<Score>({ home: 0, away: 0 })
+  const [draft, setDraft] = useState<DraftScore>({ home: null, away: null })
   const [saved, setSaved] = useState(false)
   const [justSaved, setJustSaved] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -312,7 +317,7 @@ export function HomePage() {
       setDraft({ home: existing.homeScore, away: existing.awayScore })
       setSaved(true)
     } else {
-      setDraft({ home: 0, away: 0 })
+      setDraft({ home: null, away: null })
       setSaved(false)
     }
     setSaveError(null)
@@ -322,6 +327,14 @@ export function HomePage() {
     if (!sessionToken || !playerId || !nextOpenMatch || isAwaitingPrimary) {
       return
     }
+    if (draft.home === null || draft.away === null) return
+
+    const normalizedDraft = {
+      home: clampScore(draft.home),
+      away: clampScore(draft.away),
+    }
+    setDraft(normalizedDraft)
+
     if (!isBrowserOnline()) {
       setSaveError(OFFLINE_USER_MESSAGE)
       setJustSaved(false)
@@ -333,8 +346,8 @@ export function HomePage() {
       const savedPrediction = await upsertPrediction({
         sessionToken,
         matchId: nextOpenMatch.id,
-        homeScore: draft.home,
-        awayScore: draft.away,
+        homeScore: normalizedDraft.home,
+        awayScore: normalizedDraft.away,
       })
       setPredictions((current) => {
         const without = current.filter(
@@ -573,20 +586,21 @@ function OpenPrimaryCard({
 }: {
   match: Match
   now: Date
-  draft: Score
+  draft: DraftScore
   saved: boolean
   justSaved: boolean
   saving: boolean
   saveError: string | null
   hasExistingPrediction: boolean
-  onDraftHome: (value: number) => void
-  onDraftAway: (value: number) => void
+  onDraftHome: (value: number | null) => void
+  onDraftAway: (value: number | null) => void
   onSave: () => void
 }) {
   const isUnconfirmed = match.status === 'kickoff_unconfirmed'
   const countdown = getCountdown(match.kickoffAt, now)
   const inputsLocked =
     isUnconfirmed || countdown.locked || match.status === 'locked'
+  const scoreIncomplete = draft.home === null || draft.away === null
   const stadium = venueSecondaryLabel(match.venue)
 
   return (
@@ -653,7 +667,7 @@ function OpenPrimaryCard({
             onSave()
           }}
         >
-          <div className="mx-auto grid w-full max-w-md grid-cols-[1fr_auto_1fr] items-end gap-2 sm:max-w-lg sm:gap-3">
+          <div className="grid w-full grid-cols-[minmax(0,7rem)_auto_minmax(0,7rem)] grid-rows-[auto_auto] items-end justify-center gap-x-2 gap-y-1 sm:grid-cols-[minmax(0,8.5rem)_auto_minmax(0,8.5rem)] sm:gap-x-3 sm:gap-y-1.5">
             <ScoreInput
               label={match.homeTeam}
               value={draft.home}
@@ -663,7 +677,7 @@ function OpenPrimaryCard({
             />
             <span
               aria-hidden="true"
-              className="pb-2 text-lg font-black text-ink/30 sm:pb-3.5 sm:text-2xl sm:text-ink/40"
+              className="col-start-2 row-start-2 flex items-center justify-center self-stretch text-lg font-black text-ink/30 sm:text-2xl sm:text-ink/40"
             >
               –
             </span>
@@ -679,7 +693,7 @@ function OpenPrimaryCard({
           <div className="flex justify-center">
             <button
               type="submit"
-              disabled={inputsLocked || saving}
+              disabled={inputsLocked || saving || scoreIncomplete}
               className="btn-green w-[85%] max-w-none sm:w-auto sm:min-w-[14rem] sm:max-w-sm"
             >
               {saving

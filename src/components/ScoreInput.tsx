@@ -4,8 +4,8 @@ import { SCORE_MAX, SCORE_MIN, clampScore } from '../lib/format'
 interface ScoreInputProps {
   id?: string
   label: string
-  value: number
-  onChange: (value: number) => void
+  value: number | null
+  onChange: (value: number | null) => void
   disabled?: boolean
   /** Variante tableau d’affichage (accueil). */
   variant?: 'default' | 'board'
@@ -26,10 +26,11 @@ export function ScoreInput({
   return (
     <div
       className={[
-        'flex min-w-0 flex-1 flex-col',
+        'min-w-0',
         isBoard
-          ? 'items-center gap-1 sm:gap-1.5'
-          : 'items-center gap-2',
+          ? // subgrid : la case du score partage la même ligne que le séparateur du parent
+            'row-span-2 grid grid-rows-subgrid items-end justify-items-center self-stretch'
+          : 'flex flex-1 flex-col items-center gap-2',
       ].join(' ')}
     >
       <label
@@ -45,17 +46,25 @@ export function ScoreInput({
       </label>
       <input
         id={inputId}
-        type="number"
+        type="text"
         inputMode="numeric"
-        min={SCORE_MIN}
-        max={SCORE_MAX}
-        step={1}
-        value={value}
+        pattern="[0-9]*"
+        maxLength={2}
+        value={value ?? ''}
         disabled={disabled}
+        required
         aria-label={`Score prédit pour ${label}`}
+        aria-valuemin={SCORE_MIN}
+        aria-valuemax={SCORE_MAX}
+        onFocus={(event) => event.currentTarget.select()}
         onChange={(event) => {
-          const next = Number(event.target.value)
-          onChange(clampScore(next))
+          const digits = event.currentTarget.value.replace(/\D/g, '')
+          onChange(digits === '' ? null : Number(digits))
+        }}
+        onBlur={(event) => {
+          if (event.currentTarget.value !== '') {
+            onChange(clampScore(Number(event.currentTarget.value)))
+          }
         }}
         className={[
           'text-center font-black tabular-nums transition-[color,background-color,border-color,box-shadow] duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-50',
