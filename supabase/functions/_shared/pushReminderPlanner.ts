@@ -1,6 +1,6 @@
 /** Fenêtres et textes de rappels push (UTC côté serveur, affichage Europe/Paris). */
 
-export type ReminderType = '24h' | '2h'
+export type ReminderType = '24h' | '2h' | 'results_available'
 
 export interface ReminderClaim {
   delivery_id: string
@@ -39,6 +39,17 @@ export function buildNotificationPayload(claim: ReminderClaim): {
 } {
   const url = `/calendrier?match=${claim.match_id}`
   const tag = `aln-${claim.reminder_type}-${claim.match_id}`
+
+  if (claim.reminder_type === 'results_available') {
+    return {
+      title: 'Résultats disponibles',
+      body: `${claim.home_team} - ${claim.away_team} est terminé. Le classement et les pronos du groupe sont à jour.`,
+      matchId: claim.match_id,
+      reminderType: 'results_available',
+      url,
+      tag: `aln-results-${claim.match_id}`,
+    }
+  }
 
   if (claim.reminder_type === '24h') {
     const time = formatKickoffTimeParis(claim.kickoff_at)

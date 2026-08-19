@@ -385,33 +385,35 @@ Deno.serve(async (req) => {
   for (const claim of claims) {
     const fp = await shortEndpointFingerprint(claim.endpoint)
 
-    const { data: hasPrediction, error: predError } = await admin.rpc(
-      'player_has_prediction',
-      {
-        p_player_id: claim.player_id,
-        p_match_id: claim.match_id,
-      },
-    )
+    if (claim.reminder_type === '24h' || claim.reminder_type === '2h') {
+      const { data: hasPrediction, error: predError } = await admin.rpc(
+        'player_has_prediction',
+        {
+          p_player_id: claim.player_id,
+          p_match_id: claim.match_id,
+        },
+      )
 
-    if (predError) {
-      console.error('prediction check failed', predError.message, fp)
-      await admin.rpc('complete_push_delivery', {
-        p_delivery_id: claim.delivery_id,
-        p_outcome: 'failed',
-        p_response_status: null,
-      })
-      summary.failed += 1
-      continue
-    }
+      if (predError) {
+        console.error('prediction check failed', predError.message, fp)
+        await admin.rpc('complete_push_delivery', {
+          p_delivery_id: claim.delivery_id,
+          p_outcome: 'failed',
+          p_response_status: null,
+        })
+        summary.failed += 1
+        continue
+      }
 
-    if (hasPrediction) {
-      await admin.rpc('complete_push_delivery', {
-        p_delivery_id: claim.delivery_id,
-        p_outcome: 'skipped',
-        p_response_status: null,
-      })
-      summary.skipped += 1
-      continue
+      if (hasPrediction) {
+        await admin.rpc('complete_push_delivery', {
+          p_delivery_id: claim.delivery_id,
+          p_outcome: 'skipped',
+          p_response_status: null,
+        })
+        summary.skipped += 1
+        continue
+      }
     }
 
     const result = await sender.sendReminder(claim)

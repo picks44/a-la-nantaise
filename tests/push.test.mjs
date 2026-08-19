@@ -290,6 +290,29 @@ describe('push edge function', () => {
     assert.doesNotMatch(smokeFn, /console\.(?:log|error)\([^)]*,\s*endpoint\b/)
   })
 
+  it('skips prediction check only for pre-match reminder types', () => {
+    const index = read(
+      'supabase/functions/send-prediction-reminders/index.ts',
+    )
+    assert.match(
+      index,
+      /claim\.reminder_type === '24h' \|\| claim\.reminder_type === '2h'/,
+    )
+    assert.match(index, /player_has_prediction/)
+  })
+
+  it('builds results_available payload with calendar deep link', () => {
+    const planner = read('supabase/functions/_shared/pushReminderPlanner.ts')
+    assert.match(planner, /'results_available'/)
+    assert.match(planner, /Résultats disponibles/)
+    assert.match(
+      planner,
+      /est terminé\. Le classement et les pronos du groupe sont à jour\./,
+    )
+    assert.match(planner, /aln-results-\$\{claim\.match_id\}/)
+    assert.match(planner, /\/calendrier\?match=\$\{claim\.match_id\}/)
+  })
+
   it('ships an inactive cron example', () => {
     const schedule = read('supabase/schedule_push_reminders.example.sql')
     assert.match(schedule, /a-la-nantaise-push-reminders/)
@@ -401,6 +424,20 @@ describe('push SQL regression scripts', () => {
     assert.match(reminders, /valid lease must not be reclaimed/)
     assert.match(reminders, /attempt_count >= 3 must not be claimable/)
     assert.match(reminders, /claim_push_deliveries\(50, 300/)
+
+    const resultsAvailable = read('supabase/tests/push_results_available.sql')
+    assert.match(resultsAvailable, /prepare should create 3 results deliveries/)
+    assert.match(resultsAvailable, /expected 3 claimed results deliveries/)
+    assert.match(resultsAvailable, /must not claim results for non-finished match/)
+    assert.match(resultsAvailable, /503 should set next_attempt_at/)
+    assert.match(resultsAvailable, /410 should expire subscription/)
+
+    const sendMigration = read(
+      'supabase/migrations/20260819120000_push_results_available_send.sql',
+    )
+    assert.match(sendMigration, /results_available/)
+    assert.match(sendMigration, /reminder_type IN \('24h', '2h'\)/)
+    assert.match(sendMigration, /kickoff_snapshot > p_now/)
 
     const subscriptions = read('supabase/tests/push_subscriptions.sql')
     assert.match(subscriptions, /PUBLIC must not execute register_push_subscription/)
