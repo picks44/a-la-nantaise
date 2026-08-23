@@ -10,6 +10,8 @@ import { Link } from 'react-router-dom'
 import { KeyRound, LogOut } from 'lucide-react'
 import { BrandMark } from '../components/BrandMark'
 import { ConfirmModal } from '../components/ConfirmModal'
+import { PageHeader } from '../components/PageHeader'
+import { TabButton, TabList } from '../components/TabList'
 import {
   adminClearMatchOverride,
   adminCreateMatch,
@@ -54,6 +56,11 @@ import { isSupabaseConfigured } from '../lib/supabase'
 import type { DbMatchStatus } from '../types'
 
 type AdminTab = 'matches' | 'players' | 'settings'
+
+const ADMIN_TAB_ORDER = ['matches', 'players', 'settings'] as const
+
+const ADMIN_LINE_BTN =
+  'btn-secondary w-auto min-w-0 px-2.5 text-xs sm:min-w-0'
 
 const STATUS_OPTIONS: DbMatchStatus[] = [
   'scheduled',
@@ -186,35 +193,67 @@ export function AdminPage() {
         setSessionToken(null)
       }}
     >
-      <div className="mb-4 flex gap-2 overflow-x-auto">
-        {(
-          [
-            ['matches', 'Matchs'],
-            ['players', 'Participants'],
-            ['settings', 'Réglages'],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setTab(id)}
-            className={[
-              'shrink-0 border-2 px-3 py-2 text-xs font-black tracking-[0.12em] uppercase',
-              tab === id
-                ? 'border-ink bg-yellow text-ink'
-                : 'border-border bg-surface text-muted',
-            ].join(' ')}
+      <div className="page-stack">
+        <TabList
+          label="Sections administration"
+          value={tab}
+          onChange={setTab}
+          order={ADMIN_TAB_ORDER}
+        >
+          <TabButton
+            selected={tab === 'matches'}
+            onSelect={() => setTab('matches')}
+            id="tab-admin-matches"
+            controls="panel-admin-matches"
           >
-            {label}
-          </button>
-        ))}
-      </div>
+            Matchs
+          </TabButton>
+          <TabButton
+            selected={tab === 'players'}
+            onSelect={() => setTab('players')}
+            id="tab-admin-players"
+            controls="panel-admin-players"
+          >
+            Participants
+          </TabButton>
+          <TabButton
+            selected={tab === 'settings'}
+            onSelect={() => setTab('settings')}
+            id="tab-admin-settings"
+            controls="panel-admin-settings"
+          >
+            Réglages
+          </TabButton>
+        </TabList>
 
-      {tab === 'matches' ? <MatchesAdmin sessionToken={sessionToken} /> : null}
-      {tab === 'players' ? <PlayersAdmin sessionToken={sessionToken} /> : null}
-      {tab === 'settings' ? (
-        <SettingsAdmin sessionToken={sessionToken} />
-      ) : null}
+        {tab === 'matches' ? (
+          <div
+            role="tabpanel"
+            id="panel-admin-matches"
+            aria-labelledby="tab-admin-matches"
+          >
+            <MatchesAdmin sessionToken={sessionToken} />
+          </div>
+        ) : null}
+        {tab === 'players' ? (
+          <div
+            role="tabpanel"
+            id="panel-admin-players"
+            aria-labelledby="tab-admin-players"
+          >
+            <PlayersAdmin sessionToken={sessionToken} />
+          </div>
+        ) : null}
+        {tab === 'settings' ? (
+          <div
+            role="tabpanel"
+            id="panel-admin-settings"
+            aria-labelledby="tab-admin-settings"
+          >
+            <SettingsAdmin sessionToken={sessionToken} />
+          </div>
+        ) : null}
+      </div>
     </AdminShell>
   )
 }
@@ -228,40 +267,43 @@ function AdminShell({
 }) {
   return (
     <div className="flex min-h-dvh flex-col bg-canvas">
-      <header className="border-b-2 border-ink bg-yellow px-4 py-3">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <BrandMark size="sm" className="rounded-[var(--radius-sm)]" />
+      <header className="sticky top-0 z-40 border-b border-ink bg-yellow pt-[env(safe-area-inset-top)]">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-2 sm:gap-3 sm:px-6 sm:py-2.5">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-3.5">
+            <BrandMark size="md" className="rounded-[var(--radius-sm)]" />
             <div className="min-w-0">
-              <p className="text-lg font-black tracking-tight uppercase">
-                Administration
+              <p className="truncate text-base font-black tracking-tight text-ink uppercase sm:text-xl">
+                À la Nantaise
               </p>
-              <p className="text-[10px] font-bold tracking-[0.16em] text-green-dark uppercase">
-                À la Nantaise · Pronos 26/27
+              <p className="hidden truncate text-[10px] font-semibold tracking-[0.06em] text-ink/60 min-[400px]:block">
+                <span className="tracking-[0.12em] text-green-dark/75 uppercase">
+                  Administration
+                </span>
+                <span className="mx-1.5 text-ink/25">·</span>
+                <span className="tracking-[0.12em] text-green-dark/75 uppercase">
+                  Saison 26/27
+                </span>
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Link
-              to="/"
-              className="border border-ink/20 px-3 py-2 text-[11px] font-bold tracking-wider uppercase"
-            >
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            <Link to="/" className="btn-secondary w-auto min-w-0 sm:min-w-0">
               App
             </Link>
             {onLeave ? (
               <button
                 type="button"
                 onClick={onLeave}
-                className="inline-flex items-center gap-1 border-2 border-ink bg-ink px-3 py-2 text-[11px] font-bold tracking-wider text-yellow uppercase"
+                className="btn-ink w-auto min-w-0 gap-1 sm:min-w-0"
               >
-                <LogOut aria-hidden="true" className="size-3.5" />
+                <LogOut aria-hidden="true" className="size-4" />
                 Quitter
               </button>
             ) : null}
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-5 sm:px-6">
+      <main className="mx-auto w-full min-w-0 max-w-5xl flex-1 px-4 py-4 sm:px-6 md:px-8 md:py-8">
         {children}
       </main>
       <footer className="border-t border-border px-4 py-3 text-center text-[10px] text-muted">
@@ -306,10 +348,7 @@ function AdminGate({ onSuccess }: { onSuccess: (token: string) => void }) {
       ) : null}
       <form onSubmit={handleSubmit} className="mt-5 space-y-4">
         <div>
-          <label
-            htmlFor={codeId}
-            className="mb-2 block text-[11px] font-bold tracking-[0.12em] uppercase"
-          >
+          <label htmlFor={codeId} className="mb-2 block label-caps">
             Code administrateur
           </label>
           <div className="relative">
@@ -483,14 +522,11 @@ function PlayersAdmin({ sessionToken }: { sessionToken: string }) {
   }
 
   return (
-    <div className="space-y-4">
-      <header>
-        <h1 className="title-display text-xl">Participants</h1>
-        <p className="mt-1 text-sm text-muted">
-          Aucune suppression : désactiver conserve l’historique. Génère un PIN
-          pour chaque joueur.
-        </p>
-      </header>
+    <div className="page-stack">
+      <PageHeader
+        title="Participants"
+        description="Aucune suppression : désactiver conserve l’historique. Génère un PIN pour chaque joueur."
+      />
 
       {error ? (
         <p role="alert" className="text-sm font-semibold text-danger">
@@ -498,7 +534,10 @@ function PlayersAdmin({ sessionToken }: { sessionToken: string }) {
         </p>
       ) : null}
       {message ? (
-        <p role="status" className="text-sm font-semibold text-green-dark">
+        <p
+          role="status"
+          className="ui-message-pop text-sm font-semibold text-green-dark"
+        >
           {message}
         </p>
       ) : null}
@@ -506,7 +545,7 @@ function PlayersAdmin({ sessionToken }: { sessionToken: string }) {
       {revealedPin ? (
         <section
           role="status"
-          className="border-2 border-ink bg-yellow p-4"
+          className="panel border-ink bg-yellow p-4"
           aria-labelledby="revealed-pin-title"
         >
           <h2
@@ -548,7 +587,10 @@ function PlayersAdmin({ sessionToken }: { sessionToken: string }) {
             </button>
           </div>
           {pinCopied ? (
-            <p role="status" className="mt-2 text-sm font-semibold text-green-dark">
+            <p
+              role="status"
+              className="ui-message-pop mt-2 text-sm font-semibold text-green-dark"
+            >
               PIN copié
             </p>
           ) : null}
@@ -566,7 +608,7 @@ function PlayersAdmin({ sessionToken }: { sessionToken: string }) {
           placeholder="Nouveau pseudo"
           maxLength={30}
           required
-          className="w-full rounded-[var(--radius-sm)] border-2 border-ink bg-canvas px-3 py-3 font-semibold"
+          className="field-input min-h-11"
         />
         <button type="submit" className="btn-ink sm:w-auto" disabled={pending}>
           Ajouter
@@ -586,7 +628,7 @@ function PlayersAdmin({ sessionToken }: { sessionToken: string }) {
                       <input
                         value={editName}
                         onChange={(event) => setEditName(event.target.value)}
-                        className="w-full rounded-[var(--radius-sm)] border-2 border-ink px-3 py-2 font-semibold"
+                        className="field-input"
                         maxLength={30}
                       />
                       <button
@@ -610,10 +652,10 @@ function PlayersAdmin({ sessionToken }: { sessionToken: string }) {
                 </div>
                 <span
                   className={[
-                    'border px-2 py-1 text-[10px] font-black tracking-wider uppercase',
+                    'badge-text',
                     player.isActive
                       ? 'border-green bg-green text-white'
-                      : 'border-border bg-canvas text-muted',
+                      : 'border-border bg-surface-muted text-muted',
                   ].join(' ')}
                 >
                   {player.isActive ? 'Actif' : 'Inactif'}
@@ -622,7 +664,7 @@ function PlayersAdmin({ sessionToken }: { sessionToken: string }) {
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  className="border-2 border-ink px-3 py-2 text-[11px] font-extrabold tracking-wider uppercase"
+                  className={ADMIN_LINE_BTN}
                   onClick={() => {
                     setEditingId(player.id)
                     setEditName(player.pseudo)
@@ -632,7 +674,7 @@ function PlayersAdmin({ sessionToken }: { sessionToken: string }) {
                 </button>
                 <button
                   type="button"
-                  className="border-2 border-ink px-3 py-2 text-[11px] font-extrabold tracking-wider uppercase"
+                  className={ADMIN_LINE_BTN}
                   disabled={pending}
                   onClick={() => void handleToggle(player)}
                 >
@@ -640,7 +682,7 @@ function PlayersAdmin({ sessionToken }: { sessionToken: string }) {
                 </button>
                 <button
                   type="button"
-                  className="border-2 border-ink px-3 py-2 text-[11px] font-extrabold tracking-wider uppercase"
+                  className={ADMIN_LINE_BTN}
                   disabled={pending}
                   onClick={() => void handleResetPin(player)}
                 >
@@ -648,7 +690,7 @@ function PlayersAdmin({ sessionToken }: { sessionToken: string }) {
                 </button>
                 <button
                   type="button"
-                  className="border-2 border-ink px-3 py-2 text-[11px] font-extrabold tracking-wider uppercase"
+                  className={ADMIN_LINE_BTN}
                   disabled={pending}
                   onClick={() => void handleUnlock(player)}
                 >
@@ -869,28 +911,30 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
   })
 
   return (
-    <div className="space-y-4">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="title-display text-xl">Matchs</h1>
-          <p className="mt-1 text-sm text-muted">
-            Synchronisation Fixture Download ou saisie manuelle.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="btn-ink sm:w-auto"
-            disabled={syncing || pending}
-            onClick={() => void handleSync()}
-          >
-            {syncing ? 'Synchronisation…' : 'Synchroniser les matchs'}
-          </button>
-          <button type="button" className="border-2 border-ink px-4 py-3 text-xs font-extrabold tracking-wider uppercase sm:w-auto" onClick={openCreate}>
-            Ajouter un match
-          </button>
-        </div>
-      </header>
+    <div className="page-stack">
+      <PageHeader
+        title="Matchs"
+        description="Synchronisation Fixture Download ou saisie manuelle."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn-ink w-auto min-w-0 sm:min-w-0"
+              disabled={syncing || pending}
+              onClick={() => void handleSync()}
+            >
+              {syncing ? 'Synchronisation…' : 'Synchroniser les matchs'}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary w-auto min-w-0 sm:min-w-0"
+              onClick={openCreate}
+            >
+              Ajouter un match
+            </button>
+          </div>
+        }
+      />
 
       <section className="panel space-y-2 p-4 text-sm">
         <p>
@@ -946,7 +990,11 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
         </p>
       ) : null}
       {message ? (
-        <p role="status" aria-live="polite" className="text-sm font-semibold text-green-dark">
+        <p
+          role="status"
+          aria-live="polite"
+          className="ui-message-pop text-sm font-semibold text-green-dark"
+        >
           {message}
         </p>
       ) : null}
@@ -1004,7 +1052,7 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
                 className="field-input"
               />
             </Field>
-            <label className="flex items-center gap-2 self-end pb-1 text-[11px] font-bold tracking-[0.12em] uppercase">
+            <label className="flex items-center gap-2 self-end pb-1 label-caps">
               <input
                 type="checkbox"
                 checked={form.kickoffTimeConfirmed}
@@ -1014,7 +1062,7 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
                     kickoffTimeConfirmed: event.target.checked,
                   }))
                 }
-                className="size-4 border-2 border-ink"
+                className="size-4 accent-green"
               />
               Horaire confirmé
             </label>
@@ -1057,7 +1105,7 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
               >
                 {STATUS_OPTIONS.map((status) => (
                   <option key={status} value={status}>
-                    {status}
+                    {DB_STATUS_LABELS[status]}
                   </option>
                 ))}
               </select>
@@ -1112,7 +1160,7 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
             {editing ? (
               <button
                 type="button"
-                className="border-2 border-ink px-4 py-3 text-xs font-extrabold tracking-wider uppercase"
+                className="btn-secondary w-auto min-w-0 sm:min-w-0"
                 disabled={pending}
                 onClick={() =>
                   setConfirmResult({
@@ -1127,7 +1175,7 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
             ) : null}
             <button
               type="button"
-              className="border-2 border-border px-4 py-3 text-xs font-extrabold tracking-wider uppercase"
+              className="btn-ghost"
               onClick={() => {
                 setFormOpen(false)
                 setEditing(null)
@@ -1180,17 +1228,17 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
                     ) : null}
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <span className="border border-ink px-2 py-1 text-[10px] font-black tracking-wider uppercase">
+                    <span className="badge-text border-ink bg-surface text-ink">
                       {DB_STATUS_LABELS[match.dbStatus]}
                     </span>
                     <span
                       className={[
-                        'border px-2 py-1 text-[10px] font-black tracking-wider uppercase',
+                        'badge-text',
                         badge === 'synced'
                           ? 'border-green bg-green text-white'
                           : badge === 'manual_override'
                             ? 'border-ink bg-yellow text-ink'
-                            : 'border-border bg-canvas text-muted',
+                            : 'border-border bg-surface-muted text-muted',
                       ].join(' ')}
                     >
                       {badge === 'synced'
@@ -1204,7 +1252,7 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    className="border-2 border-ink px-3 py-2 text-[11px] font-extrabold tracking-wider uppercase"
+                    className={ADMIN_LINE_BTN}
                     onClick={() => openEdit(match)}
                   >
                     Modifier
@@ -1212,7 +1260,7 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
                   {badge === 'manual_override' ? (
                     <button
                       type="button"
-                      className="border-2 border-ink px-3 py-2 text-[11px] font-extrabold tracking-wider uppercase"
+                      className={ADMIN_LINE_BTN}
                       disabled={pending}
                       onClick={() => void handleClearOverride(match.id)}
                     >
@@ -1323,13 +1371,11 @@ function SettingsAdmin({ sessionToken }: { sessionToken: string }) {
   }
 
   return (
-    <div className="space-y-4">
-      <header>
-        <h1 className="title-display text-xl">Réglages</h1>
-        <p className="mt-1 text-sm text-muted">
-          Informations utiles — aucun secret affiché.
-        </p>
-      </header>
+    <div className="page-stack">
+      <PageHeader
+        title="Réglages"
+        description="Informations utiles — aucun secret affiché."
+      />
 
       {error ? (
         <p role="alert" className="text-sm font-semibold text-danger">
@@ -1337,7 +1383,11 @@ function SettingsAdmin({ sessionToken }: { sessionToken: string }) {
         </p>
       ) : null}
       {message ? (
-        <p role="status" aria-live="polite" className="text-sm font-semibold text-green-dark">
+        <p
+          role="status"
+          aria-live="polite"
+          className="ui-message-pop text-sm font-semibold text-green-dark"
+        >
           {message}
         </p>
       ) : null}
@@ -1457,8 +1507,8 @@ function Field({
   children: ReactNode
 }) {
   return (
-    <label className="block text-[11px] font-bold tracking-[0.12em] uppercase">
-      <span className="mb-1.5 block">{label}</span>
+    <label className="block">
+      <span className="label-caps mb-1.5 block">{label}</span>
       {children}
     </label>
   )

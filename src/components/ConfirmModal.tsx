@@ -90,7 +90,7 @@ export function ConfirmModal({
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         tabIndex={-1}
-        className="w-full max-w-md border border-ink bg-surface p-5 shadow-none outline-none"
+        className="w-full max-w-md rounded-[var(--radius-md)] border border-ink bg-surface p-5 shadow-none outline-none"
         onClick={(event) => event.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
