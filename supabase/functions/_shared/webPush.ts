@@ -13,6 +13,7 @@ import {
   logPushServiceError,
   pushProviderFromEndpoint,
   readPushServiceReason,
+  shouldAttachWebPushTopic,
 } from './pushServiceError.ts'
 
 const ALLOWED_HOST_SUFFIXES = [
@@ -170,10 +171,13 @@ export async function createWebPushSender(env: {
       // FCM ignore ; Apple peut répondre 400 BadWebPushRequest si le
       // record aes128gcm ne respecte pas RFC 8291 (un seul record, rs
       // compatible ~4 KiB). On journalise le `reason` Apple, sans secrets.
+      const provider = pushProviderFromEndpoint(subscription.endpoint)
       await subscriber.pushTextMessage(JSON.stringify(payload), {
         ttl: 60 * 60 * 12,
         urgency: webpush.Urgency.Normal,
-        ...(options?.topic ? { topic: options.topic } : {}),
+        ...(options?.topic && shouldAttachWebPushTopic(provider)
+          ? { topic: options.topic }
+          : {}),
       })
       return { ok: true, status: 201 }
     } catch (error) {

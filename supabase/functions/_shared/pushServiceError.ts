@@ -34,6 +34,13 @@ export function isAppleSafeWebPushTopic(topic: string): boolean {
   return APPLE_TOPIC_RE.test(topic)
 }
 
+/** Apple rejette nos Topics RFC 8030 ; FCM et Mozilla les acceptent. */
+export function shouldAttachWebPushTopic(
+  provider: PushServiceProvider,
+): boolean {
+  return provider !== 'apple'
+}
+
 /**
  * Extrait `reason` d’un JSON Apple `{ "reason": "BadWebPushRequest" }`.
  * Ignore tout texte qui ressemble à une URL, une clé ou un JWT.

@@ -7,6 +7,7 @@ import {
   extractPushServiceReason,
   isAppleSafeWebPushTopic,
   pushProviderFromEndpoint,
+  shouldAttachWebPushTopic,
 } from '../supabase/functions/_shared/pushServiceError.ts'
 import { webPushTopic } from '../supabase/functions/_shared/pushReminderPlanner.ts'
 import {
@@ -209,6 +210,16 @@ describe('push edge function', () => {
     assert.match(webPush, /Urgency\.Normal/)
     assert.match(webPush, /status === 404 \|\| status === 410/)
     assert.match(webPush, /status === 429 \|\| status >= 500/)
+    assert.match(
+      webPush,
+      /const provider = pushProviderFromEndpoint\(subscription\.endpoint\)/,
+    )
+    assert.match(
+      webPush,
+      /options\?\.topic && shouldAttachWebPushTopic\(provider\)/,
+    )
+    assert.match(webPush, /buildNotificationPayload\(claim\)/)
+    assert.match(webPush, /webPushTopic\(claim\)/)
   })
 
   it('logs Apple push error reason without endpoint or keys', () => {
@@ -671,6 +682,62 @@ describe('smoke test variants', () => {
     assert.match(webPush, /webPushTopic\(claim\)/)
     assert.doesNotMatch(webPush, /resolveSmokeTestSend/)
     assert.doesNotMatch(webPush, /SYNTHETIC_KICKOFF_CLAIM/)
+  })
+})
+
+describe('Apple Topic omission', () => {
+  const TOPIC = 'kickoff5-74e86cb8d62f480a'
+
+  function attachedTopic(endpoint, topic) {
+    const provider = pushProviderFromEndpoint(endpoint)
+    return topic && shouldAttachWebPushTopic(provider) ? topic : undefined
+  }
+
+  it('omits Topic for Apple endpoints even when options.topic is set', () => {
+    assert.equal(shouldAttachWebPushTopic('apple'), false)
+    assert.equal(
+      attachedTopic('https://web.push.apple.com/opaque', TOPIC),
+      undefined,
+    )
+    const webPush = read('supabase/functions/_shared/webPush.ts')
+    assert.match(
+      webPush,
+      /options\?\.topic && shouldAttachWebPushTopic\(provider\)/,
+    )
+  })
+
+  it('keeps Topic for FCM endpoints when options.topic is set', () => {
+    assert.equal(shouldAttachWebPushTopic('fcm'), true)
+    assert.equal(
+      attachedTopic('https://fcm.googleapis.com/fcm/send/xyz', TOPIC),
+      TOPIC,
+    )
+  })
+
+  it('keeps Topic for Mozilla endpoints when options.topic is set', () => {
+    assert.equal(shouldAttachWebPushTopic('mozilla'), true)
+    assert.equal(
+      attachedTopic(
+        'https://updates.push.services.mozilla.com/wpush/v2/xyz',
+        TOPIC,
+      ),
+      TOPIC,
+    )
+  })
+
+  it('sends no Topic when options.topic is absent, for every provider', () => {
+    for (const endpoint of [
+      'https://web.push.apple.com/opaque',
+      'https://fcm.googleapis.com/fcm/send/xyz',
+      'https://updates.push.services.mozilla.com/wpush/v2/xyz',
+    ]) {
+      assert.equal(attachedTopic(endpoint, undefined), undefined)
+    }
+    const webPush = read('supabase/functions/_shared/webPush.ts')
+    assert.match(
+      webPush,
+      /\.\.\.\(options\?\.topic && shouldAttachWebPushTopic\(provider\)\s*\n\s*\? \{ topic: options\.topic \}\s*\n\s*: \{\}\)/,
+    )
   })
 })
 
