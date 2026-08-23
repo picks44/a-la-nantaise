@@ -1,10 +1,14 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { type ReminderClaim } from '../_shared/pushReminderPlanner.ts'
 import {
+  isSmokeTestVariant,
+  resolveSmokeTestSend,
+  type SmokeTestVariant,
+} from '../_shared/pushSmokeTest.ts'
+import {
   assertAllowedPushEndpoint,
   createWebPushSender,
   shortEndpointFingerprint,
-  SMOKE_TEST_TOPIC,
 } from '../_shared/webPush.ts'
 
 /** Default claim lease: 5 minutes (aligned with SQL default). */
@@ -13,18 +17,6 @@ const CLAIM_LIMIT = 50
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-
-const SMOKE_TEST_PAYLOAD = {
-  title: 'À la Nantaise',
-  body: 'Test des rappels réussi. Les notifications sont bien activées.',
-  icon: '/icons/icon-192.png',
-  badge: '/icons/icon-192.png',
-  tag: 'push-smoke-test',
-  data: {
-    url: '/parametres',
-    type: 'smoke_test',
-  },
-} as const
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -72,6 +64,7 @@ type SmokeSubscriptionRow = {
 async function handleSmokeTest(
   admin: SupabaseClient,
   subscriptionId: string,
+  variant: SmokeTestVariant,
   vapidKeysJson: string,
   vapidSubject: string,
 ): Promise<Response> {
@@ -121,6 +114,7 @@ async function handleSmokeTest(
       {
         ok: false,
         mode: 'smoke_test',
+        variant,
         subscription_id: subscriptionId,
         status: 'failed',
       },
@@ -146,6 +140,7 @@ async function handleSmokeTest(
     )
   }
 
+  const { payload, topic } = resolveSmokeTestSend(variant)
   const result = await sender.sendPayload(
     {
       endpoint: sub.endpoint,
@@ -153,15 +148,16 @@ async function handleSmokeTest(
       auth: sub.auth,
       content_encoding: sub.content_encoding,
     },
-    SMOKE_TEST_PAYLOAD,
-    { topic: SMOKE_TEST_TOPIC },
+    payload,
+    topic === undefined ? {} : { topic },
   )
 
   if (result.ok) {
-    console.log('smoke_test sent', fp)
+    console.log('smoke_test sent', variant, fp)
     return jsonResponse({
       ok: true,
       mode: 'smoke_test',
+      variant,
       subscription_id: subscriptionId,
       sent: 1,
       status: result.status,
@@ -187,6 +183,7 @@ async function handleSmokeTest(
       {
         ok: false,
         mode: 'smoke_test',
+        variant,
         subscription_id: subscriptionId,
         status: 'expired',
       },
@@ -195,11 +192,12 @@ async function handleSmokeTest(
   }
 
   const synthetic = result.retryable ? 'retryable' : 'failed'
-  console.error('smoke_test', synthetic, result.status, result.reason, fp)
+  console.error('smoke_test', variant, synthetic, result.status, result.reason, fp)
   return jsonResponse(
     {
       ok: false,
       mode: 'smoke_test',
+      variant,
       subscription_id: subscriptionId,
       status: synthetic,
     },
@@ -229,13 +227,13 @@ Deno.serve(async (req) => {
   let body: {
     cron_secret?: string
     dry_run?: boolean
-    smoke_test?: { subscription_id?: unknown }
+    smoke_test?: { subscription_id?: unknown; variant?: unknown }
   }
   try {
     body = (await req.json()) as {
       cron_secret?: string
       dry_run?: boolean
-      smoke_test?: { subscription_id?: unknown }
+      smoke_test?: { subscription_id?: unknown; variant?: unknown }
     }
   } catch {
     return publicError('INVALID_BODY', 'JSON invalide.', 400)
@@ -265,9 +263,22 @@ Deno.serve(async (req) => {
       )
     }
 
+    const rawVariant = body.smoke_test.variant
+    if (rawVariant !== undefined && !isSmokeTestVariant(rawVariant)) {
+      return publicError(
+        'INVALID_SMOKE_VARIANT',
+        'variant smoke_test inconnue.',
+        400,
+      )
+    }
+    const variant: SmokeTestVariant = isSmokeTestVariant(rawVariant)
+      ? rawVariant
+      : 'default'
+
     return await handleSmokeTest(
       admin,
       body.smoke_test.subscription_id,
+      variant,
       vapidKeysJson,
       vapidSubject,
     )

@@ -9,6 +9,12 @@ import {
   pushProviderFromEndpoint,
 } from '../supabase/functions/_shared/pushServiceError.ts'
 import { webPushTopic } from '../supabase/functions/_shared/pushReminderPlanner.ts'
+import {
+  isSmokeTestVariant,
+  resolveSmokeTestSend,
+  SMOKE_TEST_PAYLOAD,
+  SYNTHETIC_KICKOFF_CLAIM,
+} from '../supabase/functions/_shared/pushSmokeTest.ts'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -223,7 +229,7 @@ describe('push edge function', () => {
       /console\.(?:log|error)\([^)]*(?:endpoint|p256dh|\bauth\b)/,
     )
     assert.match(index, /result\.reason/)
-    assert.match(index, /console\.error\('smoke_test', synthetic, result\.status, result\.reason, fp\)/)
+    assert.match(index, /console\.error\('smoke_test', variant, synthetic, result\.status, result\.reason, fp\)/)
     assert.match(index, /console\.error\('push failed', result\.status, result\.reason, fp\)/)
     assert.doesNotMatch(index, /console\.(?:log|error)\([^)]*claim\.endpoint/)
     assert.doesNotMatch(webPush, /console\.(?:log|error)\([^)]*subscription\.endpoint/)
@@ -269,10 +275,13 @@ describe('push edge function', () => {
     assert.match(index, /SUBSCRIPTION_NOT_FOUND/)
     assert.match(index, /UNSUPPORTED_ENCODING/)
     assert.match(index, /mode:\s*'smoke_test'/)
-    assert.match(index, /SMOKE_TEST_TOPIC/)
-    assert.match(index, /Test des rappels réussi/)
-    assert.match(index, /type:\s*'smoke_test'/)
-    assert.match(index, /url:\s*'\/parametres'/)
+    assert.match(index, /INVALID_SMOKE_VARIANT/)
+    assert.match(index, /resolveSmokeTestSend/)
+    const smokeHelper = read('supabase/functions/_shared/pushSmokeTest.ts')
+    assert.match(smokeHelper, /Test des rappels réussi/)
+    assert.match(smokeHelper, /type:\s*'smoke_test'/)
+    assert.match(smokeHelper, /url:\s*'\/parametres'/)
+    assert.match(smokeHelper, /SMOKE_TEST_TOPIC|push-smoke-test/)
     assert.match(index, /status:\s*'expired'/)
     assert.match(index, /result\.retryable \? 'retryable' : 'failed'/)
     assert.match(index, /status:\s*'failed'/)
@@ -601,3 +610,77 @@ describe('push service error parsing', () => {
     }
   })
 })
+
+describe('smoke test variants', () => {
+  it('rejects an unknown variant in the edge function', () => {
+    const index = read(
+      'supabase/functions/send-prediction-reminders/index.ts',
+    )
+    assert.match(index, /INVALID_SMOKE_VARIANT/)
+    assert.match(index, /isSmokeTestVariant\(rawVariant\)/)
+    assert.equal(isSmokeTestVariant('nope'), false)
+    assert.equal(isSmokeTestVariant('default'), true)
+    assert.equal(isSmokeTestVariant('kickoff_full'), true)
+    assert.equal(isSmokeTestVariant('kickoff_no_topic'), true)
+    assert.equal(isSmokeTestVariant('smoke_kickoff_topic'), true)
+  })
+
+  it('uses the smoke payload and smoke topic for default', () => {
+    const send = resolveSmokeTestSend('default')
+    assert.equal(send.payload, SMOKE_TEST_PAYLOAD)
+    assert.equal(send.topic, 'push-smoke-test')
+    const webPush = read('supabase/functions/_shared/webPush.ts')
+    assert.match(webPush, /SMOKE_TEST_TOPIC\s*=\s*'push-smoke-test'/)
+  })
+
+  it('uses kickoff payload and kickoff topic for kickoff_full', () => {
+    const send = resolveSmokeTestSend('kickoff_full')
+    assert.deepEqual(send.payload, expectedKickoffPayload())
+    assert.equal(send.topic, webPushTopic(SYNTHETIC_KICKOFF_CLAIM))
+    assert.equal(send.topic, 'kickoff5-74e86cb8d62f480a')
+  })
+
+  it('uses kickoff payload without a topic for kickoff_no_topic', () => {
+    const send = resolveSmokeTestSend('kickoff_no_topic')
+    assert.deepEqual(send.payload, expectedKickoffPayload())
+    assert.equal(send.topic, undefined)
+  })
+
+  it('uses smoke payload with kickoff topic for smoke_kickoff_topic', () => {
+    const send = resolveSmokeTestSend('smoke_kickoff_topic')
+    assert.equal(send.payload, SMOKE_TEST_PAYLOAD)
+    assert.equal(send.topic, webPushTopic(SYNTHETIC_KICKOFF_CLAIM))
+  })
+
+  it('does not log secrets in the smoke variant path', () => {
+    const index = read(
+      'supabase/functions/send-prediction-reminders/index.ts',
+    )
+    const helper = read('supabase/functions/_shared/pushSmokeTest.ts')
+    assert.doesNotMatch(index, /console\.(?:log|error)\([^)]*sub\.endpoint/)
+    assert.doesNotMatch(index, /console\.(?:log|error)\([^)]*sub\.p256dh/)
+    assert.doesNotMatch(index, /console\.(?:log|error)\([^)]*sub\.auth/)
+    assert.doesNotMatch(helper, /console\.(?:log|error)/)
+    assert.match(helper, /p256dh: 'synthetic'/)
+  })
+
+  it('keeps sendReminder on the real claim payload and topic', () => {
+    const webPush = read('supabase/functions/_shared/webPush.ts')
+    assert.match(webPush, /async sendReminder\(claim: ReminderClaim\)/)
+    assert.match(webPush, /buildNotificationPayload\(claim\)/)
+    assert.match(webPush, /webPushTopic\(claim\)/)
+    assert.doesNotMatch(webPush, /resolveSmokeTestSend/)
+    assert.doesNotMatch(webPush, /SYNTHETIC_KICKOFF_CLAIM/)
+  })
+})
+
+function expectedKickoffPayload() {
+  return {
+    title: "Coup d'envoi dans 5 min",
+    body: 'FC Nantes - AS Nancy Lorraine va commencer. À l\'ouverture du match, découvre les pronos du groupe.',
+    matchId: SYNTHETIC_KICKOFF_CLAIM.match_id,
+    reminderType: 'kickoff_5m',
+    url: `/calendrier?match=${SYNTHETIC_KICKOFF_CLAIM.match_id}`,
+    tag: `aln-kickoff-5m-${SYNTHETIC_KICKOFF_CLAIM.match_id}`,
+  }
+}
