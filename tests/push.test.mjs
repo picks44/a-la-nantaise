@@ -3,6 +3,12 @@ import { readFileSync, existsSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  extractPushServiceReason,
+  isAppleSafeWebPushTopic,
+  pushProviderFromEndpoint,
+} from '../supabase/functions/_shared/pushServiceError.ts'
+import { webPushTopic } from '../supabase/functions/_shared/pushReminderPlanner.ts'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -197,6 +203,30 @@ describe('push edge function', () => {
     assert.match(webPush, /Urgency\.Normal/)
     assert.match(webPush, /status === 404 \|\| status === 410/)
     assert.match(webPush, /status === 429 \|\| status >= 500/)
+  })
+
+  it('logs Apple push error reason without endpoint or keys', () => {
+    const webPush = read('supabase/functions/_shared/webPush.ts')
+    const index = read(
+      'supabase/functions/send-prediction-reminders/index.ts',
+    )
+    const helper = read('supabase/functions/_shared/pushServiceError.ts')
+
+    assert.match(webPush, /readPushServiceReason/)
+    assert.match(webPush, /logPushServiceError/)
+    assert.match(webPush, /pushProviderFromEndpoint/)
+    assert.match(helper, /msg: 'push_service_error'/)
+    assert.match(helper, /provider: entry\.provider/)
+    assert.match(helper, /\.reason/)
+    assert.doesNotMatch(
+      helper,
+      /console\.(?:log|error)\([^)]*(?:endpoint|p256dh|\bauth\b)/,
+    )
+    assert.match(index, /result\.reason/)
+    assert.match(index, /console\.error\('smoke_test', synthetic, result\.status, result\.reason, fp\)/)
+    assert.match(index, /console\.error\('push failed', result\.status, result\.reason, fp\)/)
+    assert.doesNotMatch(index, /console\.(?:log|error)\([^)]*claim\.endpoint/)
+    assert.doesNotMatch(webPush, /console\.(?:log|error)\([^)]*subscription\.endpoint/)
   })
 
   it('keeps dry_run read-only, authenticated, and allowed when sending is off', () => {
@@ -509,5 +539,65 @@ describe('push SQL regression scripts', () => {
       migration.indexOf('IF v_existing_id IS NULL THEN') <
         migration.indexOf('INSERT INTO public.push_subscriptions'),
     )
+  })
+})
+
+describe('push service error parsing', () => {
+  it('extracts Apple reason and maps hosts without storing secrets', () => {
+    assert.equal(
+      extractPushServiceReason('{"reason":"BadWebPushRequest"}'),
+      'BadWebPushRequest',
+    )
+    assert.equal(
+      extractPushServiceReason('{"reason":"BadWebPushTopic"}'),
+      'BadWebPushTopic',
+    )
+    assert.equal(extractPushServiceReason('{"reason":"BadTtl"}'), 'BadTtl')
+    assert.equal(extractPushServiceReason('{"reason":"not a reason!!"}'), null)
+    assert.equal(
+      extractPushServiceReason('{"reason":"https://web.push.apple.com/token"}'),
+      null,
+    )
+    assert.equal(extractPushServiceReason('<html>nope</html>'), null)
+    assert.equal(
+      pushProviderFromEndpoint('https://web.push.apple.com/abc'),
+      'apple',
+    )
+    assert.equal(
+      pushProviderFromEndpoint('https://fcm.googleapis.com/fcm/send/xyz'),
+      'fcm',
+    )
+    assert.equal(isAppleSafeWebPushTopic('push-smoke-test'), true)
+    assert.equal(isAppleSafeWebPushTopic('bad topic'), false)
+    assert.equal(isAppleSafeWebPushTopic('a'.repeat(33)), false)
+  })
+
+  it('keeps reminder topics within Apple Topic charset and length', () => {
+    const matchId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
+    const base = {
+      delivery_id: 'd1',
+      reminder_id: 'r1',
+      subscription_id: 's1',
+      match_id: matchId,
+      player_id: 'p1',
+      home_team: 'Nantes',
+      away_team: 'Rennes',
+      kickoff_at: '2026-08-23T18:00:00Z',
+      endpoint: 'https://web.push.apple.com/opaque',
+      p256dh: 'p',
+      auth: 'a',
+      content_encoding: 'aes128gcm',
+    }
+
+    for (const reminder_type of [
+      '24h',
+      '2h',
+      'kickoff_5m',
+      'results_available',
+    ]) {
+      const topic = webPushTopic({ ...base, reminder_type })
+      assert.equal(isAppleSafeWebPushTopic(topic), true, topic)
+      assert.ok(topic.length <= 32, topic)
+    }
   })
 })

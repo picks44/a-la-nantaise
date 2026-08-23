@@ -9,6 +9,11 @@ import {
   buildNotificationPayload,
   webPushTopic,
 } from './pushReminderPlanner.ts'
+import {
+  logPushServiceError,
+  pushProviderFromEndpoint,
+  readPushServiceReason,
+} from './pushServiceError.ts'
 
 const ALLOWED_HOST_SUFFIXES = [
   '.googleapis.com',
@@ -30,7 +35,13 @@ export const SMOKE_TEST_TOPIC = 'push-smoke-test'
 
 export type PushSendResult =
   | { ok: true; status: number }
-  | { ok: false; status: number | null; expired: boolean; retryable: boolean }
+  | {
+      ok: false
+      status: number | null
+      expired: boolean
+      retryable: boolean
+      reason: string | null
+    }
 
 export interface PushSubscriptionMaterial {
   endpoint: string
@@ -127,11 +138,23 @@ export async function createWebPushSender(env: {
     try {
       assertAllowedPushEndpoint(subscription.endpoint)
     } catch {
-      return { ok: false, status: null, expired: false, retryable: false }
+      return {
+        ok: false,
+        status: null,
+        expired: false,
+        retryable: false,
+        reason: null,
+      }
     }
 
     if (subscription.content_encoding !== 'aes128gcm') {
-      return { ok: false, status: null, expired: false, retryable: false }
+      return {
+        ok: false,
+        status: null,
+        expired: false,
+        retryable: false,
+        reason: null,
+      }
     }
 
     const subscriber = appServer.subscribe({
@@ -143,6 +166,10 @@ export async function createWebPushSender(env: {
     })
 
     try {
+      // @negrel/webpush@0.5.0 → @negrel/http-ece rs=65536 par défaut.
+      // FCM ignore ; Apple peut répondre 400 BadWebPushRequest si le
+      // record aes128gcm ne respecte pas RFC 8291 (un seul record, rs
+      // compatible ~4 KiB). On journalise le `reason` Apple, sans secrets.
       await subscriber.pushTextMessage(JSON.stringify(payload), {
         ttl: 60 * 60 * 12,
         urgency: webpush.Urgency.Normal,
@@ -154,10 +181,22 @@ export async function createWebPushSender(env: {
         const status = error.response.status
         const expired = status === 404 || status === 410
         const retryable = status === 429 || status >= 500
-        return { ok: false, status, expired, retryable }
+        const reason = await readPushServiceReason(error.response)
+        logPushServiceError({
+          provider: pushProviderFromEndpoint(subscription.endpoint),
+          status,
+          reason,
+        })
+        return { ok: false, status, expired, retryable, reason }
       }
       // Timeout / réseau ambigu : pas de retry automatique
-      return { ok: false, status: null, expired: false, retryable: false }
+      return {
+        ok: false,
+        status: null,
+        expired: false,
+        retryable: false,
+        reason: null,
+      }
     }
   }
 

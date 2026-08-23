@@ -195,7 +195,7 @@ async function handleSmokeTest(
   }
 
   const synthetic = result.retryable ? 'retryable' : 'failed'
-  console.error('smoke_test', synthetic, result.status, fp)
+  console.error('smoke_test', synthetic, result.status, result.reason, fp)
   return jsonResponse(
     {
       ok: false,
@@ -437,7 +437,7 @@ Deno.serve(async (req) => {
         p_response_status: result.status,
       })
       summary.expired += 1
-      console.error('push expired', result.status, fp)
+      console.error('push expired', result.status, result.reason, fp)
       continue
     }
 
@@ -447,7 +447,7 @@ Deno.serve(async (req) => {
       p_response_status: result.status,
     })
     summary.failed += 1
-    console.error('push failed', result.status, fp)
+    console.error('push failed', result.status, result.reason, fp)
   }
 
   return jsonResponse({
