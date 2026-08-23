@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react'
 import { Link } from 'react-router-dom'
-import { KeyRound, LogOut } from 'lucide-react'
+import { Home, KeyRound, LogOut } from 'lucide-react'
 import { BrandMark } from '../components/BrandMark'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { PageHeader } from '../components/PageHeader'
@@ -61,6 +61,10 @@ const ADMIN_TAB_ORDER = ['matches', 'players', 'settings'] as const
 
 const ADMIN_LINE_BTN =
   'btn-secondary w-auto min-w-0 px-2.5 text-xs sm:min-w-0'
+
+/** Contrôles du header admin : même traitement que les actions sur fond jaune de l’App. */
+const ADMIN_HEADER_ACTION =
+  'inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius-sm)] px-2 text-xs font-extrabold tracking-[0.1em] text-ink/75 uppercase transition-[color,background-color] duration-150 ease-out hover:bg-ink/10 hover:text-ink'
 
 const STATUS_OPTIONS: DbMatchStatus[] = [
   'scheduled',
@@ -275,29 +279,44 @@ function AdminShell({
               <p className="truncate text-base font-black tracking-tight text-ink uppercase sm:text-xl">
                 À la Nantaise
               </p>
-              <p className="hidden truncate text-[10px] font-semibold tracking-[0.06em] text-ink/60 min-[400px]:block">
+              {/* « Administration » reste visible même en 320 px : seul repère qui distingue ce header de celui de l’app. */}
+              <p className="truncate text-[10px] font-semibold tracking-[0.06em] text-ink/60">
                 <span className="tracking-[0.12em] text-green-dark/75 uppercase">
                   Administration
                 </span>
-                <span className="mx-1.5 text-ink/25">·</span>
-                <span className="tracking-[0.12em] text-green-dark/75 uppercase">
+                <span className="mx-1.5 hidden text-ink/25 min-[400px]:inline">
+                  ·
+                </span>
+                <span className="hidden tracking-[0.12em] text-green-dark/75 uppercase min-[400px]:inline">
                   Saison 26/27
                 </span>
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-            <Link to="/" className="btn-secondary w-auto min-w-0 sm:min-w-0">
-              App
+          <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+            <Link
+              to="/"
+              className={ADMIN_HEADER_ACTION}
+              aria-label="Revenir à l’application"
+              title="Revenir à l’application"
+            >
+              <Home aria-hidden="true" className="size-5" strokeWidth={2.25} />
+              <span className="hidden min-[400px]:inline">App</span>
             </Link>
             {onLeave ? (
               <button
                 type="button"
                 onClick={onLeave}
-                className="btn-ink w-auto min-w-0 gap-1 sm:min-w-0"
+                className={ADMIN_HEADER_ACTION}
+                aria-label="Quitter l’administration"
+                title="Quitter l’administration"
               >
-                <LogOut aria-hidden="true" className="size-4" />
-                Quitter
+                <LogOut
+                  aria-hidden="true"
+                  className="size-5"
+                  strokeWidth={2.25}
+                />
+                <span className="hidden min-[400px]:inline">Quitter</span>
               </button>
             ) : null}
           </div>
@@ -567,10 +586,10 @@ function PlayersAdmin({ sessionToken }: { sessionToken: string }) {
           <p className="mt-1 text-xs text-muted">
             Expire le {new Date(revealedPin.expiresAt).toLocaleString('fr-FR')}.
           </p>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <button
               type="button"
-              className="btn-ink"
+              className="btn-ink sm:w-auto sm:min-w-0"
               onClick={() => void handleCopyTempPin()}
             >
               Copier le PIN
@@ -915,26 +934,25 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
       <PageHeader
         title="Matchs"
         description="Synchronisation Fixture Download ou saisie manuelle."
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="btn-ink w-auto min-w-0 sm:min-w-0"
-              disabled={syncing || pending}
-              onClick={() => void handleSync()}
-            >
-              {syncing ? 'Synchronisation…' : 'Synchroniser les matchs'}
-            </button>
-            <button
-              type="button"
-              className="btn-secondary w-auto min-w-0 sm:min-w-0"
-              onClick={openCreate}
-            >
-              Ajouter un match
-            </button>
-          </div>
-        }
       />
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <button
+          type="button"
+          className="btn-ink sm:w-auto sm:min-w-0"
+          disabled={syncing || pending}
+          onClick={() => void handleSync()}
+        >
+          {syncing ? 'Synchronisation…' : 'Synchroniser les matchs'}
+        </button>
+        <button
+          type="button"
+          className="btn-secondary sm:w-auto"
+          onClick={openCreate}
+        >
+          Ajouter un match
+        </button>
+      </div>
 
       <section className="panel space-y-2 p-4 text-sm">
         <p>
@@ -1153,14 +1171,18 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
               />
             </Field>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button type="submit" className="btn-ink sm:w-auto" disabled={pending}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <button
+              type="submit"
+              className="btn-ink sm:w-auto sm:min-w-0"
+              disabled={pending}
+            >
               Enregistrer
             </button>
             {editing ? (
               <button
                 type="button"
-                className="btn-secondary w-auto min-w-0 sm:min-w-0"
+                className="btn-secondary sm:w-auto"
                 disabled={pending}
                 onClick={() =>
                   setConfirmResult({
@@ -1197,7 +1219,7 @@ function MatchesAdmin({ sessionToken }: { sessionToken: string }) {
             return (
               <li key={match.id} className="panel p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-[11px] font-bold tracking-[0.12em] text-muted uppercase">
                       Journée {match.matchday} ·{' '}
                       {formatKickoffDisplay(
