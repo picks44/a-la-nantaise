@@ -1,0 +1,41 @@
+---
+description: Parcours React, session client, erreurs et styles
+globs:
+  - "src/**/*.ts"
+  - "src/**/*.tsx"
+  - "src/index.css"
+  - "index.html"
+alwaysApply: false
+---
+
+# Frontend
+
+## Où intervenir
+
+- `src/pages/` écrans, `src/components/` UI, `src/hooks/` hooks `use*`, `src/lib/` RPC et helpers, `src/context/` session, `src/types/index.ts` types de domaine.
+- RPC joueur : `src/lib/api.ts`. RPC admin : `src/lib/adminApi.ts`. Client : `src/lib/supabase.ts` (`persistSession: false`).
+- Mapping snake_case SQL → camelCase dans ces wrappers. Arguments RPC `p_snake_case`.
+
+## Session (client)
+
+Phases : `loading`, `needs_code`, `needs_player`, `needs_pin`, `needs_pin_change`, `ready`, `misconfigured`. Tant que la phase n’est pas `ready`, `AppShell` affiche `AccessPage` sans navigation. `/admin` est hors de ce shell.
+
+`rpc()` dans `api.ts` prévient `SessionProvider` seulement pour `INVALID_ACCESS_CODE`, `INVALID_SESSION` et `SESSION_EXPIRED`. Session expirée et code encore valide : retour joueur/PIN, code conservé. Autre invalidation, ou code rejeté : effacement complet. Échec réseau pendant cette vérif : code conservé, listes joueurs peut-être vides. `adminRpc()` n’utilise pas ce handler.
+
+`needs_pin_change` vient du bootstrap `get_session_player`, pas de l’invalidation générale.
+
+## Parcours à préserver
+
+- Home charge saison, matchs, pronos et classement live (`loadHomeBundle`), puis le récap de la journée de référence. Sauvegarde via `upsertPrediction`. Refus client supplémentaire : carte primaire `live` ou `awaiting_result`, ou navigateur hors ligne. Pas de file d’attente de pronos (PR #6). Le verrou qui fait foi reste SQL (règle `20`).
+- Horloge Home : 1 s. Calendrier : 30 s. Les deux pages, plus le classement, passent par `attachSoftPageRefresh` : focus, pageshow, online, visibility, coalescence. Poll réseau 30 s seulement si un résultat officiel est attendu (`shouldPollForOfficialResult`). En refresh `soft`, une erreur ne vide pas les données déjà là.
+- Timeout de page : 20 s (`PAGE_LOAD_TIMEOUT_MS`). Reveal : 15 s, requestId, annulation (`matchGroupRevealState.ts`).
+- Calendrier : onglets À venir / Terminés. Reveal préchargé pour les statuts UI `locked` et `finished` encore idle. `?match=` ouvre le détail seulement pour `finished` ou `locked`, et pas pour le prochain match ouvert (`shouldOpenDetailsForDeepLink`). La dernière rencontre terminée s’ouvre par défaut.
+- Classement : `?tab=` `general`, `participation`, `trophies`, `parcours` (`parseRankingTab`). Rang affiché = `player.rank` renvoyé par la RPC quand il est présent sur toutes les lignes. `getCompetitionRanks` ne sert que si ce rang manque. Ne pas recalculer les points dans le client.
+- Fenêtre UI « match en cours » : `MATCH_LIVE_WINDOW_MS` (150 min) dans `matchLifecycle.ts`. Seuil SQL de sync résultat : 105 min. Ne pas les fusionner.
+- Erreurs affichées : `toUserMessage` (`errors.ts`). Nouveau code SQL → `KNOWN_CODES` et message français. Pas de message brut Supabase.
+- Styles : tokens de `src/index.css` (Tailwind 4). Jaune pour l’identité et le prochain match, vert pour l’action et le succès (PR #5). Pas de feuille CSS par composant.
+- `verbatimModuleSyntax`. oxlint : `react/rules-of-hooks` en error.
+
+## Vérifier
+
+`npm run typecheck` écrit des `tsbuildinfo` sous `node_modules/.tmp/`. `npm run lint` et `npm test` ne modifient pas les sources. Si le contrat RPC change, aligner le test `tests/` ciblé et la règle `20`.

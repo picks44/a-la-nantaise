@@ -1,0 +1,37 @@
+---
+description: Contexte produit, invariants métier et état technique d’À la Nantaise
+alwaysApply: true
+---
+
+# À la Nantaise — contexte
+
+Pronostics privés sur les matchs du FC Nantes, pour un groupe fermé. SPA React. Pas de Supabase Auth (décision d’origine, commit `55669c2`, README).
+
+## Invariants métier
+
+- Les points, le reveal, les trophées et le verrouillage au coup d’envoi confirmé sont décidés dans Postgres. Le client affiche des états et envoie des RPC.
+- Auth applicative : code de groupe, PIN, jeton opaque joueur, session admin distincte. Ne pas brancher `supabase.auth`.
+- Le navigateur ne reçoit que la clé anon. L’accès direct aux tables est retiré (RLS sans policy, `REVOKE` dans `20260803100000_init.sql`).
+- Calendrier officiel : Fixture Download. Ne pas réintroduire API-Football (retrait `20260804193000`, commit `f42e3cd`).
+- UI en français. Ne pas committer ni afficher un secret.
+
+Le détail session côté client est dans la règle `10`. Le détail grants, `search_path` et asserts est dans la règle `20`.
+
+## État technique actuel
+
+Ce n’est pas une interdiction. Une demande explicite peut le changer. Ne pas le changer au passage d’un correctif.
+
+- Pas de cache serveur partagé (pas de React Query). Les pages chargent leurs bundles dans `src/lib/pageLoad.ts`.
+- `AdminPage` regroupe joueurs, matchs et code d’accès dans un seul module.
+- Pas de suite E2E dans le dépôt. Les tests présents sont `node --test` et le SQL de la stack test.
+- Session joueur dans `localStorage` (`aln_access_code`, `aln_session_token`). `aln_player_id` est effacée à la lecture : ne pas la reprendre comme identité.
+- `strict` n’est pas activé dans `tsconfig.app.json`.
+- Doc opérationnelle : `README.md` seul. `docs/production-runbook.md` et `docs/rpc-round-foundation.md` ont été supprimés (`516c21a`).
+
+## Stack
+
+Vérifier `package.json`, `package-lock.json` et `.nvmrc` avant de citer une version. Repères : Node `>=22.12.0` (`.nvmrc` = `22`), npm `11.17.0`, React 19, Vite 8, TypeScript 6, Tailwind 4, React Router 7, `@supabase/supabase-js` 2, oxlint. `pnpm-lock.yaml` est ignoré.
+
+## Carte
+
+Routes dans `src/App.tsx` : `/`, `/calendrier`, `/classement`, `/parametres`, `/admin` (lazy, hors shell). Règles : `10` frontend, `20` SQL, `30` stacks et sync, `40` PWA/push, `50` qualité et déploiement.

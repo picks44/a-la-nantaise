@@ -1,0 +1,34 @@
+---
+description: Gates, CI, lockfile, TypeScript, secrets et Vercel
+globs:
+  - "tests/**"
+  - ".github/**"
+  - "vercel.json"
+  - ".env.example"
+  - "package.json"
+  - "package-lock.json"
+  - "tsconfig.json"
+  - "tsconfig.app.json"
+  - "tsconfig.node.json"
+  - ".oxlintrc.json"
+alwaysApply: false
+---
+
+# Qualité et déploiement
+
+## Ce que les commandes écrivent
+
+- `npm run typecheck` (`tsc -b`) : pas de JS émis (`noEmit`), mais des `tsbuildinfo` dans `node_modules/.tmp/`.
+- `npm run build` : ces `tsbuildinfo` plus `dist/`.
+- `npm run lint` (`oxlint .`) et `npm test` (`node --test` sur `tests/**/*.test.mjs`) : pas de modification de source attendue. Pas de feed Fixture Download.
+- `npm run test:sql:local` : reset possible de la base test. Hors CI.
+
+CI (`.github/workflows/ci.yml`) : `npm ci`, `npm test`, `npm run lint`, `npm run build`, placeholders `VITE_*`. Pas de secret, pas de deploy, pas de SQL Docker. Pas de Prettier, ESLint, Vitest, Playwright ni Husky : état actuel, pas une interdiction si une demande les introduit.
+
+## Env et Vercel
+
+Variables navigateur : `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_VAPID_PUBLIC_KEY` si le push est actif. Rien d’autre dans `.env.example`. Priorité dev : `process.env`, puis `.env.local`, puis `.env`. `npm run env:frontend:effective` affiche le hostname, pas la clé.
+
+`vercel.json` : fallback SPA et CSP. `connect-src` limité à `https://*.supabase.co` et `wss://*.supabase.co`. Vite local n’applique pas ces headers : ne pas élargir la CSP pour le développement.
+
+La CI ne déploie pas le frontend et n’applique pas les migrations, les Edge Functions, les secrets ni les cron. Ordre historique après la PR #3 : migration Supabase d’abord, frontend ensuite. Ce n’est pas un workflow versionné.

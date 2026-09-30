@@ -1,0 +1,44 @@
+---
+description: PWA shell-only et Web Push
+globs:
+  - "vite.config.ts"
+  - "public/push-events.js"
+  - "src/lib/push.ts"
+  - "src/lib/vapid.ts"
+  - "src/lib/pwa.ts"
+  - "src/lib/pushReminderBanner.ts"
+  - "src/hooks/usePwaInstall.ts"
+  - "src/hooks/usePwaUpdate.ts"
+  - "src/hooks/usePushReminderBanner.ts"
+  - "src/hooks/useOnlineStatus.ts"
+  - "src/components/PwaUpdateBanner.tsx"
+  - "src/components/PwaOfflineBanner.tsx"
+  - "src/components/PwaInstallSection.tsx"
+  - "src/components/PushReminderBanner.tsx"
+  - "src/components/PushNotificationsSection.tsx"
+  - "supabase/functions/send-prediction-reminders/**"
+  - "supabase/functions/_shared/webPush.ts"
+  - "supabase/functions/_shared/pushSmokeTest.ts"
+  - "supabase/functions/_shared/pushReminderPlanner.ts"
+  - "supabase/functions/_shared/pushServiceError.ts"
+  - "supabase/schedule_push_reminders.example.sql"
+alwaysApply: false
+---
+
+# PWA et push
+
+## Cache (PR #6)
+
+Precache du shell et des assets hashés. Supabase en `NetworkOnly` : hôte `*.supabase.co` et chemins `/rest|rpc|auth|functions|storage/v1/` (`vite.config.ts`). `public/push-events.js` : handlers push, pas de `fetch` métier. `registerType: 'prompt'`. Pas de Background Sync, pas de CacheFirst sur les pronos, pas de file hors ligne. Headers no-cache de `sw.js`, workbox et `push-events.js` : `vercel.json`.
+
+## Notifications
+
+Événements : `24h`, `2h`, `kickoff_5m`, `results_available`. Deep-link `/calendrier?match=`. Cinq endpoints actifs par joueur ; réactiver un endpoint connu ne prend pas un slot. Le frontend ne reçoit que `VITE_VAPID_PUBLIC_KEY`. L’Edge `send-prediction-reminders` garde ce nom historique. Secrets serveur : `SUPABASE_SERVICE_ROLE_KEY`, `PUSH_CRON_SECRET`, `VAPID_KEYS_JSON`.
+
+`schedule_push_reminders.example.sql` décrit un job `a-la-nantaise-push-reminders` en `*/5` et dit de ne pas l’activer avant smoke test. Ce n’est pas une preuve que la prod tourne.
+
+`smoke_test` et l’omission du header Web Push `Topic` sur les endpoints Apple (`030f044`) : diagnostic. Ne pas l’appeler depuis l’UI joueur sans demande.
+
+## Vérifier
+
+`npm test` (`tests/pwa.test.mjs`, `tests/push.test.mjs`). `npm run build` régénère `dist/`, y compris le service worker : le dire si on l’utilise comme contrôle. Ne pas envoyer de push réel.

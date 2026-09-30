@@ -1,0 +1,36 @@
+---
+description: Deux stacks Supabase, scripts locaux et sync Fixture Download
+globs:
+  - "scripts/**"
+  - "supabase/functions/**"
+  - "supabase-test/**"
+  - "supabase/config.toml"
+  - "supabase/maintenance/**"
+  - "supabase/schedule_fixture_sync.example.sql"
+alwaysApply: false
+---
+
+# Stacks, scripts, sync
+
+## Cibles
+
+- Dev : `project_id` `a-la-nantaise`, API `127.0.0.1:54321`, Postgres `54322`, conteneur `supabase_db_a-la-nantaise`.
+- Test : `a-la-nantaise-test`, API `55321`, Postgres `55322`, workdir `supabase-test/`. Pas de seed. Migrations = `supabase/migrations/`.
+- Garde-fous : `scripts/supabase-dev-guards.mjs`, `scripts/supabase-test-shared.mjs`. Refuser `--linked`, une URL distante, la stack opposée et `CLI_INFLUENCING_ENV_VARS`.
+
+## Effets des scripts
+
+- `npm run dev` : Vite seul.
+- `npm run test:sql:local` : peut démarrer et reset la stack **test**.
+- `npm run db:setup:realistic` : reset **dev** puis JSON figé `tests/fixtures/ligue-2-2026-fc-nantes.json`.
+- `db:sync:fixtures:local` : resync locale. `--live` interroge le réseau, local seulement.
+- `db:seed:predictions:local` : après le setup réaliste, par `external_id`, sans UUID de match en dur.
+- Ne pas copier `supabase/.temp/` vers `supabase-test/`.
+
+## Edge sync
+
+`sync-fc-nantes` écrit par RPC admin. Le cron documenté dans `schedule_fixture_sync.example.sql` passe par Vault (`project_url`, `function_anon_key`, `fixture_sync_admin_code`) puis une session. Ne pas y mettre de `service_role` frontend. Ne pas réintroduire API-Football.
+
+L’exemple prévoit un job quotidien `15 5 * * *` et un job conditionnel `*/15` via `fixture_result_sync_is_needed` (kickoff confirmé + 105 min). L’état réel de `pg_cron` n’est pas dans le dépôt : ne pas le traiter comme vérifié.
+
+Push : règle `40`.

@@ -1,0 +1,58 @@
+---
+description: Migrations, asserts de session, search_path et grants SQL
+globs:
+  - "supabase/migrations/**/*.sql"
+  - "supabase/tests/**/*.sql"
+  - "supabase/seed.sql"
+  - "supabase/seed-dev-predictions.sql"
+alwaysApply: false
+---
+
+# Postgres et RPC
+
+## Où intervenir
+
+Nouvelle évolution : nouveau fichier `supabase/migrations/YYYYMMDDHHMMSS_description.sql`. Ne pas réécrire une migration déjà publiée. La définition vivante est la dernière qui remplace la fonction. Tests : `supabase/tests/*.sql`, uniquement via `npm run test:sql:local`. Seed dev : `supabase/seed.sql`. Pronos de dev : `supabase/seed-dev-predictions.sql`.
+
+## Trois familles
+
+`SECURITY DEFINER` ne suffit pas. Fixer `search_path` (`public` ou `public, extensions`, comme les RPC actuelles). `CREATE OR REPLACE` sur la même signature conserve les ACL. Un `DROP FUNCTION` suivi d’une création rend `EXECUTE` à `PUBLIC` tant que le `REVOKE` n’est pas répété dans la même migration. Le client utilise la clé anon : un `GRANT EXECUTE` à `anon` est le modèle des RPC appelées par le navigateur.
+
+### RPC métier
+
+Avant l’accès aux données, vérifier la session de l’acteur : `assert_player_session` ou `assert_admin_session`. Exemples actuels : `get_matches`, `upsert_prediction`, `get_match_group_reveal`, `get_live_season_ranking`, `admin_set_match_result`, `admin_update_access_code`, `record_fixture_sync_attempt`.
+
+`assert_admin_session` n’accepte qu’un jeton (`20260804160000`, commit `ce864a1`). Le cron peut encore faire `admin_code` → `login_admin` → jeton : ne pas casser ce parcours sans demande.
+
+### Entrée d’authentification et création de session
+
+Ces fonctions vérifient leurs propres justificatifs. Ne pas leur imposer une session déjà ouverte, ni `assert_player_session` / `assert_admin_session`.
+
+- `verify_access_code(text)` : `assert_access_code`, retourne false si le code est refusé.
+- `get_active_players(text)` : `assert_access_code`, puis la liste des joueurs actifs.
+- `login_player(text, uuid, text)` : code de groupe, puis PIN via `crypt`.
+- `login_admin(text)` : code admin via `crypt`, puis émission du jeton.
+
+Autres fonctions de session, hors assert métier. Le commentaire de `20260804100000` les laisse ainsi : `assert_player_session` lève `PIN_CHANGE_REQUIRED` et bloquerait le logout comme le changement de PIN.
+
+- `get_session_player(text)` résout le jeton elle-même, y compris `must_change_pin`.
+- `logout_player(text)` et `logout_admin(text)` révoquent par hash de jeton et retournent false si le jeton est inutilisable.
+- `change_player_pin(text, text, text)` vérifie le jeton et l’ancien PIN.
+
+`verify_admin_code(text)` garde un nom historique. Son paramètre est un jeton et son corps appelle `assert_admin_session`. Ce n’est pas une fonction de connexion.
+
+### Helpers internes
+
+`EXECUTE` reste retiré à `PUBLIC`, `anon` et `authenticated`. Déjà le cas pour `assert_access_code`, `assert_player_session`, `assert_admin_session`, `compute_prediction_points`, `recalculate_points_for_match`, `recalculate_season_achievements`, `fixture_result_sync_is_needed`. Ne pas les exposer. Ne pas recréer `recalculate_match_points(text, uuid)` (`20260819160000`).
+
+Ces constats viennent de l’ordre des fichiers SQL, pas d’un catalogue exécuté sur une base.
+
+## Métier à préserver
+
+- `upsert_prediction(text, uuid, integer, integer)` : scores 0–15, horaire confirmé, statut ouvert, `now() < kickoff_at`.
+- Reveal groupe : `get_match_group_reveal`, après session joueur. Le client ne duplique pas la condition SQL.
+- Seed standard : codes et joueurs, zéro match, zéro prono. Ne pas modifier le bloc joueurs / PIN ni recopier ces identifiants.
+
+## Vérifier
+
+Diff migrations, tests SQL ou signature RPC : `npm run test:sql:local` reset la stack test (règle `30`). Ce n’est pas une lecture seule.
