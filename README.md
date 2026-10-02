@@ -327,12 +327,7 @@ Le repo ne permet pas d’identifier seul si la cible distante correspond à la 
 
 ## Migrations Supabase
 
-Le dépôt contient actuellement les migrations de :
-
-- `20260803100000_init.sql`
-- à `20260806100000_push_register_limit_after_endpoint_lookup.sql`
-
-La source de vérité est le dossier `supabase/migrations/`, pas une liste manuelle copiée dans ce README.
+La source de vérité est le dossier `supabase/migrations/`. Il commence à `20260803100000_init.sql` et, au dernier fichier présent, va jusqu’à `20260819160000_drop_recalculate_match_points.sql`. Ne pas recopier la liste complète dans ce README.
 
 ### Workflow local recommandé
 
@@ -381,6 +376,9 @@ npm run supabase:test:status
 npm run supabase:test:stop
 npm run test:sql:local          # gate SQL manuelle / locale sur stack test
 npm run test:sql:isolation
+npm run db:setup:realistic      # reset dev + calendrier Fixture Download figé
+npm run db:sync:fixtures:local  # resync calendrier locale, sans reset
+npm run db:seed:predictions:local
 ```
 
 ## Architecture
@@ -462,12 +460,12 @@ En pratique :
 - ne jamais placer un secret serveur dans `.env.example` ;
 - ne jamais présumer qu’un projet Supabase distant est “de dev” ou “de prod” sans vérification explicite de son hostname et de son contexte de déploiement.
 
-## Dette acceptée (pour l’instant)
+## État actuel
 
-- `AdminPage` monolithique (split ultérieur)
-- pas de React Query / cache global saison
-- pas d’E2E Playwright
-- session joueur en `localStorage` (modèle actuel)
-- `strict: true` TypeScript non poussé au maximum (chantier séparé)
-- source-scans de garde-fous sécurité / env conservés volontairement
-- suites SQL hors CI Docker (gate locale volontaire)
+- `AdminPage` regroupe joueurs, matchs et code d’accès dans un seul module.
+- Pas de React Query ni de cache global de saison.
+- Pas de suite E2E dans le dépôt.
+- Session joueur en `localStorage`.
+- `strict` n’est pas activé dans `tsconfig.app.json`.
+- Des tests Node scannent le source pour des garde-fous sécurité / env.
+- Les suites SQL ne sont pas lancées par la CI. `npm run test:sql:local` reste la gate locale.

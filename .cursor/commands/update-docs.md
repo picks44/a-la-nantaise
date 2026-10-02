@@ -19,7 +19,7 @@ Hors périmètre sauf demande explicite : recréer `docs/`, ajouter un CHANGELOG
 
 `package.json`, `src/App.tsx`, le dossier `supabase/migrations/` (pas une plage recopiée), `import.meta.env`, les Edge Functions, `scripts/supabase-dev-guards.mjs`, `supabase/config.toml`, `.github/workflows/ci.yml`.
 
-Écart déjà constaté : le README ferme la liste des migrations à `20260806100000` alors que le dossier continue, notamment `20260819160000`. En mode défaut, corriger cette plage sans recopier les 36 noms. Le dossier reste la source.
+Migrations : comparer les bornes citées dans `README.md` au premier et au dernier fichier de `supabase/migrations/`. Ne pas recopier la liste. Le dossier reste la source.
 
 ## Arrêt
 
